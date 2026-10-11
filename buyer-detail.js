@@ -60,7 +60,9 @@
         return '<div class="sugg">' +
           '<div class="sugg-top"><span class="sugg-style">' + s.style + "</span>" +
           '<button class="sugg-use" data-text="' + s.text.replace(/"/g, "&quot;") + '">发到 WhatsApp</button></div>' +
-          '<div class="sugg-text">' + s.text + "</div></div>";
+          '<div class="sugg-text">' + s.text + "</div>" +
+          (s.zh ? '<div class="sugg-zh">中文：' + s.zh + "</div>" : "") +
+          "</div>";
       }).join("");
       if (!suggHtml) suggHtml = '<div class="set-note" style="padding:4px 2px 10px">该买家暂无预设建议。已配置 LLM 时，点右上方"↻ 重新生成"即可基于档案生成。</div>';
 
@@ -190,7 +192,9 @@
             return '<div class="sugg">' +
               '<div class="sugg-top"><span class="sugg-style">' + s.style + "</span>" +
               '<button class="sugg-use" data-text="' + String(s.text).replace(/"/g, "&quot;") + '">发到 WhatsApp</button></div>' +
-              '<div class="sugg-text">' + s.text + "</div></div>";
+              '<div class="sugg-text">' + s.text + "</div>" +
+              (s.zh ? '<div class="sugg-zh">中文：' + s.zh + "</div>" : "") +
+              "</div>";
           }).join("");
           bindSugg(wrap);
           App.toast("已基于最新上下文重新生成");

@@ -245,36 +245,36 @@
 
   var suggestions = {
     b1: [
-      { style: "阶梯报价 · 守住利润", text: "Hi Marcus, for 500 pcs in one batch we can offer €24.2/pc FOB (CE + 2-year warranty included). Two shipments are fine: 300 pcs in Nov, 200 in Dec. Shall I send the PI today?" },
-      { style: "以量换价 · 促大单", text: "Hi Marcus, I can meet €23.5 if we move to 800 pcs (the 500-pc tier would be €23.8). Holiday demand is strong this year — locking the November slot now secures your delivery window." }
+      { style: "阶梯报价 · 守住利润", text: "Hi Marcus, for 500 pcs in one batch we can offer €24.2/pc FOB (CE + 2-year warranty included). Two shipments are fine: 300 pcs in Nov, 200 in Dec. Shall I send the PI today?", zh: "给 Marcus 报价：500 件一批，FOB €24.2/件（含 CE 认证 + 2 年质保）。分两批出货没问题：11 月 300 件、12 月 200 件。要不要今天就把形式发票（PI）发给你？" },
+      { style: "以量换价 · 促大单", text: "Hi Marcus, I can meet €23.5 if we move to 800 pcs (the 500-pc tier would be €23.8). Holiday demand is strong this year — locking the November slot now secures your delivery window.", zh: "给 Marcus：如果量加到 800 件，我可以做到 €23.5（500 件档是 €23.8）。今年节日季需求很旺，现在锁定 11 月产能才能保证你的交期。" }
     ],
     b2: [
-      { style: "守住价格 · 强调认证", text: "Hi Sofia, our $4.9/pc includes NOM-certified drivers and 3-year warranty; uncertified drivers often fail NOM inspection. For 2,000 pcs we can offer $4.72 with a signed annual re-order plan." },
-      { style: "拆单试水 · 降低门槛", text: "Hi Sofia, to start we can do 500 pcs at $4.85 with full NOM documents. If quality checks out, the remaining 1,500 lock today's price for Q1 delivery." }
+      { style: "守住价格 · 强调认证", text: "Hi Sofia, our $4.9/pc includes NOM-certified drivers and 3-year warranty; uncertified drivers often fail NOM inspection. For 2,000 pcs we can offer $4.72 with a signed annual re-order plan.", zh: "给 Sofia：我们 $4.9/件 已经包含有 NOM 认证的驱动电源和 3 年质保，没有认证的驱动经常过不了 NOM 检测。如果 2,000 件 + 签年度返单协议，可以给到 $4.72。" },
+      { style: "拆单试水 · 降低门槛", text: "Hi Sofia, to start we can do 500 pcs at $4.85 with full NOM documents. If quality checks out, the remaining 1,500 lock today's price for Q1 delivery.", zh: "给 Sofia：先做 500 件试单，$4.85/件，NOM 全套文件齐全。如果质量过关，剩下 1,500 件按今天的价格锁定，一季度内交付。" }
     ],
     b3: [
-      { style: "账期置换 · 银行保函", text: "Hi Priya, we support Net 30 via open account after 2 confirmed orders, or a 1% bank guarantee for this order. Alternatively: 30% deposit + 70% against B/L copy — which works better for your procurement team?" },
-      { style: "分批交付 · 快速锁定", text: "Hi Priya, we can ship 300 units within 25 days under deposit terms and move to OA on the balance — this keeps your stock live without a policy exception." }
+      { style: "账期置换 · 银行保函", text: "Hi Priya, we support Net 30 via open account after 2 confirmed orders, or a 1% bank guarantee for this order. Alternatively: 30% deposit + 70% against B/L copy — which works better for your procurement team?", zh: "给 Priya：完成 2 单之后我们支持月结 30 天（Net 30 赊销），或者本单提供 1% 银行保函。也可以：30% 定金 + 70% 见提单副本付尾款——哪种更符合你们采购部的流程？" },
+      { style: "分批交付 · 快速锁定", text: "Hi Priya, we can ship 300 units within 25 days under deposit terms and move to OA on the balance — this keeps your stock live without a policy exception.", zh: "给 Priya：可以先按定金条款 25 天内发 300 台，后续货款转月结（OA）——这样不用走你们的特批流程，库存也能先转起来。" }
     ],
     b4: [
-      { style: "验样邀约", text: "Hi Amira, glad the samples arrived! Shall we set a 20-minute video check this week? After approval, mass production of 3,000 units starts within 2 days." },
-      { style: "交期承诺", text: "Hi Amira, confirmed: 3,000 units in 30 days, 2-year warranty, 2% free spare drivers. I will include the QC checklist in the PI for your team." }
+      { style: "验样邀约", text: "Hi Amira, glad the samples arrived! Shall we set a 20-minute video check this week? After approval, mass production of 3,000 units starts within 2 days.", zh: "给 Amira：样品收到了吧？这周约个 20 分钟视频验样吗？确认后 3,000 台量产 2 天内就开工。" },
+      { style: "交期承诺", text: "Hi Amira, confirmed: 3,000 units in 30 days, 2-year warranty, 2% free spare drivers. I will include the QC checklist in the PI for your team.", zh: "给 Amira：确认一下——3,000 台 30 天交完，2 年质保，另送 2% 的备用驱动电源。质检清单（QC checklist）我会放进 PI 里给你们团队。" }
     ],
     b5: [
-      { style: "规格确认", text: "Hi Kenji, confirmed IP65 (tested per JIS C 0900) and 800 lm per unit, with 220V AC + solar hybrid option. Spec sheet attached — can we finalize the BOM this Friday?" },
-      { style: "样品推进", text: "Hi Kenji, to speed things up we can ship one IP65 sample next Monday by DHL (3-4 days to Japan). Shall I arrange it?" }
+      { style: "规格确认", text: "Hi Kenji, confirmed IP65 (tested per JIS C 0900) and 800 lm per unit, with 220V AC + solar hybrid option. Spec sheet attached — can we finalize the BOM this Friday?", zh: "给 Kenji：确认规格——IP65 防护（按 JIS C 0900 标准测试）、单台 800 流明，支持 220V 交流 + 太阳能混合供电。规格书已附上，这周五能把 BOM（物料清单）定下来吗？" },
+      { style: "样品推进", text: "Hi Kenji, to speed things up we can ship one IP65 sample next Monday by DHL (3-4 days to Japan). Shall I arrange it?", zh: "给 Kenji：为了加快进度，下周一可以走 DHL 发一台 IP65 样品（到日本 3–4 天）。需要我来安排吗？" }
     ],
     b6: [
-      { style: "包装确认", text: "Hi Chloe, the color box mockup with French labeling and CE marking on the back panel is ready — please check the attached PDF. Once approved, we start the 5,000-unit run." },
-      { style: "交期 + 价格双确认", text: "Hi Chloe, 5,000 units at $1.52/pc FOB with custom boxes, 35-day lead time. Ordering 10% earlier gets you the Q3 production slot." }
+      { style: "包装确认", text: "Hi Chloe, the color box mockup with French labeling and CE marking on the back panel is ready — please check the attached PDF. Once approved, we start the 5,000-unit run.", zh: "给 Chloe：彩盒打样做好了，带法语标签、背板印 CE 标志，请看附件 PDF。确认后 5,000 台就可以开做。" },
+      { style: "交期 + 价格双确认", text: "Hi Chloe, 5,000 units at $1.52/pc FOB with custom boxes, 35-day lead time. Ordering 10% earlier gets you the Q3 production slot.", zh: "给 Chloe：5,000 台、定制彩盒，FOB $1.52/件，交期 35 天。如果提前 10% 下单，可以排进 Q3（三季度）的产能档期。" }
     ],
     b7: [
-      { style: "MOQ 破冰", text: "Hi Liam, our MOQ for the garden light set is 200 sets, mixed SKUs accepted. Would you like the full spec sheet and price list for comparison?" },
-      { style: "免费样品", text: "Hi Liam, happy to send 2 sample units free (courier collect) so you can compare build quality directly against the other two quotes." }
+      { style: "MOQ 破冰", text: "Hi Liam, our MOQ for the garden light set is 200 sets, mixed SKUs accepted. Would you like the full spec sheet and price list for comparison?", zh: "给 Liam：庭院灯套装的起订量（MOQ）是 200 套，可以混 SKU。需要我把完整规格书和价目表发给你对比一下吗？" },
+      { style: "免费样品", text: "Hi Liam, happy to send 2 sample units free (courier collect) so you can compare build quality directly against the other two quotes.", zh: "给 Liam：可以免费发 2 台样品（运费到付），方便你直接跟另外两家的报价对比做工质量。" }
     ],
     b8: [
-      { style: "价值对比", text: "Hi Tom, our units carry a 3-year warranty and 20,000-hour rated LED driver — the 8% gap usually disappears after the first replacement cycle. Happy to share the test reports." },
-      { style: "直配价促成交", text: "Hi Tom, if you confirm the 1,500-unit order by Friday, I can match $3.1/pc for this batch as a first-order goodwill price." }
+      { style: "价值对比", text: "Hi Tom, our units carry a 3-year warranty and 20,000-hour rated LED driver — the 8% gap usually disappears after the first replacement cycle. Happy to share the test reports.", zh: "给 Tom：我们的货带 3 年质保，LED 驱动寿命额定 20,000 小时——那 8% 的价差一般在第一次换货周期后就抹平了。需要的话测试报告可以发给你。" },
+      { style: "直配价促成交", text: "Hi Tom, if you confirm the 1,500-unit order by Friday, I can match $3.1/pc for this batch as a first-order goodwill price.", zh: "给 Tom：如果周五前确认 1,500 台的订单，这批我可以按 $3.1/件 的诚意首单价配给你。" }
     ]
   };
 
