@@ -31,6 +31,7 @@
   window.CountryProfiles = {
     get: function (country) { return MAP[country] || null; },
     cc: function (country) { return CC[country] || "—"; },
-    countries: function () { return Object.keys(MAP); }
+    countries: function () { return Object.keys(MAP); },
+    langs: function () { return ["英语", "中文", "西班牙语", "法语", "德语", "葡萄牙语", "日语", "韩语", "阿拉伯语", "俄语", "意大利语", "土耳其语"]; }
   };
 })();

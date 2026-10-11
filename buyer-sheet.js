@@ -21,8 +21,9 @@
       '<div class="sheet-head"><b>新增买家</b><button class="sheet-x" data-act="x">✕</button></div>' +
       '<div class="sheet-sub">登记新客户的来源（WhatsApp / 广告 / 展会）。保存后即可"记一条"、建档自动套用国家沟通画像</div>' +
       field("nbName", "姓名", "如 Carla Mendes", true) +
-      field("nbCountry", "国家", "如 巴西（本地化画像库已收录常见市场）", true, KNOWN) +
-      field("nbCompany", "公司", "选填") +
+        field("nbCountry", "国家", "如 巴西（本地化画像库已收录常见市场）", true, KNOWN) +
+        field("nbLang", "语言", "选填：留空=按国家自动；可填 英语/中文/西班牙语…", false, CountryProfiles.langs()) +
+        field("nbCompany", "公司", "选填") +
       field("nbWa", "WhatsApp 号码", "+55 …（选填，一键交接发送需要）") +
       field("nbProduct", "产品线 / 意向产品", "如 学生书包（选填，会进档案）") +
       field("nbIntent", "初始意向分", "0–100，默认 50（A≥80 / B≥55 / C）") +
@@ -39,7 +40,7 @@
       var intent = parseInt(v("nbIntent"), 10);
       if (isNaN(intent) || intent < 0 || intent > 100) intent = 50;
       var b = Store.addBuyer({
-        name: name, country: country, cc: CountryProfiles.cc(country),
+        name: name, country: country, cc: CountryProfiles.cc(country), msgLang: v("nbLang"),
         company: v("nbCompany"), wa: v("nbWa"), product: v("nbProduct"),
         intent: intent, note: v("nbNote")
       });

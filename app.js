@@ -24,7 +24,10 @@
     });
     document.title = "DealDesk · " + mod.title;
     var fab = $(".fab");
-    if (fab) fab.style.bottom = (p.screen === "buyer-detail") ? "168px" : "92px";
+    if (fab) {
+      if (p.screen === "buyer-detail") { fab.style.display = "none"; }
+      else { fab.style.display = ""; fab.style.bottom = "92px"; }
+    }
     if (mod.init) mod.init(p.param, el);
   }
 

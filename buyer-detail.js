@@ -80,6 +80,18 @@
       "</div>";
   }
 
+  function langCard(b) {
+    var LANGS = CountryProfiles.langs();
+    var opts = '<option value="">自动 · 按国家（' + (b.country || "未知") + "）</option>" +
+      LANGS.map(function (l) { return '<option value="' + l + '"' + (b.msgLang === l ? " selected" : "") + ">" + l + "</option>"; }).join("");
+    return '<div class="card" style="margin-top:12px;padding:11px 13px">' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+      '<span style="font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap">回复语言</span>' +
+      '<select id="langSel" style="flex:1;font-size:13px;font-weight:600;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 9px;background:var(--surface-2)">' + opts + "</select></div>" +
+      '<div class="set-note" style="margin-top:8px">默认按国家自动；客户实际用别的语言（如人在中国但用英语）就在这里改，AI 生成 / 翻译都按它。</div>' +
+      "</div>";
+  }
+
   window.Screens["buyer-detail"] = {
     title: "买家详情 · WhatsApp 过渡模式",
 
@@ -124,6 +136,7 @@
         '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
         "</div>" +
         '<div class="card tracker" style="margin-top:12px">' + U.stageTracker(b.stage) + "</div>" +
+        langCard(b) +
         remindHtml(b) +
         profileHtml(b) +
         ctxHtml +
@@ -142,7 +155,7 @@
         optHtml +
         "</div>" +
         "</div>" +
-        '<div class="wa-composer"><input id="msgInput" placeholder="用中文输入 · 发出前按' + b.country + '表达习惯本地化"/>' +
+        '<div class="wa-composer"><input id="msgInput" placeholder="写要点（中文也行）· 发送前 AI 自动转成客户语言"/>' +
         '<button class="wa-send" data-act="send" aria-label="发送">' + WA_ICON + "</button></div>";
     },
 
@@ -154,6 +167,13 @@
       if (back) back.addEventListener("click", function () { App.go("buyers"); });
       var fuBtn = root.querySelector('[data-act="fu"]');
       if (fuBtn) fuBtn.addEventListener("click", function () { App.go("followup"); });
+
+      var langSel = root.querySelector("#langSel");
+      if (langSel) langSel.addEventListener("change", function () {
+        if (langSel.value) b.msgLang = langSel.value; else delete b.msgLang;
+        if (window.Store) Store.commit();
+        App.toast(langSel.value ? "已设为" + langSel.value + " · AI 将按此语言生成/翻译" : "已恢复按国家自动选择");
+      });
 
       var jump = root.querySelector('[data-act="jump"]');
       if (jump) jump.addEventListener("click", function () {
@@ -240,7 +260,7 @@
         wrap.innerHTML = '<div class="empty" style="padding:20px 0">正在结合最新档案与对话生成…</div>';
         LLM.suggest(b).then(function (list) {
           if (!list || !list.length) throw new Error("返回为空");
-          wrap.innerHTML = list.slice(0, 2).map(suggCard).join("");
+          wrap.innerHTML = list.slice(0, 3).map(suggCard).join("");
           bindSugg(wrap);
           App.toast("已基于最新上下文重新生成");
         }).catch(function (e) {
