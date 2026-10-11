@@ -122,14 +122,14 @@
 }
 .wa-msgs::-webkit-scrollbar{display:none}
 .wa-chat .msg{max-width:86%}
-.wa-chat .msg-buyer .bubble{background:var(--wa-in);border-radius:10px;border-top-left-radius:3px;padding:7px 9px 6px}
-.wa-chat .msg-me .bubble{background:var(--wa-out);border-radius:10px;border-top-right-radius:3px;padding:7px 9px 6px}
-.wa-chat .bubble{font-size:12.5px;line-height:1.5;box-shadow:0 1px 1px rgba(16,33,27,.12)}
-.wa-chat .msg-meta{opacity:.6}
+.wa-chat .msg-buyer .bubble{background:var(--wa-in);color:var(--ink);border-radius:10px;border-top-left-radius:3px;padding:7px 9px 6px}
+.wa-chat .msg-me .bubble{background:var(--wa-out);color:var(--brand-ink);border-radius:10px;border-top-right-radius:3px;padding:7px 9px 6px}
+.wa-chat .bubble{font-size:13px;line-height:1.55;font-weight:500;box-shadow:0 1px 1px rgba(16,33,27,.12)}
+.wa-chat .msg-meta{opacity:.7}
 .wa-chat .msg-me .tick{color:var(--tick)}
 .zh-line{
-  display:none;font-size:10.5px;color:#5E6E66;line-height:1.5;
-  margin-top:5px;padding-top:5px;border-top:1px dashed rgba(16,33,27,.15);
+  display:none;font-size:12px;color:var(--brand-deep);font-weight:600;line-height:1.5;
+  margin-top:5px;padding-top:5px;border-top:1px dashed rgba(14,94,74,.4);
 }
 .wa-msgs.zh-on .msg-buyer .zh-line{display:block}
 
