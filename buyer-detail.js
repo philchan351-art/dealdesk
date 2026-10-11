@@ -5,6 +5,12 @@
 
   var WA_ICON = '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2Zm5.5 14.1c-.2.7-1.3 1.3-1.9 1.4-.5.1-1.1.1-1.8-.1-.4-.1-1-.3-1.7-.6-3-1.3-4.9-4.3-5.1-4.5-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5s.8 1.9.8 2c.1.1.1.3 0 .5l-.4.6c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1.1 2.2 1.4 2.5 1.5.3.1.5.1.6-.1l.8-.9c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.1.1.5-.1 1.1Z"/></svg>';
 
+  function waLink(num, text) {
+    var d = String(num || "").replace(/\D/g, "");
+    if (!d) return "";
+    return "https://wa.me/" + d + (text ? "?text=" + encodeURIComponent(text) : "");
+  }
+
   function bubble(m) {
     var cls = m.from === "me" ? "msg-me" : "msg-buyer";
     var zh = (m.from === "buyer" && m.zh)
@@ -131,7 +137,10 @@
       var jump = root.querySelector('[data-act="jump"]');
       if (jump) jump.addEventListener("click", function () {
         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增买家\"补录"); return; }
-        App.toast("已生成 wa.me 深链并打开官方 WhatsApp，上下文自动带入（演示）");
+        var ju = waLink(b.wa);
+        if (!ju) { App.toast("号码格式不正确，请在档案里补全国际号码（含国家码）"); return; }
+        window.open(ju, "_blank");
+        App.toast("已打开官方 WhatsApp → " + b.name);
       });
 
       var langBtn = root.querySelector('[data-act="lang"]');
@@ -164,10 +173,14 @@
         if (!text) return;
         push({ from: "me", text: text, time: "刚刚" });
         input.value = "";
+        if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增买家\"补录"); return; }
+        var su = waLink(b.wa, text);
+        if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return; }
+        window.open(su, "_blank");
         if (/[一-龥]/.test(text)) {
-          App.toast("检测到中文 · 已按" + b.country + "商务表达习惯改写后预填（演示）");
+          App.toast("已打开 WhatsApp · 但这是中文，建议用上方 AI 建议的外文发给客户");
         } else {
-          App.toast("内容已预填并打开官方 WhatsApp，点一下即发（过渡模式 · 演示）");
+          App.toast("已打开 WhatsApp · 文字已预填，点发送即可（过渡模式）");
         }
       }
 

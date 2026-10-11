@@ -29,6 +29,13 @@
         "</div>" +
         '<div class="set-stack">' +
         '<div class="card card-pad">' +
+        '<div class="set-title">我的称呼</div>' +
+        '<label class="set-lbl">你的名字（首页问候用 · 只存本机）</label>' +
+        '<input class="set-inp" id="myName" type="text" maxlength="20" placeholder="如 Cherry" value="' + (st.name || "Cherry") + '"/>' +
+        '<div class="set-actions"><button class="set-btn-inline" data-act="save-name">保存</button></div>' +
+        '<div class="set-note">每人各填各的，只保存在这台设备，不会同步给别人</div>' +
+        "</div>" +
+        '<div class="card card-pad">' +
         '<div class="set-title">智能引擎（LLM）<span class="llm-dot ' + (on ? "on" : "") + '"></span></div>' +
         '<label class="set-lbl">Base URL</label>' +
         '<input class="set-inp" id="llmBase" type="url" value="' + (llm.baseUrl || DEFAULT_BASE) + '"/>' +
@@ -70,6 +77,13 @@
 
     init: function (param, root) {
       root.querySelector('[data-act="back"]').addEventListener("click", function () { App.go("home"); });
+
+      root.querySelector('[data-act="save-name"]').addEventListener("click", function () {
+        var stName = Store.getSettings() || {};
+        stName.name = root.querySelector("#myName").value.trim();
+        Store.saveSettings(stName);
+        App.toast("称呼已更新");
+      });
 
       function readInputs() {
         var st = Store.getSettings() || {};
