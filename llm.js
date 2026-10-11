@@ -105,7 +105,7 @@
         });
     },
     suggest: function (buyer) {
-      return chat(ctx(buyer), Prompts.suggest(buyer), { max_tokens: 800, temp: 0.6 })
+      return chat(ctx(buyer), Prompts.suggest(buyer), { max_tokens: 700, temp: 0.4 })
         .then(function (t) {
           var o = parseJSON(t);
           return (o && o.suggestions) || null;
