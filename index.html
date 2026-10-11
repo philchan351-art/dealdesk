@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DealDesk · B2B 谈单工作台</title>
+<meta name="theme-color" content="#0E5E4A"/>
+<meta name="description" content="DealDesk · B2B 谈单工作台"/>
+<link rel="stylesheet" href="css/tokens.css"/>
+<link rel="stylesheet" href="css/base.css"/>
+<link rel="stylesheet" href="css/components.css"/>
+<link rel="stylesheet" href="css/screens.css"/>
+</head>
+<body>
+<div class="stage">
+  <div class="stage-side" aria-hidden="true">
+    <div class="side-brand">
+      <div class="side-mark">D</div>
+      <div>
+        <div class="side-name">DealDesk</div>
+        <div class="side-cn">谈单工作台 · B2B</div>
+      </div>
+    </div>
+    <ul class="side-feats">
+      <li><i></i>买家管理与意向分级</li>
+      <li><i></i>报价与谈单阶段跟踪</li>
+      <li><i></i>沟通记录与跟进提醒</li>
+      <li><i></i>询盘转化数据看板</li>
+      <li><i></i>AI 回复建议</li>
+    </ul>
+    <div class="side-foot">高保真交互原型 · v0.1<br/>模块化架构 · 支持持续迭代</div>
+  </div>
+
+  <div class="phone">
+    <div class="phone-cam" aria-hidden="true"></div>
+    <div class="statusbar">
+      <span class="sb-time">9:41</span>
+      <span class="sb-ico">
+        <i class="sig"><b></b><b></b><b></b></i>
+        <i class="batt"><b></b></i>
+      </span>
+    </div>
+    <main id="screen" class="screen" aria-live="polite"></main>
+    <button class="fab" id="fabLog">＋ 记一条</button>
+    <div class="sheet-backdrop" id="logSheet" hidden></div>
+    <div class="sheet-backdrop" id="buyerSheet" hidden></div>
+    <nav class="tabbar">
+      <a class="tab" data-tab="home" href="#/home">
+        <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>看板</span>
+      </a>
+      <a class="tab" data-tab="buyers" href="#/buyers">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2c2.6.2 4.6 1.8 5.3 4.4"/></svg><span>买家</span>
+      </a>
+      <a class="tab" data-tab="deals" href="#/deals">
+        <svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="8" cy="8" r="1.6"/></svg><span>谈单</span>
+      </a>
+      <a class="tab" data-tab="followup" href="#/followup">
+        <svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9Z"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/></svg><span>跟进</span>
+      </a>
+    </nav>
+  </div>
+
+  <div class="stage-cap">DealDesk 谈单工作台 · 手机 App 高保真原型 · 演示数据</div>
+</div>
+
+<script src="js/data/mock.js"></script>
+<script src="js/data/country-profiles.js"></script>
+<script src="js/data/store.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/engine/prompts.js"></script>
+<script src="js/engine/llm.js"></script>
+<script src="js/engine/sync.js"></script>
+<script src="js/components.js"></script>
+<script src="js/screens/home.js"></script>
+<script src="js/screens/buyers.js"></script>
+<script src="js/screens/buyer-detail.js"></script>
+<script src="js/screens/deals.js"></script>
+<script src="js/screens/followup.js"></script>
+<script src="js/screens/settings.js"></script>
+<script src="js/ui/log-sheet.js"></script>
+<script src="js/ui/buyer-sheet.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

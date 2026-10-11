@@ -1,0 +1,125 @@
+/* ===== 基础布局：舞台背景 / 手机框 / 状态栏 / TabBar / 动画 ===== */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:var(--font-body);
+  color:var(--ink);
+  background:#081812;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input{font-family:inherit;color:inherit}
+a{text-decoration:none;color:inherit}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.96) translateY(6px)}to{opacity:1;transform:none}}
+@keyframes phoneIn{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:none}}
+
+/* 桌面舞台 */
+.stage{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;gap:60px;
+  padding:32px;position:relative;overflow:hidden;
+  background:
+    radial-gradient(1100px 620px at 88% -12%, rgba(232,163,61,.16), transparent 62%),
+    radial-gradient(900px 560px at -12% 112%, rgba(14,94,74,.5), transparent 60%),
+    linear-gradient(160deg,#0A231B 0%,#081812 55%,#0B1F18 100%);
+}
+.stage::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+  background-size:44px 44px;
+  -webkit-mask-image:radial-gradient(720px 720px at 50% 45%,#000 30%,transparent 75%);
+  mask-image:radial-gradient(720px 720px at 50% 45%,#000 30%,transparent 75%);
+}
+
+/* 左侧品牌说明：仅 ?preview=1 演示模式显示 */
+.stage-side{display:none;width:280px;color:#DFE9E4;z-index:1;animation:fadeUp .7s .15s both}
+.stage.preview .stage-side{display:block}
+.side-brand{display:flex;gap:14px;align-items:center;margin-bottom:34px}
+.side-mark{
+  width:52px;height:52px;border-radius:14px;flex:none;
+  background:linear-gradient(135deg,var(--accent),#F0BE6A);
+  color:#241503;font:700 26px var(--font-num);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 10px 24px rgba(232,163,61,.35);
+}
+.side-name{font:700 24px var(--font-num);letter-spacing:.5px}
+.side-cn{font-size:13px;color:#9FB5AC;margin-top:2px}
+.side-feats{list-style:none;display:grid;gap:13px}
+.side-feats li{
+  display:flex;gap:10px;align-items:center;font-size:14px;color:#C4D4CC;
+  opacity:0;animation:fadeUp .5s forwards;
+}
+.side-feats li:nth-child(1){animation-delay:.25s}
+.side-feats li:nth-child(2){animation-delay:.33s}
+.side-feats li:nth-child(3){animation-delay:.41s}
+.side-feats li:nth-child(4){animation-delay:.49s}
+.side-feats li:nth-child(5){animation-delay:.57s}
+.side-feats i{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;box-shadow:0 0 0 4px rgba(232,163,61,.15)}
+.side-foot{
+  margin-top:38px;font-size:12px;line-height:1.7;color:#7E948A;
+  border-top:1px solid rgba(255,255,255,.12);padding-top:16px;
+}
+
+/* 手机框 */
+.phone{
+  width:400px;height:min(860px,94vh);flex:none;
+  background:var(--bg);border-radius:48px;position:relative;overflow:hidden;
+  box-shadow:0 40px 90px rgba(0,0,0,.55),0 0 0 12px #101915,0 0 0 13px rgba(255,255,255,.06);
+  display:flex;flex-direction:column;z-index:1;
+  animation:phoneIn .8s .05s both;
+}
+.phone-cam{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  width:96px;height:26px;background:#101915;border-radius:20px;z-index:5;
+}
+.statusbar{
+  height:52px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
+  padding:0 28px 6px;font:600 15px var(--font-num);color:var(--ink);
+}
+.sb-ico{display:flex;gap:7px;align-items:center}
+.sig{display:inline-flex;gap:2px;align-items:flex-end;height:11px}
+.sig b{width:3px;background:var(--ink);border-radius:1px}
+.sig b:nth-child(1){height:4px}
+.sig b:nth-child(2){height:7px}
+.sig b:nth-child(3){height:10px}
+.batt{display:inline-block;width:22px;height:11px;border:1.5px solid var(--ink);border-radius:3.5px;position:relative;opacity:.9}
+.batt::after{content:"";position:absolute;right:-4px;top:2.5px;width:2px;height:5px;background:var(--ink);border-radius:1px}
+.batt b{position:absolute;inset:1.5px;right:5px;background:var(--ink);border-radius:1.5px}
+
+/* 屏幕区域 */
+.screen{flex:1;overflow-y:auto;padding:6px 16px 16px;scroll-behavior:smooth}
+.screen::-webkit-scrollbar{width:0}
+.screen.detail{overflow:hidden;display:flex;flex-direction:column;padding-bottom:0}
+
+/* 底部 TabBar */
+.tabbar{
+  flex:none;display:flex;background:rgba(255,255,255,.94);
+  backdrop-filter:blur(10px);border-top:1px solid var(--line);
+  padding:8px 8px calc(10px + env(safe-area-inset-bottom));
+}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 0;color:var(--ink-faint);font-size:11px;font-weight:500;
+  border-radius:12px;transition:color .2s;position:relative;
+}
+.tab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tab.active{color:var(--brand);font-weight:700}
+.tab.active::before{content:"";position:absolute;top:-9px;width:26px;height:3px;border-radius:3px;background:var(--accent)}
+
+.stage-cap{
+  display:none;position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  font-size:12px;color:rgba(223,233,228,.5);letter-spacing:.4px;white-space:nowrap;
+}
+.stage.preview .stage-cap{display:block}
+
+/* 小屏：手机铺满全屏 */
+@media (max-width:900px){
+  .stage{gap:0;padding:0}
+  .stage-side,.stage-cap{display:none}
+  .stage::before{display:none}
+  .phone{width:100%;height:100vh;height:100dvh;border-radius:0;box-shadow:none}
+  .phone-cam{display:none}
+}

@@ -1,0 +1,52 @@
+/* ===== 设计令牌：全站唯一的颜色 / 字号 / 圆角 / 阴影来源 ===== */
+:root{
+  /* 底色与表面 */
+  --bg:#F3F1EA;
+  --surface:#FFFFFF;
+  --surface-2:#F8F6EF;
+
+  /* 文字 */
+  --ink:#1A241F;
+  --ink-soft:#4C5A52;
+  --ink-faint:#93A099;
+
+  /* 品牌 */
+  --brand:#0E5E4A;
+  --brand-deep:#0B4234;
+  --brand-ink:#07281F;
+
+  /* 强调 / 状态 */
+  --accent:#E8A33D;
+  --accent-deep:#B97516;
+  --hot:#D4574E;
+  --hot-bg:#FBEAE8;
+
+  /* WhatsApp 直连 */
+  --wa:#00A884;
+  --wa-deep:#007A5E;
+  --wa-header:#075E54;
+  --wa-chat-bg:#E5DDD5;
+  --wa-out:#D9FDD3;
+  --wa-in:#FFFFFF;
+  --tick:#53BDEB;
+
+  /* 意向分级 A/B/C */
+  --a:#128A5F;  --a-bg:#E2F4EC;
+  --b:#C77F1B;  --b-bg:#FBF0DC;
+  --c:#8A968F;  --c-bg:#EEF0EC;
+
+  /* 线条与阴影 */
+  --line:#E6E1D4;
+  --line-soft:#EFECE2;
+  --shadow:0 12px 32px rgba(20,33,27,.10);
+  --shadow-sm:0 4px 14px rgba(20,33,27,.06);
+
+  /* 圆角 */
+  --r-lg:20px;
+  --r-md:14px;
+  --r-sm:10px;
+
+  /* 字体（不依赖外部字体服务，全部走系统字体，国内秒开） */
+  --font-num:"Space Grotesk","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --font-body:"Noto Sans SC","PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+}
