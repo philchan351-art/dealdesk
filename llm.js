@@ -110,6 +110,9 @@
           var o = parseJSON(t);
           return (o && o.suggestions) || null;
         });
+    },
+    localize: function (text, buyer) {
+      return chat(ctx(buyer), Prompts.localize(buyer) + "\n\n中文原文：" + text, { max_tokens: 400, temp: 0.3 });
     }
   };
 })();

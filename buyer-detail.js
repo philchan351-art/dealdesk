@@ -11,6 +11,34 @@
     return "https://wa.me/" + d + (text ? "?text=" + encodeURIComponent(text) : "");
   }
 
+  function copyText(t) {
+    function done() { App.toast("已复制 · 打开和客户的 WhatsApp 对话，粘贴发送即可"); }
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand("copy"); done(); }
+      catch (e) { App.toast("复制失败，请长按文字手动复制"); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(done).catch(fallback);
+    } else { fallback(); }
+  }
+
+  function suggCard(s) {
+    var t = String(s.text || "");
+    return '<div class="sugg">' +
+      '<div class="sugg-top"><span class="sugg-style">' + s.style + '</span>' +
+      '<div class="sugg-btns">' +
+      '<button class="sugg-use" data-text="' + t.replace(/"/g, "&quot;") + '">发到 WhatsApp</button>' +
+      '<button class="sugg-copy" data-ctext="' + t.replace(/"/g, "&quot;") + '">复制</button>' +
+      '</div></div>' +
+      '<div class="sugg-text">' + t + "</div>" +
+      (s.zh ? '<div class="sugg-zh">中文：' + s.zh + "</div>" : "") +
+      "</div>";
+  }
+
   function bubble(m) {
     var cls = m.from === "me" ? "msg-me" : "msg-buyer";
     var zh = (m.from === "buyer" && m.zh)
@@ -62,14 +90,7 @@
       var g = U.grade(b.intent);
       var sugg = Mock.suggestions[b.id] || [];
 
-      var suggHtml = sugg.map(function (s) {
-        return '<div class="sugg">' +
-          '<div class="sugg-top"><span class="sugg-style">' + s.style + "</span>" +
-          '<button class="sugg-use" data-text="' + s.text.replace(/"/g, "&quot;") + '">发到 WhatsApp</button></div>' +
-          '<div class="sugg-text">' + s.text + "</div>" +
-          (s.zh ? '<div class="sugg-zh">中文：' + s.zh + "</div>" : "") +
-          "</div>";
-      }).join("");
+      var suggHtml = sugg.map(suggCard).join("");
       if (!suggHtml) suggHtml = '<div class="set-note" style="padding:4px 2px 10px">该买家暂无预设建议。已配置 LLM 时，点右上方"↻ 重新生成"即可基于档案生成。</div>';
 
       var ctx = (b.context || []);
@@ -171,16 +192,29 @@
       }
       function sendWa(text) {
         if (!text) return;
-        push({ from: "me", text: text, time: "刚刚" });
-        input.value = "";
         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增买家\"补录"); return; }
-        var su = waLink(b.wa, text);
-        if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return; }
-        window.open(su, "_blank");
-        if (/[一-龥]/.test(text)) {
-          App.toast("已打开 WhatsApp · 但这是中文，建议用上方 AI 建议的外文发给客户");
+        var hasCn = /[一-龥]/.test(text);
+        function doOpen(finalText, note) {
+          var su = waLink(b.wa, finalText);
+          if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return; }
+          push({ from: "me", text: finalText, time: "刚刚" });
+          input.value = "";
+          window.open(su, "_blank");
+          App.toast(note);
+        }
+        if (hasCn && window.LLM && LLM.configured()) {
+          App.toast("正在按" + b.country + "商务习惯本地化…");
+          LLM.localize(text, b).then(function (en) {
+            en = String(en || "").trim();
+            if (!en) throw new Error("为空");
+            doOpen(en, "已本地化并打开 WhatsApp · 点发送即可");
+          }).catch(function () {
+            doOpen(text, "本地化失败，已用原文打开 WhatsApp");
+          });
+        } else if (hasCn) {
+          doOpen(text, "已打开 WhatsApp · 这是中文，建议用上方 AI 建议的外文发给客户");
         } else {
-          App.toast("已打开 WhatsApp · 文字已预填，点发送即可（过渡模式）");
+          doOpen(text, "已打开 WhatsApp · 已预填，点发送即可（过渡模式）");
         }
       }
 
@@ -188,6 +222,11 @@
         container.querySelectorAll(".sugg-use").forEach(function (btn) {
           btn.addEventListener("click", function () {
             sendWa(btn.dataset.text);
+          });
+        });
+        container.querySelectorAll(".sugg-copy").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            copyText(btn.dataset.ctext);
           });
         });
       }
@@ -201,14 +240,7 @@
         wrap.innerHTML = '<div class="empty" style="padding:20px 0">正在结合最新档案与对话生成…</div>';
         LLM.suggest(b).then(function (list) {
           if (!list || !list.length) throw new Error("返回为空");
-          wrap.innerHTML = list.slice(0, 2).map(function (s) {
-            return '<div class="sugg">' +
-              '<div class="sugg-top"><span class="sugg-style">' + s.style + "</span>" +
-              '<button class="sugg-use" data-text="' + String(s.text).replace(/"/g, "&quot;") + '">发到 WhatsApp</button></div>' +
-              '<div class="sugg-text">' + s.text + "</div>" +
-              (s.zh ? '<div class="sugg-zh">中文：' + s.zh + "</div>" : "") +
-              "</div>";
-          }).join("");
+          wrap.innerHTML = list.slice(0, 2).map(suggCard).join("");
           bindSugg(wrap);
           App.toast("已基于最新上下文重新生成");
         }).catch(function (e) {
