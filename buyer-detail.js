@@ -20,6 +20,7 @@
 
   /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
   var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
+  var zhBusy = {}; // 防重入：同一文本正在翻译时不重复发起
 
   function diagText(b) {
     var d = b.aiDiag || {};
@@ -185,10 +186,10 @@
         '<div class="wa-chat">' +
         '<div class="wa-head">' + WA_ICON +
         '<div class="wa-hmid"><b>' + b.name + "</b><span>" + (b.wa || "已绑定") + " · 在线</span></div>" +
-        '<button class="wa-lang" data-act="lang">中文对照</button>' +
+        '<button class="wa-lang active" data-act="lang">中文对照</button>' +
         '<span class="wa-pill">官方通道 · 零感知</span>' +
         "</div>" +
-        '<div class="wa-msgs" id="waMsgs">' + msgHtml + "</div>" +
+        '<div class="wa-msgs zh-on" id="waMsgs">' + msgHtml + "</div>" +
         optHtml +
         '<div class="wa-logrow"><input id="logBuyer" placeholder="客户回了什么？记一下（如：OK / 运费多少）"/>' +
         '<button class="log-btn" data-act="log-buyer">记入对话</button></div>' +
@@ -293,6 +294,27 @@
       /* 客户回复速记：保持虚拟对话与真实 WhatsApp 一致 */
       var logIn = root.querySelector("#logBuyer");
       var logBtn = root.querySelector('[data-act="log-buyer"]');
+      /* 客户发外语 → 自动补中文对照（译文存进消息里，下次不用再翻） */
+      function autoZh(text) {
+        if (!text || /[一-龥]/.test(text)) return; // 中文不用翻
+        if (!window.LLM || !LLM.configured()) return;
+        if (zhBusy[text]) return;
+        zhBusy[text] = 1;
+        LLM.translate(text, b).then(function (zh) {
+          zh = String(zh || "").trim();
+          if (!zh) return;
+          for (var i = b.messages.length - 1; i >= 0; i--) {
+            var m = b.messages[i];
+            if (m.from === "buyer" && m.text === text && !m.zh) {
+              m.zh = zh;
+              if (window.Store) Store.commit();
+              App.refresh();
+              return;
+            }
+          }
+        }).catch(function (e) { console.warn("自动翻译失败：", e.message); });
+      }
+
       function doLogBuyer() {
         var t = logIn && logIn.value.trim();
         if (!t) { App.toast("先写客户说的内容"); return; }
@@ -300,9 +322,16 @@
         AIevt(b, "reply", { via: "quicklog", text: t });
         if (window.Store) Store.commit();
         App.refresh();
+        autoZh(t);
       }
       if (logBtn) logBtn.addEventListener("click", doLogBuyer);
       if (logIn) logIn.addEventListener("keydown", function (e) { if (e.key === "Enter") doLogBuyer(); });
+
+      /* 页面加载时：给最近缺中文对照的外语客户消息自动补翻译（最多 5 条，不刷屏） */
+      b.messages.filter(function (m) { return m.from === "buyer" && !m.zh && m.text && !/[一-龥]/.test(m.text); }).slice(-5)
+        .forEach(function (m) {
+          autoZh(m.text);
+        });
 
       /* 交接确认：✓ 已发 / ✕ 没发 / 任意我方记录可删 */
       Array.prototype.forEach.call(root.querySelectorAll('.wa-msgs [data-act="h-y"],.wa-msgs [data-act="h-n"],.wa-msgs [data-act="m-del"]'), function (el) {
@@ -503,6 +532,7 @@
             if (b.stage < 4) b.stage++;
             if (b.stage !== prevStage) AIevt(b, "stage", { to: Mock.STAGES[b.stage] });
             AIevt(b, "reply", { via: "option", text: opt.reply });
+            autoZh(opt.reply);
             b.context = b.context || [];
             b.context.push({ k: "决策", v: opt.t.replace(/^\d+ · /, "") });
             if (window.Store) Store.commit();
