@@ -27,6 +27,18 @@
     savedAt: null
   };
 
+  /* 原地替换数组：保持 Mock.buyers / Mock.followups 引用恒稳，会话内 UI 不读旧数据 */
+  function replaceArr(arr, next) {
+    arr.length = 0;
+    (next || []).forEach(function (x) { arr.push(x); });
+  }
+  /* 删除黑名单：被删客户即使被云端并集"复活"也不再显示（本机永久生效） */
+  function purge() {
+    if (!data.deleted || !data.deleted.length) return;
+    replaceArr(data.buyers, data.buyers.filter(function (b) { return data.deleted.indexOf(b.id) < 0; }));
+  }
+  purge();
+
   function save() {
     data.savedAt = new Date().toISOString();
     try {
@@ -158,18 +170,24 @@
       return b;
     },
     clearAll: function () {
-      data.buyers = [];
-      data.followups = [];
+      replaceArr(data.buyers, []);
+      replaceArr(data.followups, []);
       save();
     },
     removeBuyer: function (id) {
-      data.buyers = data.buyers.filter(function (x) { return x.id !== id; });
+      data.deleted = data.deleted || [];
+      if (data.deleted.indexOf(id) < 0) {
+        data.deleted.push(id);
+        if (data.deleted.length > 200) data.deleted = data.deleted.slice(-200);
+      }
+      replaceArr(data.buyers, data.buyers.filter(function (x) { return x.id !== id; }));
       save();
     },
     /* 切换/新建登录账号时：清掉本机上一位业务员的客户数据，只保留云端该账号的数据 */
     wipeLocal: function () {
-      data.buyers = [];
-      data.followups = [];
+      replaceArr(data.buyers, []);
+      replaceArr(data.followups, []);
+      data.deleted = [];
       data.savedAt = null;
       save();
     },
@@ -178,8 +196,9 @@
     },
     applySnapshot: function (snap) {
       if (!snap || !snap.buyers) return false;
-      data.buyers = snap.buyers;
-      data.followups = snap.followups || data.followups;
+      replaceArr(data.buyers, snap.buyers);
+      replaceArr(data.followups, snap.followups || []);
+      purge();
       data.savedAt = snap.updatedAt || data.savedAt;
       save();
       return true;
