@@ -146,6 +146,26 @@
 /* 当前语言标识 */
 .lang-chip{display:inline-block;font-size:10.5px;font-weight:700;color:var(--brand-deep);background:var(--b-bg);border:1px solid rgba(14,94,74,.25);padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:1px;white-space:nowrap}
 
+/* P1：谈单诊断 / 成交流失标记 / 删除客户 */
+.diag-line{font-size:11.5px;font-weight:600;color:var(--brand-deep);background:rgba(14,94,74,.07);border-left:3px solid var(--brand);border-radius:6px;padding:7px 10px;margin-bottom:9px;line-height:1.5}
+.outcome-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.oc-btn{flex:1;font-size:12px;font-weight:800;color:#fff;background:var(--brand);border:none;border-radius:9px;padding:8px 10px;cursor:pointer}
+.oc-btn:active{background:var(--brand-deep)}
+.oc-btn.lost{color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line)}
+.oc-btn.lost:active{background:var(--line-soft)}
+.outcome-chip{font-size:12px;font-weight:800;padding:6px 12px;border-radius:999px}
+.outcome-chip.won{color:#fff;background:var(--brand)}
+.outcome-chip.lost{color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line)}
+.oc-clear{margin-left:auto;font-size:11px;font-weight:600;color:var(--ink-faint);background:none;border:none;cursor:pointer}
+.oc-ask{font-size:11.5px;font-weight:700;color:var(--ink-soft)}
+.oc-reason{font-size:11px;font-weight:600;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:5px 10px;cursor:pointer;margin:0 4px 4px 0}
+.oc-reason:active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.bcard-del{flex:none;width:24px;height:24px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);color:var(--ink-faint);font-size:13px;font-weight:700;line-height:1;cursor:pointer;padding:0}
+.bcard-del:active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.b-outcome{font-size:10px;font-weight:800;padding:1.5px 7px;border-radius:999px;margin-left:5px;white-space:nowrap}
+.b-outcome.won{color:#fff;background:var(--brand)}
+.b-outcome.lost{color:var(--ink-faint);background:var(--surface-2);border:1px solid var(--line)}
+
 /* ===== 登录页（多用户数据隔离） ===== */
 .auth-on .tabbar, .auth-on .fab{display:none !important}
 .auth-wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px}

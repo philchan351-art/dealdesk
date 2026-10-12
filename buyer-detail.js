@@ -18,6 +18,36 @@
     return p(d.getHours()) + ":" + p(d.getMinutes());
   }
 
+  /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
+  var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
+
+  function diagText(b) {
+    var d = b.aiDiag || {};
+    return "谈单诊断 · 下一步目标：" + (d.nextGoal || "推进") + (d.blocker && d.blocker !== "无" ? " · 卡点：" + d.blocker : "");
+  }
+
+  function outcomeHtml(b) {
+    if (b.outcome) {
+      var won = b.outcome.status === "won";
+      return '<div class="outcome-row" style="margin:0 16px 12px">' +
+        '<span class="outcome-chip ' + (won ? "won" : "lost") + '">' + (won ? "✓ 已成交" : "✗ 已流失" + (b.outcome.reason ? " · " + b.outcome.reason : "")) + "</span>" +
+        '<button class="oc-clear" data-act="oc-clear">清除标记</button></div>';
+    }
+    return '<div class="outcome-row" style="margin:0 16px 12px">' +
+      '<button class="oc-btn won" data-act="oc-won">✓ 标记已成交</button>' +
+      '<button class="oc-btn lost" data-act="oc-lost">✗ 标记已流失</button></div>';
+  }
+
+  /* 埋点：记录谈单行为事件（学习层原料），每个买家保留最近 200 条 */
+  function AIevt(b, t, extra) {
+    if (!b) return;
+    if (!b.aiEvents) b.aiEvents = [];
+    var e = { t: t, at: new Date().toISOString() };
+    if (extra) for (var k in extra) e[k] = extra[k];
+    b.aiEvents.push(e);
+    if (b.aiEvents.length > 200) b.aiEvents = b.aiEvents.slice(-200);
+  }
+
   function copyText(t) {
     function done() { App.toast("已复制 · 打开和客户的 WhatsApp 对话，粘贴发送即可"); }
     function fallback() {
@@ -146,9 +176,10 @@
         '<div><div class="d-name">' + b.name + "</div>" +
         '<div class="d-sub">' + b.product + " · " + b.qty + (b.amount ? " · " + U.money(b.amount, b.currency) : " · 待报价") + "</div>" +
         '<div class="d-tags">' + b.tags.map(function (t) { return '<span class="tag">' + t + "</span>"; }).join("") + "</div></div>" +
-        '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
-        "</div>" +
-         '<div class="card tracker" style="margin-top:10px">' + U.stageTracker(b.stage) + "</div>" +
+         '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
+         "</div>" +
+         outcomeHtml(b) +
+          '<div class="card tracker" style="margin-top:10px">' + U.stageTracker(b.stage) + "</div>" +
          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
          '<div class="set-note" style="padding:0 16px 8px;font-size:11px">预填 ≠ 已发：发送后点「✓ 已发」计入记录；没发或改过的点「✕ 没发」删除。</div>' +
         '<div class="wa-chat">' +
@@ -176,10 +207,11 @@
          '<div class="mode-head"><span class="mode-badge b">②</span>' +
          '<div class="mode-tt"><b>AI 代写 · 上下文 + 长期记忆</b><span>AI 结合全部对话历史写 3 条，挑一条发</span></div>' +
          '<span id="suggLang" class="lang-chip">→ ' + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</span>" +
-         (b.aiSuggests ? '<span class="lang-chip saved">已存 ' + savedAt(b.aiSuggests.at) + "</span>" : "") +
-         '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">' + (b.aiSuggests ? "✦ 重新生成" : "✦ 生成 3 条") + "</button></div>" +
-         '<div id="suggWrap">' + suggHtml + "</div>" +
-         "</div>" +
+          (b.aiSuggests ? '<span id="suggSaved" class="lang-chip saved">已存 ' + savedAt(b.aiSuggests.at) + "</span>" : "") +
+          '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">' + (b.aiSuggests ? "✦ 重新生成" : "✦ 生成 3 条") + "</button></div>" +
+          '<div id="diagLine" class="diag-line">' + (b.aiDiag ? diagText(b) : "谈单诊断：点「✦ 生成 3 条」后，AI 先诊断这单在哪一步、下一步推什么，再给建议") + "</div>" +
+          '<div id="suggWrap">' + suggHtml + "</div>" +
+          "</div>" +
          remindHtml(b) +
          profileHtml(b) +
          ctxHtml +
@@ -197,6 +229,42 @@
       if (fuBtn) fuBtn.addEventListener("click", function () { App.go("followup"); });
 
       var langSel = root.querySelector("#langSel");
+       /* 成交 / 流失标记（学习层的结果标签） */
+       var ocWon = root.querySelector('[data-act="oc-won"]');
+       if (ocWon) ocWon.addEventListener("click", function () {
+         if (!confirm("标记为已成交？（标错可点\"清除标记\"）")) return;
+         b.outcome = { status: "won", at: new Date().toISOString() };
+         AIevt(b, "outcome", { status: "won" });
+         if (window.Store) Store.commit();
+         App.toast("已记录成交");
+         App.refresh();
+       });
+       var ocLost = root.querySelector('[data-act="oc-lost"]');
+       if (ocLost) ocLost.addEventListener("click", function () {
+         var row = root.querySelector(".outcome-row");
+         if (!row) return;
+         row.innerHTML = '<span class="oc-ask">流失原因（周报统计用）：</span>' +
+           LOSE_REASONS.map(function (r) { return '<button class="oc-reason" data-r="' + r + '">' + r + "</button>"; }).join("") +
+           '<button class="oc-clear" data-act="oc-cancel">取消</button>';
+         row.querySelectorAll(".oc-reason").forEach(function (btn) {
+           btn.addEventListener("click", function () {
+             b.outcome = { status: "lost", reason: btn.dataset.r, at: new Date().toISOString() };
+             AIevt(b, "outcome", { status: "lost", reason: btn.dataset.r });
+             if (window.Store) Store.commit();
+             App.toast("已记录流失 · " + btn.dataset.r);
+             App.refresh();
+           });
+         });
+         var cx = row.querySelector('[data-act="oc-cancel"]');
+         if (cx) cx.addEventListener("click", function () { App.refresh(); });
+       });
+       var ocClear = root.querySelector('[data-act="oc-clear"]');
+       if (ocClear) ocClear.addEventListener("click", function () {
+         b.outcome = null;
+         if (window.Store) Store.commit();
+         App.refresh();
+       });
+
        if (langSel) langSel.addEventListener("change", function () {
          if (langSel.value) b.msgLang = langSel.value; else delete b.msgLang;
          if (window.Store) Store.commit();
@@ -229,6 +297,7 @@
         var t = logIn && logIn.value.trim();
         if (!t) { App.toast("先写客户说的内容"); return; }
         b.messages.push({ from: "buyer", text: t, time: "刚刚" });
+        AIevt(b, "reply", { via: "quicklog", text: t });
         if (window.Store) Store.commit();
         App.refresh();
       }
@@ -240,7 +309,7 @@
         el.addEventListener("click", function () {
           var idx = +el.getAttribute("data-idx");
           if (el.getAttribute("data-act") === "h-y") {
-            if (b.messages[idx]) b.messages[idx].status = "sent";
+            if (b.messages[idx]) { b.messages[idx].status = "sent"; AIevt(b, "confirmed", { text: b.messages[idx].text }); }
           } else {
             b.messages.splice(idx, 1);
           }
@@ -305,6 +374,8 @@
         if (!box) return;
         var s = box.querySelector('[data-act="p-send"]');
         if (s) s.addEventListener("click", function () {
+          AIevt(b, "sent", { src: "translate", text: pending.en });
+          if (window.Store) Store.commit();
           if (openWa(pending.en)) { pending = null; renderPending(); }
         });
         var r = box.querySelector('[data-act="p-re"]');
@@ -344,19 +415,28 @@
       function doTranslate() {
         var t = input.value.trim();
         if (!t) { App.toast("先在方式①里写一句中文，AI 翻给你看；或去方式②挑一条 AI 代写的"); return; }
-        if (!/[一-龥]/.test(t)) { sendWa(t); return; }
+        if (!/[一-龥]/.test(t)) { AIevt(b, "sent", { src: "manual", text: t }); if (window.Store) Store.commit(); sendWa(t); return; }
         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return; }
         translate(t);
       }
 
+      function suggIndex(container, el) {
+        var cards = container.querySelectorAll(".sugg");
+        for (var i = 0; i < cards.length; i++) if (cards[i].contains(el)) return i;
+        return 0;
+      }
       function bindSugg(container) {
         container.querySelectorAll(".sugg-use").forEach(function (btn) {
           btn.addEventListener("click", function () {
+            AIevt(b, "sent", { src: "ai", i: suggIndex(container, btn), text: btn.dataset.text });
+            if (window.Store) Store.commit();
             sendWa(btn.dataset.text);
           });
         });
         container.querySelectorAll(".sugg-copy").forEach(function (btn) {
           btn.addEventListener("click", function () {
+            AIevt(b, "copy", { i: suggIndex(container, btn), text: btn.dataset.ctext });
+            if (window.Store) Store.commit();
             copyText(btn.dataset.ctext);
           });
         });
@@ -369,16 +449,34 @@
         var wrap = root.querySelector("#suggWrap");
         regen.disabled = true;
         wrap.innerHTML = '<div class="empty" style="padding:20px 0">正在结合最新档案与对话生成…</div>';
-        LLM.suggest(b).then(function (list) {
+        LLM.suggest(b).then(function (res) {
+          var list = res && res.list;
           if (!list || !list.length) throw new Error("返回为空");
           var items = list.slice(0, 3);
           var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语";
           b.aiSuggests = { lang: lang, at: Date.now(), items: items };
+          if (res.diagnosis && (res.diagnosis.nextGoal || res.diagnosis.blocker)) {
+            b.aiDiag = { at: Date.now(), nextGoal: res.diagnosis.nextGoal || "", blocker: res.diagnosis.blocker || "" };
+          }
+          AIevt(b, "gen", { stage: Mock.STAGES[b.stage], goal: b.aiDiag ? b.aiDiag.nextGoal : "", texts: items.map(function (s) { return s.text; }) });
           if (window.Store) Store.commit();
           wrap.innerHTML = items.map(suggCard).join("");
           bindSugg(wrap);
+          var dl = root.querySelector("#diagLine");
+          if (dl && b.aiDiag) dl.textContent = diagText(b);
+          var sv = root.querySelector("#suggSaved");
+          if (!sv) {
+            sv = document.createElement("span");
+            sv.id = "suggSaved";
+            sv.className = "lang-chip saved";
+            var mh = root.querySelector(".mode-b .mode-head");
+            var rg0 = mh && mh.querySelector(".regen");
+            if (mh && rg0) mh.insertBefore(sv, rg0);
+          }
+          if (sv) sv.textContent = "已存 " + savedAt(b.aiSuggests.at);
+          if (regen) regen.textContent = "✦ 重新生成";
           var leaked = lang !== "中文" && items.some(function (s) { return /[一-龥]/.test(s.text || ""); });
-          App.toast(leaked ? "注意：AI 仍输出了中文，建议在设置里换成更强模型后重试" : "已生成并保存 · 退出后还在");
+          App.toast(leaked ? "注意：AI 仍输出了中文，建议在设置里换成更强模型后重试" : "已生成并保存 · 含谈单诊断");
         }).catch(function (e) {
           App.toast("生成失败：" + e.message);
           App.refresh();
@@ -398,10 +496,13 @@
           push({ from: "me", text: b.options.text + "：" + opt.t, time: "刚刚" });
           if (!opt.reply || b._optReplied) return;
           b._optReplied = true;
-          setTimeout(function () {
+           setTimeout(function () {
             push({ from: "buyer", text: opt.reply, time: "刚刚" });
             b.intent = Math.min(99, b.intent + 2);
+            var prevStage = b.stage;
             if (b.stage < 4) b.stage++;
+            if (b.stage !== prevStage) AIevt(b, "stage", { to: Mock.STAGES[b.stage] });
+            AIevt(b, "reply", { via: "option", text: opt.reply });
             b.context = b.context || [];
             b.context.push({ k: "决策", v: opt.t.replace(/^\d+ · /, "") });
             if (window.Store) Store.commit();

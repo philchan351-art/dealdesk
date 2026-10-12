@@ -113,19 +113,21 @@
         for (var i = 0; i < list.length; i++) if (hasCjk(list[i].text)) return true;
         return false;
       }
-      return chat(ctx(buyer), Prompts.suggest(buyer), { max_tokens: 700, temp: 0.4 })
-        .then(function (t) {
-          var o = parseJSON(t);
-          var list = (o && o.suggestions) || null;
-          if (leak(list)) {
-            return chat(ctx(buyer), Prompts.suggest(buyer) + "\n\n【纠正】上一次输出的 text 字段含中文，错误。text 必须为纯" + lang + "，只有 zh 字段可以是中文。", { max_tokens: 700, temp: 0.3 })
-              .then(function (t2) {
-                var o2 = parseJSON(t2);
-                return ((o2 && o2.suggestions) || null) || list;
-              });
-          }
-          return list;
-        });
+      function parse(t) {
+        var o = parseJSON(t);
+        return { diagnosis: (o && o.diagnosis) || null, list: (o && o.suggestions) || null };
+      }
+      function call(promptText) {
+        return chat(ctx(buyer), promptText, { max_tokens: 800, temp: 0.4 }).then(parse);
+      }
+      return call(Prompts.suggest(buyer)).then(function (r) {
+        if (leak(r.list)) {
+          return call(Prompts.suggest(buyer) + "\n\n[纠正] 上一次输出的 text 字段里出现了中文，这是错误的。text 必须是纯" + lang + "，只有 zh 字段允许中文。").then(function (r2) {
+            return leak(r2.list) ? r : r2;
+          });
+        }
+        return r;
+      });
     },
     localize: function (text, buyer) {
       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";

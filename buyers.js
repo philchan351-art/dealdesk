@@ -29,18 +29,19 @@
         if (window.BuyerSheet) BuyerSheet.open();
       });
 
-      function card(b) {
-        var g = U.grade(b.intent);
-        return '<div class="bcard card' + (b.unread ? " unread" : "") + '" data-id="' + b.id + '">' +
-          U.avatar(b) +
-          '<div class="bmid">' +
-          '<div class="bmid-top"><b>' + b.name + '</b><span class="intent intent-' + g + '"><b>' + g + "</b>" + b.intent + "</span></div>" +
-          '<div class="bmid-sub">' + b.product + " · " + b.qty + (b.tags && b.tags.length ? " · " + b.tags[0] : "") + "</div>" +
-          '<div class="bmid-meta"><span class="stage-tag">' + Mock.STAGES[b.stage] + '</span><span class="wa-badge">WhatsApp</span><span>' + b.lastActive + "</span></div>" +
-          "</div>" +
-          '<div class="bright"><b>' + (b.amount ? U.money(b.amount, b.currency) : "待报价") + "</b>" + U.dueBadge(b.followIn) + "</div>" +
-          "</div>";
-      }
+       function card(b) {
+         var g = U.grade(b.intent);
+         var oc = b.outcome ? '<span class="b-outcome ' + (b.outcome.status === "won" ? "won" : "lost") + '">' + (b.outcome.status === "won" ? "已成交" : "已流失") + "</span>" : "";
+         return '<div class="bcard card' + (b.unread ? " unread" : "") + '" data-id="' + b.id + '">' +
+           U.avatar(b) +
+           '<div class="bmid">' +
+           '<div class="bmid-top"><b>' + b.name + "</b>" + oc + '<span class="intent intent-' + g + '"><b>' + g + "</b>" + b.intent + "</span></div>" +
+           '<div class="bmid-sub">' + b.product + " · " + b.qty + (b.tags && b.tags.length ? " · " + b.tags[0] : "") + "</div>" +
+           '<div class="bmid-meta"><span class="stage-tag">' + Mock.STAGES[b.stage] + "</span><span class=\"wa-badge\">WhatsApp</span><span>" + b.lastActive + "</span></div>" +
+           "</div>" +
+           '<div class="bright"><button class="bcard-del" data-act="del" data-id="' + b.id + '" data-name="' + b.name + '" title="删除客户">⋯</button><b>' + (b.amount ? U.money(b.amount, b.currency) : "待报价") + "</b>" + U.dueBadge(b.followIn) + "</div>" +
+           "</div>";
+       }
 
       function draw() {
         var arr = Mock.buyers.filter(function (b) {
@@ -57,6 +58,15 @@
         listEl.innerHTML = arr.length ? arr.map(card).join("") : '<div class="empty">没有匹配的买家</div>';
         listEl.querySelectorAll(".bcard").forEach(function (el) {
           el.addEventListener("click", function () { App.go("buyer", el.dataset.id); });
+        });
+        listEl.querySelectorAll('[data-act="del"]').forEach(function (btn) {
+          btn.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            if (!confirm("删除客户「" + btn.dataset.name + "」？删除会同步到云端，不可恢复。")) return;
+            if (window.Store) Store.removeBuyer(btn.dataset.id);
+            App.toast("已删除");
+            App.refresh();
+          });
         });
       }
 

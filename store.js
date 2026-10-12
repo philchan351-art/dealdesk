@@ -162,6 +162,10 @@
       data.followups = [];
       save();
     },
+    removeBuyer: function (id) {
+      data.buyers = data.buyers.filter(function (x) { return x.id !== id; });
+      save();
+    },
     /* 切换/新建登录账号时：清掉本机上一位业务员的客户数据，只保留云端该账号的数据 */
     wipeLocal: function () {
       data.buyers = [];
