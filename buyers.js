@@ -7,7 +7,7 @@
     title: "买家管理",
 
     render: function () {
-      return UI.topbar("买家", Mock.buyers.length + " 位活跃买家 · " + U.unreadTotal() + " 条未读消息", '<button class="topbar-add" data-act="new">＋ 新增</button>') +
+      return UI.topbar("买家", Mock.buyers.length + " 位活跃买家 · " + U.unreadTotal() + " 条未读消息", '<button class="topbar-add" data-act="new">＋ 新增客户</button>') +
         '<div class="search-wrap"><div class="search">' +
         '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>' +
         '<input id="buyerSearch" placeholder="搜索买家 / 公司 / 产品"/></div></div>' +

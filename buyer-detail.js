@@ -102,8 +102,8 @@
       var g = U.grade(b.intent);
       var sugg = Mock.suggestions[b.id] || [];
 
-      var suggHtml = sugg.map(suggCard).join("");
-      if (!suggHtml) suggHtml = '<div class="set-note" style="padding:4px 2px 10px">该买家暂无预设建议。已配置 LLM 时，点右上方"↻ 重新生成"即可基于档案生成。</div>';
+       var suggHtml = sugg.map(suggCard).join("");
+       if (!suggHtml) suggHtml = '<div class="set-note" style="padding:4px 2px 10px">该买家暂无预设建议。已配置 AI 时，点上方"✦ 重新代写 3 条"，AI 会结合档案与全部历史对话生成（中外语对照）。</div>';
 
       var ctx = (b.context || []);
       var ctxHtml = ctx.length
@@ -140,8 +140,8 @@
         remindHtml(b) +
         profileHtml(b) +
         ctxHtml +
-        '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">AI 回复建议 · WhatsApp 版式' +
-        '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">↻ 重新生成</button></div>' +
+         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">② AI 代写 · 结合上下文与长期记忆' +
+         '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">✦ 重新代写 3 条</button></div>' +
         '<div style="padding:0 16px" id="suggWrap">' + suggHtml + "</div>" +
         compareHtml(b) +
         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">WhatsApp 对话 · 过渡模式（wa.me 一键交接）</div>' +
@@ -155,8 +155,8 @@
         optHtml +
         "</div>" +
         "</div>" +
-        '<div class="wa-composer"><input id="msgInput" placeholder="写要点（中文也行）· 发送前 AI 自动转成客户语言"/>' +
-        '<button class="wa-send" data-act="send" aria-label="发送">' + WA_ICON + "</button></div>";
+         '<div class="wa-composer"><input id="msgInput" placeholder="① 写中文要点 · AI 先翻译给你看，再发 WhatsApp"/>' +
+         '<button class="wa-send" data-act="send" aria-label="AI 翻译">' + WA_ICON + "</button></div>";
     },
 
     init: function (param, root) {
@@ -177,7 +177,7 @@
 
       var jump = root.querySelector('[data-act="jump"]');
       if (jump) jump.addEventListener("click", function () {
-        if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增买家\"补录"); return; }
+         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return; }
         var ju = waLink(b.wa);
         if (!ju) { App.toast("号码格式不正确，请在档案里补全国际号码（含国家码）"); return; }
         window.open(ju, "_blank");
@@ -210,32 +210,86 @@
         msgs.appendChild(div.firstChild);
         scrollDown();
       }
+      /* 直达 WhatsApp（建议卡 / 非中文输入） */
+      function openWa(finalText, note) {
+        if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return false; }
+        var su = waLink(b.wa, finalText);
+        if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return false; }
+        push({ from: "me", text: finalText, time: "刚刚" });
+        input.value = "";
+        window.open(su, "_blank");
+        App.toast(note || "已打开 WhatsApp · 已预填，点发送即可（过渡模式）");
+        return true;
+      }
       function sendWa(text) {
         if (!text) return;
-        if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增买家\"补录"); return; }
-        var hasCn = /[一-龥]/.test(text);
-        function doOpen(finalText, note) {
-          var su = waLink(b.wa, finalText);
-          if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return; }
-          push({ from: "me", text: finalText, time: "刚刚" });
-          input.value = "";
-          window.open(su, "_blank");
-          App.toast(note);
-        }
-        if (hasCn && window.LLM && LLM.configured()) {
-          App.toast("正在按" + b.country + "商务习惯本地化…");
-          LLM.localize(text, b).then(function (en) {
-            en = String(en || "").trim();
-            if (!en) throw new Error("为空");
-            doOpen(en, "已本地化并打开 WhatsApp · 点发送即可");
-          }).catch(function () {
-            doOpen(text, "本地化失败，已用原文打开 WhatsApp");
-          });
-        } else if (hasCn) {
-          doOpen(text, "已打开 WhatsApp · 这是中文，建议用上方 AI 建议的外文发给客户");
-        } else {
-          doOpen(text, "已打开 WhatsApp · 已预填，点发送即可（过渡模式）");
-        }
+        openWa(text);
+      }
+
+      /* ① 写中文 → AI 先翻译并在对话区展示（中外语对照）→ 再手动跳 WhatsApp */
+      var pending = null; // { zh, en, lang, loading }
+      function pendingHtml() {
+        var loading = pending.loading;
+        return '<div class="pending">' +
+          '<div class="pending-head"><span class="pending-tag">' + (loading ? "AI 正在翻译…" : "① 已翻译 · 确认后发送") + '</span><span class="pending-lang">→ ' + pending.lang + "</span></div>" +
+          (loading
+            ? '<div class="pending-text pending-loading">正在把中文改写为符合客户习惯的表达…</div>'
+            : '<div class="pending-text">' + pending.en + "</div>" +
+              '<div class="pending-zh">你写的中文：' + pending.zh + "</div>" +
+              '<div class="pending-btns">' +
+              '<button class="p-send" data-act="p-send">发到 WhatsApp</button>' +
+              '<button class="p-re" data-act="p-re">不满意 · 重译</button>' +
+              '<button class="p-x" data-act="p-x">取消</button>' +
+              "</div>") +
+          "</div>";
+      }
+      function bindPending() {
+        var box = msgs.querySelector(".pending");
+        if (!box) return;
+        var s = box.querySelector('[data-act="p-send"]');
+        if (s) s.addEventListener("click", function () {
+          if (openWa(pending.en)) { pending = null; renderPending(); }
+        });
+        var r = box.querySelector('[data-act="p-re"]');
+        if (r) r.addEventListener("click", function () { translate(pending.zh); });
+        var x = box.querySelector('[data-act="p-x]');
+        if (x) x.addEventListener("click", function () { pending = null; renderPending(); });
+      }
+      function renderPending() {
+        var old = msgs.querySelector(".pending");
+        if (old) old.remove();
+        if (!pending) return;
+        var div = document.createElement("div");
+        div.innerHTML = pendingHtml();
+        msgs.appendChild(div.firstChild);
+        bindPending();
+        scrollDown();
+      }
+      function translate(t) {
+        t = String(t || "").trim();
+        if (!t) return;
+        if (!window.LLM || !LLM.configured()) { App.toast("请先在设置里配置 AI（智能引擎）"); return; }
+        pending = { zh: t, en: "", lang: (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语", loading: true };
+        renderPending();
+        LLM.localize(t, b).then(function (en) {
+          en = String(en || "").trim();
+          if (!en) throw new Error("翻译结果为空");
+          pending.loading = false;
+          pending.en = en;
+          renderPending();
+          App.toast("已翻译 · 检查一下，满意再点\"发到 WhatsApp\"");
+        }).catch(function (e) {
+          pending = null;
+          renderPending();
+          App.toast("翻译失败，请重试：" + e.message);
+        });
+      }
+      function doTranslate() {
+        var t = input.value.trim();
+        if (!t) { App.toast("先写一句中文，AI 翻给你看；或直接点上方\"② AI 代写\""); return; }
+        if (!/[一-龥]/.test(t)) { sendWa(t); return; }
+        if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return; }
+        translate(t);
       }
 
       function bindSugg(container) {
@@ -268,10 +322,8 @@
           App.refresh();
         }).finally(function () { regen.disabled = false; });
       });
-      root.querySelector('[data-act="send"]').addEventListener("click", function () {
-        sendWa(input.value.trim());
-      });
-      input.addEventListener("keydown", function (e) { if (e.key === "Enter") sendWa(input.value.trim()); });
+      root.querySelector('[data-act="send"]').addEventListener("click", function () { doTranslate(); });
+      input.addEventListener("keydown", function (e) { if (e.key === "Enter") doTranslate(); });
 
       /* 编号选项：客户回数字 → 自动识别 → 上下文沉淀 → 阶段/意向自动推进 */
       root.querySelectorAll(".wa-opt").forEach(function (btn) {
