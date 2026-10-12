@@ -103,7 +103,7 @@
       var sugg = Mock.suggestions[b.id] || [];
 
        var suggHtml = sugg.map(suggCard).join("");
-       if (!suggHtml) suggHtml = '<div class="set-note" style="padding:4px 2px 10px">该买家暂无预设建议。已配置 AI 时，点上方"✦ 重新代写 3 条"，AI 会结合档案与全部历史对话生成（中外语对照）。</div>';
+       if (!suggHtml) suggHtml = '<div class="set-note" style="padding:2px 0">还没有建议。已配置 AI 时，点上方「✦ 生成 3 条」，AI 会结合全部历史对话代写（中外语对照）。</div>';
 
       var ctx = (b.context || []);
       var ctxHtml = ctx.length
@@ -135,16 +135,28 @@
         '<div class="d-tags">' + b.tags.map(function (t) { return '<span class="tag">' + t + "</span>"; }).join("") + "</div></div>" +
         '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
         "</div>" +
-        '<div class="card tracker" style="margin-top:12px">' + U.stageTracker(b.stage) + "</div>" +
-        langCard(b) +
-        remindHtml(b) +
-        profileHtml(b) +
-        ctxHtml +
-         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">② AI 代写 <span id="suggLang" class="lang-chip">→ ' + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</span>" +
-         '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">✦ 重新代写 3 条</button></div>' +
-        '<div style="padding:0 16px" id="suggWrap">' + suggHtml + "</div>" +
-        compareHtml(b) +
-        '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">WhatsApp 对话 · 过渡模式（wa.me 一键交接）</div>' +
+         '<div class="card tracker" style="margin-top:12px">' + U.stageTracker(b.stage) + "</div>" +
+         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">回复客户 · 两种方式任选</div>' +
+         langCard(b) +
+         '<div class="mode-card mode-a" style="margin:0 16px 12px">' +
+         '<div class="mode-head"><span class="mode-badge a">①</span>' +
+         '<div class="mode-tt"><b>自己写中文 · AI 翻译成外语</b><span>写中文 → AI 翻成客户语言 → 你检查满意再发</span></div></div>' +
+         '<div class="mode-a-row"><input id="msgInput" placeholder="写中文要点，如：你好，请问你主要想找什么产品？"/>' +
+         '<button class="tr-btn" data-act="send">AI 翻译 →</button></div>' +
+         '<div id="pendWrap"></div>' +
+         "</div>" +
+         '<div class="mode-card mode-b" style="margin:0 16px 12px">' +
+         '<div class="mode-head"><span class="mode-badge b">②</span>' +
+         '<div class="mode-tt"><b>AI 代写 · 上下文 + 长期记忆</b><span>AI 结合全部对话历史写 3 条，挑一条发</span></div>' +
+         '<span id="suggLang" class="lang-chip">→ ' + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</span>" +
+         '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">✦ 生成 3 条</button></div>' +
+         '<div id="suggWrap">' + suggHtml + "</div>" +
+         "</div>" +
+         remindHtml(b) +
+         profileHtml(b) +
+         ctxHtml +
+         compareHtml(b) +
+         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">WhatsApp 对话历史 · 过渡模式（wa.me 一键交接）</div>' +
         '<div class="wa-chat">' +
         '<div class="wa-head">' + WA_ICON +
         '<div class="wa-hmid"><b>' + b.name + "</b><span>" + (b.wa || "已绑定") + " · 在线</span></div>" +
@@ -152,12 +164,10 @@
         '<span class="wa-pill">官方通道 · 零感知</span>' +
         "</div>" +
         '<div class="wa-msgs" id="waMsgs">' + msgHtml + "</div>" +
-        optHtml +
-        "</div>" +
-        "</div>" +
-         '<div class="wa-composer"><input id="msgInput" placeholder="① 写中文要点 · AI 先翻译给你看，再发 WhatsApp"/>' +
-         '<button class="wa-send" data-act="send" aria-label="AI 翻译">' + WA_ICON + "</button></div>";
-    },
+         optHtml +
+         "</div>" +
+         "</div>";
+     },
 
     init: function (param, root) {
       var b = Mock.getBuyer(param);
@@ -246,7 +256,7 @@
           "</div>";
       }
       function bindPending() {
-        var box = msgs.querySelector(".pending");
+        var box = root.querySelector("#pendWrap .pending");
         if (!box) return;
         var s = box.querySelector('[data-act="p-send"]');
         if (s) s.addEventListener("click", function () {
@@ -258,14 +268,14 @@
         if (x) x.addEventListener("click", function () { pending = null; renderPending(); });
       }
       function renderPending() {
-        var old = msgs.querySelector(".pending");
-        if (old) old.remove();
-        if (!pending) return;
-        var div = document.createElement("div");
-        div.innerHTML = pendingHtml();
-        msgs.appendChild(div.firstChild);
+        var wrap = root.querySelector("#pendWrap");
+        if (!wrap) return;
+        wrap.innerHTML = pending ? pendingHtml() : "";
         bindPending();
-        scrollDown();
+        if (pending) {
+          var el = root.querySelector(".mode-a");
+          if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
       }
       function translate(t) {
         t = String(t || "").trim();
@@ -288,7 +298,7 @@
       }
       function doTranslate() {
         var t = input.value.trim();
-        if (!t) { App.toast("先写一句中文，AI 翻给你看；或直接点上方\"② AI 代写\""); return; }
+        if (!t) { App.toast("先在方式①里写一句中文，AI 翻给你看；或去方式②挑一条 AI 代写的"); return; }
         if (!/[一-龥]/.test(t)) { sendWa(t); return; }
         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return; }
         translate(t);
