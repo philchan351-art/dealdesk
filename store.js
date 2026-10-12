@@ -32,7 +32,7 @@
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
     } catch (e) {}
-    if (window.Sync) Sync.push();
+    if (window.Sync) Sync.pushNow().catch(function (e) { console.warn("云同步推送失败：", e.message); });
   }
 
   function stamp(b) { if (b) b.updatedAt = Date.now(); }

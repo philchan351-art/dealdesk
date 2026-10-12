@@ -140,7 +140,7 @@
         remindHtml(b) +
         profileHtml(b) +
         ctxHtml +
-         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">② AI 代写 · 结合上下文与长期记忆' +
+         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">② AI 代写 <span id="suggLang" class="lang-chip">→ ' + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</span>" +
          '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">✦ 重新代写 3 条</button></div>' +
         '<div style="padding:0 16px" id="suggWrap">' + suggHtml + "</div>" +
         compareHtml(b) +
@@ -169,11 +169,13 @@
       if (fuBtn) fuBtn.addEventListener("click", function () { App.go("followup"); });
 
       var langSel = root.querySelector("#langSel");
-      if (langSel) langSel.addEventListener("change", function () {
-        if (langSel.value) b.msgLang = langSel.value; else delete b.msgLang;
-        if (window.Store) Store.commit();
-        App.toast(langSel.value ? "已设为" + langSel.value + " · AI 将按此语言生成/翻译" : "已恢复按国家自动选择");
-      });
+       if (langSel) langSel.addEventListener("change", function () {
+         if (langSel.value) b.msgLang = langSel.value; else delete b.msgLang;
+         if (window.Store) Store.commit();
+         var tag = root.querySelector("#suggLang");
+         if (tag) tag.textContent = "→ " + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语");
+         App.toast(langSel.value ? "已设为" + langSel.value + " · AI 将按此语言生成/翻译" : "已恢复按国家自动选择");
+       });
 
       var jump = root.querySelector('[data-act="jump"]');
       if (jump) jump.addEventListener("click", function () {
@@ -316,7 +318,9 @@
           if (!list || !list.length) throw new Error("返回为空");
           wrap.innerHTML = list.slice(0, 3).map(suggCard).join("");
           bindSugg(wrap);
-          App.toast("已基于最新上下文重新生成");
+          var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语";
+          var leaked = lang !== "中文" && list.slice(0, 3).some(function (s) { return /[一-龥]/.test(s.text || ""); });
+          App.toast(leaked ? "注意：AI 仍输出了中文，建议在设置里换成更强模型后重试" : "已基于最新上下文重新生成");
         }).catch(function (e) {
           App.toast("生成失败：" + e.message);
           App.refresh();

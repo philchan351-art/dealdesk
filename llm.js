@@ -105,14 +105,39 @@
         });
     },
     suggest: function (buyer) {
+      var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
+      var needForeign = lang !== "中文";
+      function hasCjk(s) { return /[一-龥]/.test(String(s || "")); }
+      function leak(list) {
+        if (!needForeign || !list) return false;
+        for (var i = 0; i < list.length; i++) if (hasCjk(list[i].text)) return true;
+        return false;
+      }
       return chat(ctx(buyer), Prompts.suggest(buyer), { max_tokens: 700, temp: 0.4 })
         .then(function (t) {
           var o = parseJSON(t);
-          return (o && o.suggestions) || null;
+          var list = (o && o.suggestions) || null;
+          if (leak(list)) {
+            return chat(ctx(buyer), Prompts.suggest(buyer) + "\n\n【纠正】上一次输出的 text 字段含中文，错误。text 必须为纯" + lang + "，只有 zh 字段可以是中文。", { max_tokens: 700, temp: 0.3 })
+              .then(function (t2) {
+                var o2 = parseJSON(t2);
+                return ((o2 && o2.suggestions) || null) || list;
+              });
+          }
+          return list;
         });
     },
     localize: function (text, buyer) {
-      return chat(ctx(buyer), Prompts.localize(buyer) + "\n\n中文原文：" + text, { max_tokens: 400, temp: 0.3 });
+      var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
+      var needForeign = lang !== "中文";
+      var user = Prompts.localize(buyer) + "\n\n中文原文：" + text;
+      return chat(ctx(buyer), user, { max_tokens: 400, temp: 0.3 })
+        .then(function (t) {
+          if (needForeign && /[一-龥]/.test(String(t || ""))) {
+            return chat(ctx(buyer), Prompts.localize(buyer) + "\n\n【纠正】上一次输出含中文，错误。正文必须为纯" + lang + "，不得出现任何中文。\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2 });
+          }
+          return t;
+        });
     }
   };
 })();
