@@ -138,7 +138,7 @@
 
       return '<div class="topbar">' +
         '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
-        '<div class="tb-title"><h1>' + b.name + '</h1><div class="tb-sub">' + (b.wa ? "+" + b.wa : "未填 WhatsApp") + " · " + b.country + " · " + b.lastActive + " 活跃</div></div>" +
+        '<div class="tb-title"><h1>' + b.name + '</h1><div class="tb-sub">' + (b.wa ? (String(b.wa).charAt(0) === "+" ? b.wa : "+" + b.wa) : "未填 WhatsApp") + " · " + b.country + " · " + b.lastActive + " 活跃</div></div>" +
         '<button class="wa-jump" data-act="jump">' + WA_ICON + "<span>直达对话</span></button>" +
         "</div>" +
         '<div class="detail-body">' +
@@ -158,8 +158,10 @@
         '<span class="wa-pill">官方通道 · 零感知</span>' +
         "</div>" +
         '<div class="wa-msgs" id="waMsgs">' + msgHtml + "</div>" +
-         optHtml +
-         "</div>" +
+        optHtml +
+        '<div class="wa-logrow"><input id="logBuyer" placeholder="客户回了什么？记一下（如：OK / 运费多少）"/>' +
+        '<button class="log-btn" data-act="log-buyer">记入对话</button></div>' +
+        "</div>" +
          "</div>" +
          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">回复客户 · 两种方式任选</div>' +
          langCard(b) +
@@ -220,6 +222,19 @@
         App.toast(langBtn.classList.contains("active") ? "已开启中文对照" : "已关闭中文对照");
       });
 
+      /* 客户回复速记：保持虚拟对话与真实 WhatsApp 一致 */
+      var logIn = root.querySelector("#logBuyer");
+      var logBtn = root.querySelector('[data-act="log-buyer"]');
+      function doLogBuyer() {
+        var t = logIn && logIn.value.trim();
+        if (!t) { App.toast("先写客户说的内容"); return; }
+        b.messages.push({ from: "buyer", text: t, time: "刚刚" });
+        if (window.Store) Store.commit();
+        App.refresh();
+      }
+      if (logBtn) logBtn.addEventListener("click", doLogBuyer);
+      if (logIn) logIn.addEventListener("keydown", function (e) { if (e.key === "Enter") doLogBuyer(); });
+
       /* 交接确认：✓ 已发 / ✕ 没发 / 任意我方记录可删 */
       Array.prototype.forEach.call(root.querySelectorAll('.wa-msgs [data-act="h-y"],.wa-msgs [data-act="h-n"],.wa-msgs [data-act="m-del"]'), function (el) {
         el.addEventListener("click", function () {
@@ -234,11 +249,11 @@
         });
       });
 
-      var body = root.querySelector(".detail-body");
       function scrollDown() {
         var wa = root.querySelector(".wa-msgs");
         wa.scrollTop = wa.scrollHeight;
-        body.scrollTop = body.scrollHeight;
+        var chat = root.querySelector(".wa-chat");
+        if (chat && chat.scrollIntoView) chat.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
 
       var input = root.querySelector("#msgInput");
@@ -396,7 +411,7 @@
         });
       });
 
-      setTimeout(scrollDown, 60);
+      /* 进页面停在顶部：先看到客户名字/号码和 WhatsApp 对话框 */
     }
   };
 })();

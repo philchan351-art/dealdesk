@@ -61,8 +61,7 @@
 }
 
 /* ---------- 买家详情 ---------- */
-.detail-body{flex:1;overflow-y:auto;min-height:0}
-.detail-body::-webkit-scrollbar{width:0}
+/* .detail-body 恢复正常文档流，整页由 #screen 统一滚动 */
 .d-info{display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center;padding:14px}
 .d-name{font-size:17px;font-weight:900}
 .d-sub{font-size:11.5px;color:var(--ink-soft);margin-top:3px}
