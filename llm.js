@@ -63,9 +63,14 @@
     var last5 = (buyer.messages || []).slice(-5).map(function (m) {
       return (m.from === "me" ? "卖家" : "客户") + "：" + m.text;
     }).join("\n");
+    /* 显式负信息：档案没记录认证时写出来，防模型"做欧洲市场→肯定有CE"式推理幻觉 */
+    var hasCert = (buyer.context || []).some(function (c) {
+      return /认证|证书|检测报告|test report|\bCE\b|RoHS|REACH|\bUL\b|FDA|UKCA/i.test(String(c.k) + String(c.v));
+    });
+    var certNeg = hasCert ? "" : "；认证/检测报告=档案未记录，即状态未知：声称\"有\"和断言\"肯定没有\"都禁止，唯一允许的说法是\"让 QC 核实状态后回你\"";
     return "客户：" + buyer.name + "（" + buyer.country + "，" + buyer.company + "）" +
       "｜谈单阶段：" + Mock.STAGES[buyer.stage] + "｜意向分：" + buyer.intent +
-      "\n档案：" + (buyer.context || []).map(function (c) { return c.k + "=" + c.v; }).join("；") +
+      "\n档案：" + (buyer.context || []).map(function (c) { return c.k + "=" + c.v; }).join("；") + certNeg +
       (buyer.profile ? "\n国家画像：" + buyer.profile.address + " / " + buyer.profile.style : "") +
       "\n最近对话：\n" + last5;
   }
@@ -118,7 +123,8 @@
         return { diagnosis: (o && o.diagnosis) || null, list: (o && o.suggestions) || null };
       }
       function call(promptText) {
-        return chat(ctx(buyer), promptText, { max_tokens: 800, temp: 0.4 }).then(parse);
+        /* temp 0.25：编造认证/年份类红线比多样性更要紧，压低随机性 */
+        return chat(ctx(buyer), promptText, { max_tokens: 1300, temp: 0.25 }).then(parse);
       }
       return call(Prompts.suggest(buyer)).then(function (r) {
         if (leak(r.list)) {
@@ -139,6 +145,27 @@
             return chat(ctx(buyer), Prompts.localize(buyer) + "\n\n【纠正】上一次输出含中文，错误。正文必须为纯" + lang + "，不得出现任何中文。\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2 });
           }
           return t;
+        });
+    },
+    /* 按意图扩充：返回 {text, zh}；text 含中文时纠正重试一次 */
+    expand: function (text, buyer) {
+      var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
+      var needForeign = lang !== "中文";
+      var sys = ctx(buyer);
+      var base = Prompts.expand(buyer) + "\n\n卖家写的意图：" + text;
+      return chat(sys, base, { max_tokens: 500, temp: 0.4 })
+        .then(function (t) {
+          var o = parseJSON(t);
+          if (!o || !o.text) throw new Error("扩充结果无法解析");
+          if (needForeign && /[一-龥]/.test(String(o.text))) {
+            return chat(sys, base + "\n\n【纠正】上一次 text 字段含中文，错误。text 必须为纯" + lang + "，只有 zh 允许中文。", { max_tokens: 500, temp: 0.2 })
+              .then(function (t2) {
+                var o2 = parseJSON(t2);
+                if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
+                return o2;
+              });
+          }
+          return o;
         });
     }
   };

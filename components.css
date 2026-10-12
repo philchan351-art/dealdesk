@@ -392,3 +392,28 @@
 }
 .regen:disabled{opacity:.5}
 .regen:active{background:var(--brand);color:#fff}
+
+/* ===== 方式①模式切换：按意图扩充 / 逐句直译 ===== */
+.mt-row{display:flex;gap:8px;margin-top:9px}
+.mt-btn{flex:1;font-size:12px;font-weight:600;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:7px 0}
+.mt-btn.active{color:#fff;background:var(--brand);border-color:var(--brand)}
+
+/* ===== P2：价格底线卡 / 超线警告 / 风险单 / 意向箭头 ===== */
+.limit-head{display:flex;align-items:baseline;gap:8px}
+.limit-head b{font-size:13px;font-weight:700;color:var(--ink)}
+.limit-head span{font-size:11px;color:var(--ink-faint)}
+.limit-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px;margin-top:9px}
+.limit-item{display:flex;flex-direction:column;gap:3px}
+.limit-item>span{font-size:11px;color:var(--ink-faint)}
+.limit-in{display:flex;align-items:center;gap:4px}
+.limit-in input{flex:1;min-width:0;box-sizing:border-box;font-size:13px;font-weight:600;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 9px;background:var(--surface-2);outline:none}
+.limit-in i{font-style:normal;font-size:11px;color:var(--ink-faint);white-space:nowrap}
+.sugg-warn,.pending-warn{margin-top:8px;padding:6px 9px;border-radius:8px;background:rgba(211,47,47,.08);border:1px solid rgba(211,47,47,.35);color:#c62f2f;font-size:11px;font-weight:700;line-height:1.5}
+.risk-card{background:rgba(211,47,47,.06);border:1px solid rgba(211,47,47,.3)}
+.risk-card b{font-size:13px;color:#c62f2f}
+.risk-card>span{display:block;margin-top:4px;font-size:12px;color:var(--ink)}
+.risk-strat{margin-top:7px;padding:7px 9px;background:var(--surface-2);border-radius:8px;font-size:12px;line-height:1.55;color:var(--ink-soft)}
+.intent{cursor:pointer}
+.intent i{font-style:normal;font-size:9px;margin-left:2px}
+.intent .i-up{color:var(--a)}
+.intent .i-dn{color:#c62f2f}

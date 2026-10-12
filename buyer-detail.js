@@ -27,6 +27,36 @@
     return "谈单诊断 · 下一步目标：" + (d.nextGoal || "推进") + (d.blocker && d.blocker !== "无" ? " · 卡点：" + d.blocker : "");
   }
 
+  /* P2：底线校验——文本里出现低于底线的价格时软提示（不拦截，人来拍板） */
+  function limitWarn(b, text) {
+    var L = b && b.limit;
+    if (!L || !L.price) return "";
+    var nums = String(text || "").match(/\d+(?:\.\d+)?/g) || [];
+    for (var i = 0; i < nums.length; i++) {
+      var n = parseFloat(nums[i]);
+      if (n >= L.price * 0.3 && n < L.price) return "含低于你底线 $" + L.price + " 的价格";
+    }
+    return "";
+  }
+
+  /* P2：风险单——48h 无新消息或意向连续降级 → 红色提醒卡 + 建议策略 */
+  function riskOf(b) {
+    if (b.outcome) return null;
+    var now = Date.now();
+    var silent = b.updatedAt && (now - b.updatedAt) > 48 * 3600 * 1000;
+    var log = b.intentLog || [];
+    var drops = 0;
+    for (var i = log.length - 1; i >= 0; i--) { if (log[i].d < 0) drops++; else break; }
+    if (!silent && drops < 2) return null;
+    var reasons = [];
+    if (silent) reasons.push("48 小时无新消息");
+    if (drops >= 2) reasons.push("意向连续下降 " + drops + " 次");
+    var strat = drops >= 2
+      ? "别再推价格，先发一条低回复门槛的轻量消息（确认是否收到资料 / 问近期安排）重新破冰"
+      : "发一条单问题消息试探回应（问产品细节或档期），不谈价格";
+    return { reasons: reasons.join("，"), strat: strat };
+  }
+
   function outcomeHtml(b) {
     if (b.outcome) {
       var won = b.outcome.status === "won";
@@ -64,17 +94,37 @@
     } else { fallback(); }
   }
 
-  function suggCard(s) {
+  function suggCard(s, b) {
     var t = String(s.text || "");
+    var w = limitWarn(b, t);
     return '<div class="sugg">' +
-      '<div class="sugg-top"><span class="sugg-style">' + s.style + '</span>' +
+      '<div class="sugg-top"><span class="sugg-style">' + s.style + "</span>" +
       '<div class="sugg-btns">' +
-      '<button class="sugg-use" data-text="' + t.replace(/"/g, "&quot;") + '">发到 WhatsApp</button>' +
+      '<button class="sugg-use" data-text="' + t.replace(/"/g, "&quot;") + '" data-zh="' + String(s.zh || "").replace(/"/g, "&quot;") + '">发到 WhatsApp</button>' +
       '<button class="sugg-copy" data-ctext="' + t.replace(/"/g, "&quot;") + '">复制</button>' +
-      '</div></div>' +
+      "</div></div>" +
       '<div class="sugg-text">' + t + "</div>" +
+      (w ? '<div class="sugg-warn">⚠ ' + w + " · 超出你设的底线，需你本人确认</div>" : "") +
       (s.zh ? '<div class="sugg-zh">中文：' + s.zh + "</div>" : "") +
       "</div>";
+  }
+
+  /* P2：价格底线卡（选填）——AI 谈判的安全边界 */
+  function limitCard(b) {
+    var L = b.limit || {};
+    function item(id, label, val, unit) {
+      return '<div class="limit-item"><span>' + label + "</span>" +
+        '<div class="limit-in"><input id="lim_' + id + '" type="number" inputmode="decimal" step="any" min="0" value="' + (val != null ? val : "") + '" placeholder="—"/><i>' + unit + "</i></div></div>";
+    }
+    return '<div class="card limit-card" style="margin:0 16px 10px;padding:11px 13px">' +
+      '<div class="limit-head"><b>价格底线</b><span>选填 · AI 谈判不越过这条线</span></div>' +
+      '<div class="limit-grid">' +
+      item("price", "最低单价", L.price, "$") +
+      item("moq", "最小 MOQ", L.moq, "件") +
+      item("terms", "最长账期", L.terms, "天") +
+      item("lead", "最短交期", L.lead, "天") +
+      "</div>" +
+      '<div class="set-note" style="margin-top:8px">不填 = AI 不主动谈价格、只问需求。建议一旦触及底线会标红「需本人确认」，绝不替你承诺。</div></div>';
   }
 
   function bubble(m, idx) {
@@ -86,10 +136,10 @@
           '<button class="h-y" data-act="h-y" data-idx="' + idx + '">✓ 已发</button>' +
           '<button class="h-n" data-act="h-n" data-idx="' + idx + '">✕ 没发</button></div>'
         : "";
-      var meta = (m.time || "") + " " + (isH ? '<span class="h-wait">待确认</span>' : "✓✓") +
-        ' <span class="m-del" data-act="m-del" data-idx="' + idx + '" title="删除这条记录">✕</span>';
-      return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + m.text + handed + "</div>" +
-        '<div class="msg-meta">' + meta + "</div></div>";
+       var meta = (m.time || "") + " " + (isH ? '<span class="h-wait">待确认</span>' : "✓✓") +
+         ' <span class="m-del" data-act="m-del" data-idx="' + idx + '" title="删除这条记录">✕</span>';
+       return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + m.text + (m.zh ? '<div class="zh-line">' + m.zh + "</div>" : "") + handed + "</div>" +
+         '<div class="msg-meta">' + meta + "</div></div>";
     }
     return '<div class="msg msg-buyer"><div class="bubble">' + m.text + zh + "</div>" +
       '<div class="msg-meta">' + (m.time || "") + "</div></div>";
@@ -146,7 +196,7 @@
       var g = U.grade(b.intent);
       var sugg = (b.aiSuggests && b.aiSuggests.items && b.aiSuggests.items.length) ? b.aiSuggests.items : (Mock.suggestions[b.id] || []);
 
-       var suggHtml = sugg.map(suggCard).join("");
+        var suggHtml = sugg.map(function (s) { return suggCard(s, b); }).join("");
        if (!suggHtml) suggHtml = '<div class="set-note" style="padding:2px 0">还没有建议。已配置 AI 时，点上方「✦ 生成 3 条」，AI 会结合全部历史对话代写（中外语对照）。</div>';
 
       var ctx = (b.context || []);
@@ -181,6 +231,10 @@
          "</div>" +
          outcomeHtml(b) +
           '<div class="card tracker" style="margin-top:10px">' + U.stageTracker(b.stage) + "</div>" +
+          (function () {
+            var rk = riskOf(b);
+            return rk ? '<div class="card risk-card" style="margin:10px 16px 0"><b>⚠ 谈单遇冷</b><span>' + rk.reasons + '</span><div class="risk-strat">建议策略：' + rk.strat + "</div></div>" : "";
+          })() +
          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
          '<div class="set-note" style="padding:0 16px 8px;font-size:11px">预填 ≠ 已发：发送后点「✓ 已发」计入记录；没发或改过的点「✕ 没发」删除。</div>' +
         '<div class="wa-chat">' +
@@ -196,14 +250,16 @@
         "</div>" +
          "</div>" +
          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">回复客户 · 两种方式任选</div>' +
-         langCard(b) +
-         '<div class="mode-card mode-a" style="margin:0 16px 10px">' +
-         '<div class="mode-head"><span class="mode-badge a">①</span>' +
-         '<div class="mode-tt"><b>自己写中文 · AI 翻译成外语</b><span>写中文 → AI 翻成客户语言 → 你检查满意再发</span></div></div>' +
-         '<div class="mode-a-row"><input id="msgInput" placeholder="写中文要点，如：你好，请问你主要想找什么产品？"/>' +
-         '<button class="tr-btn" data-act="send">AI 翻译 →</button></div>' +
-         '<div id="pendWrap"></div>' +
-         "</div>" +
+          langCard(b) +
+          limitCard(b) +
+          '<div class="mode-card mode-a" style="margin:0 16px 10px">' +
+          '<div class="mode-head"><span class="mode-badge a">①</span>' +
+          '<div class="mode-tt"><b>自己写中文 · AI 帮你写完整</b><span>写大概意图 → AI 按意图扩充成完整消息 → 你检查满意再发</span></div></div>' +
+          '<div class="mt-row"><button class="mt-btn active" data-mt="expand">按意图扩充（推荐）</button><button class="mt-btn" data-mt="direct">逐句直译</button></div>' +
+          '<div class="mode-a-row"><input id="msgInput" placeholder="写大概意图即可，如：想多展示下数字化能力"/>' +
+          '<button class="tr-btn" id="mtGo" data-act="send">AI 扩充 →</button></div>' +
+          '<div id="pendWrap"></div>' +
+          "</div>" +
          '<div class="mode-card mode-b" style="margin:0 16px 10px">' +
          '<div class="mode-head"><span class="mode-badge b">②</span>' +
          '<div class="mode-tt"><b>AI 代写 · 上下文 + 长期记忆</b><span>AI 结合全部对话历史写 3 条，挑一条发</span></div>' +
@@ -271,8 +327,22 @@
          if (window.Store) Store.commit();
          var tag = root.querySelector("#suggLang");
          if (tag) tag.textContent = "→ " + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语");
-         App.toast(langSel.value ? "已设为" + langSel.value + " · AI 将按此语言生成/翻译" : "已恢复按国家自动选择");
-       });
+           App.toast(langSel.value ? "已设为" + langSel.value + " · AI 将按此语言生成/翻译" : "已恢复按国家自动选择");
+        });
+
+        /* P2：价格底线卡——改动即保存，下次生成/翻译立刻生效 */
+        ["price", "moq", "terms", "lead"].forEach(function (id) {
+          var el = root.querySelector("#lim_" + id);
+          if (!el) return;
+          el.addEventListener("change", function () {
+            b.limit = b.limit || {};
+            var v = parseFloat(el.value);
+            if (v > 0) b.limit[id] = v; else delete b.limit[id];
+            if (!b.limit.price && !b.limit.moq && !b.limit.terms && !b.limit.lead) b.limit = null;
+            if (window.Store) Store.commit();
+            App.toast(b.limit ? "价格底线已保存 · AI 谈判不会越过这条线" : "已清空底线 · AI 不会主动谈价格");
+          });
+        });
 
       var jump = root.querySelector('[data-act="jump"]');
       if (jump) jump.addEventListener("click", function () {
@@ -303,35 +373,46 @@
         LLM.translate(text, b).then(function (zh) {
           zh = String(zh || "").trim();
           if (!zh) return;
-          for (var i = b.messages.length - 1; i >= 0; i--) {
-            var m = b.messages[i];
-            if (m.from === "buyer" && m.text === text && !m.zh) {
-              m.zh = zh;
-              if (window.Store) Store.commit();
-              App.refresh();
-              return;
-            }
-          }
+           for (var i = b.messages.length - 1; i >= 0; i--) {
+             var m = b.messages[i];
+             if (m.text === text && !m.zh) {
+               m.zh = zh;
+               if (window.Store) Store.commit();
+               App.refresh();
+               return;
+             }
+           }
         }).catch(function (e) { console.warn("自动翻译失败：", e.message); });
       }
 
-      function doLogBuyer() {
-        var t = logIn && logIn.value.trim();
-        if (!t) { App.toast("先写客户说的内容"); return; }
-        b.messages.push({ from: "buyer", text: t, time: "刚刚" });
-        AIevt(b, "reply", { via: "quicklog", text: t });
-        if (window.Store) Store.commit();
-        App.refresh();
-        autoZh(t);
-      }
+       /* P2：意向信号——客户回复后 AI 静默默估升降并留一句依据（列表点徽章查看） */
+       function judgeIntent(t) {
+         if (!window.LLM || !LLM.configured() || !window.Store) return;
+         LLM.intentDelta(t, b).then(function (o) {
+           if (!o || !o.delta) return;
+           AIevt(b, "intent", { delta: o.delta, reason: o.reason || "" });
+           Store.bumpIntent(b.id, o.delta, o.reason || "客户消息信号");
+           App.refresh();
+         }).catch(function () {});
+       }
+       function doLogBuyer() {
+         var t = logIn && logIn.value.trim();
+         if (!t) { App.toast("先写客户说的内容"); return; }
+         b.messages.push({ from: "buyer", text: t, time: "刚刚" });
+         AIevt(b, "reply", { via: "quicklog", text: t });
+         if (window.Store) Store.commit();
+         App.refresh();
+         autoZh(t);
+         judgeIntent(t);
+       }
       if (logBtn) logBtn.addEventListener("click", doLogBuyer);
       if (logIn) logIn.addEventListener("keydown", function (e) { if (e.key === "Enter") doLogBuyer(); });
 
-      /* 页面加载时：给最近缺中文对照的外语客户消息自动补翻译（最多 5 条，不刷屏） */
-      b.messages.filter(function (m) { return m.from === "buyer" && !m.zh && m.text && !/[一-龥]/.test(m.text); }).slice(-5)
-        .forEach(function (m) {
-          autoZh(m.text);
-        });
+       /* 页面加载时：给最近缺中文对照的外语消息自动补翻译（客户和我发的都算，最多 6 条，不刷屏） */
+       b.messages.filter(function (m) { return !m.zh && m.text && !/[一-龥]/.test(m.text); }).slice(-6)
+         .forEach(function (m) {
+           autoZh(m.text);
+         });
 
       /* 交接确认：✓ 已发 / ✕ 没发 / 任意我方记录可删 */
       Array.prototype.forEach.call(root.querySelectorAll('.wa-msgs [data-act="h-y"],.wa-msgs [data-act="h-n"],.wa-msgs [data-act="m-del"]'), function (el) {
@@ -366,52 +447,55 @@
         scrollDown();
       }
       /* 直达 WhatsApp（建议卡 / 非中文输入） */
-      function openWa(finalText, note) {
+      function openWa(finalText, zh, note) {
         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return false; }
         var su = waLink(b.wa, finalText);
         if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return false; }
-        push({ from: "me", text: finalText, time: "刚刚", status: "handed" });
+        push({ from: "me", text: finalText, time: "刚刚", status: "handed", zh: zh || undefined });
         input.value = "";
         window.open(su, "_blank");
         App.toast(note || "已预填到 WhatsApp · 还没发送！你发送后回来点「✓ 已发」，没发/改了点「✕ 没发」");
         return true;
       }
-      function sendWa(text) {
+      function sendWa(text, zh) {
         if (!text) return;
-        openWa(text);
+        openWa(text, zh);
       }
 
-      /* ① 写中文 → AI 先翻译并在对话区展示（中外语对照）→ 再手动跳 WhatsApp */
-      var pending = null; // { zh, en, lang, loading }
-      function pendingHtml() {
-        var loading = pending.loading;
-        return '<div class="pending">' +
-          '<div class="pending-head"><span class="pending-tag">' + (loading ? "AI 正在翻译…" : "① 已翻译 · 确认后发送") + '</span><span class="pending-lang">→ ' + pending.lang + "</span></div>" +
-          (loading
-            ? '<div class="pending-text pending-loading">正在把中文改写为符合客户习惯的表达…</div>'
-            : '<div class="pending-text">' + pending.en + "</div>" +
-              '<div class="pending-zh">你写的中文：' + pending.zh + "</div>" +
-              '<div class="pending-btns">' +
-              '<button class="p-send" data-act="p-send">发到 WhatsApp</button>' +
-              '<button class="p-re" data-act="p-re">不满意 · 重译</button>' +
-              '<button class="p-x" data-act="p-x">取消</button>' +
-              "</div>") +
-          "</div>";
-      }
-      function bindPending() {
-        var box = root.querySelector("#pendWrap .pending");
-        if (!box) return;
-        var s = box.querySelector('[data-act="p-send"]');
-        if (s) s.addEventListener("click", function () {
-          AIevt(b, "sent", { src: "translate", text: pending.en });
-          if (window.Store) Store.commit();
-          if (openWa(pending.en)) { pending = null; renderPending(); }
-        });
-        var r = box.querySelector('[data-act="p-re"]');
-        if (r) r.addEventListener("click", function () { translate(pending.zh); });
-        var x = box.querySelector('[data-act="p-x]');
-        if (x) x.addEventListener("click", function () { pending = null; renderPending(); });
-      }
+       /* ① 写大概意图 → AI 按意图扩充（或逐句直译）→ 对话区展示对照 → 再手动跳 WhatsApp */
+       var mtMode = "expand"; // expand=按意图扩充 / direct=逐句直译
+       var pending = null; // { raw, zh, en, mode, lang, loading }
+       function pendingHtml() {
+         var loading = pending.loading;
+         var isExp = pending.mode === "expand";
+         return '<div class="pending">' +
+           '<div class="pending-head"><span class="pending-tag">' + (loading ? (isExp ? "AI 正在按意图扩充…" : "AI 正在翻译…") : (isExp ? "① 已扩充 · 确认后发送" : "① 已翻译 · 确认后发送")) + '</span><span class="pending-lang">→ ' + pending.lang + "</span></div>" +
+           (loading
+             ? '<div class="pending-text pending-loading">' + (isExp ? "正在把你的意图补成一条完整消息…" : "正在把中文改写为符合客户习惯的表达…") + "</div>"
+             : '<div class="pending-text">' + pending.en + "</div>" +
+               (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + limitWarn(b, pending.en) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
+               '<div class="pending-zh">' + (isExp ? "这条消息的意思：" : "你写的中文：") + pending.zh + "</div>" +
+               '<div class="pending-btns">' +
+               '<button class="p-send" data-act="p-send">发到 WhatsApp</button>' +
+               '<button class="p-re" data-act="p-re">不满意 · 再来一条</button>' +
+               '<button class="p-x" data-act="p-x">取消</button>' +
+               "</div>") +
+           "</div>";
+       }
+       function bindPending() {
+         var box = root.querySelector("#pendWrap .pending");
+         if (!box) return;
+         var s = box.querySelector('[data-act="p-send"]');
+         if (s) s.addEventListener("click", function () {
+           AIevt(b, "sent", { src: pending.mode === "expand" ? "expand" : "translate", text: pending.en });
+           if (window.Store) Store.commit();
+           if (openWa(pending.en, pending.zh)) { pending = null; renderPending(); }
+         });
+         var r = box.querySelector('[data-act="p-re]');
+         if (r) r.addEventListener("click", function () { translate(pending.raw); });
+         var x = box.querySelector('[data-act="p-x]');
+         if (x) x.addEventListener("click", function () { pending = null; renderPending(); });
+       }
       function renderPending() {
         var wrap = root.querySelector("#pendWrap");
         if (!wrap) return;
@@ -422,29 +506,45 @@
           if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
       }
-      function translate(t) {
-        t = String(t || "").trim();
-        if (!t) return;
-        if (!window.LLM || !LLM.configured()) { App.toast("请先在设置里配置 AI（智能引擎）"); return; }
-        pending = { zh: t, en: "", lang: (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语", loading: true };
-        renderPending();
-        LLM.localize(t, b).then(function (en) {
-          en = String(en || "").trim();
-          if (!en) throw new Error("翻译结果为空");
-          pending.loading = false;
-          pending.en = en;
-          renderPending();
-          App.toast("已翻译 · 检查一下，满意再点\"发到 WhatsApp\"");
-        }).catch(function (e) {
-          pending = null;
-          renderPending();
-          App.toast("翻译失败，请重试：" + e.message);
-        });
-      }
+       /* ① 模式切换：按意图扩充 / 逐句直译 */
+       root.querySelectorAll("[data-mt]").forEach(function (btn) {
+         btn.addEventListener("click", function () {
+           mtMode = btn.getAttribute("data-mt");
+           root.querySelectorAll("[data-mt]").forEach(function (x) { x.classList.remove("active"); });
+           btn.classList.add("active");
+           var go = root.querySelector("#mtGo");
+           if (go) go.textContent = mtMode === "expand" ? "AI 扩充 →" : "AI 翻译 →";
+         });
+       });
+
+       function translate(t) {
+         t = String(t || "").trim();
+         if (!t) return;
+         if (!window.LLM || !LLM.configured()) { App.toast("请先在设置里配置 AI（智能引擎）"); return; }
+         var isExp = mtMode === "expand";
+         pending = { raw: t, zh: t, en: "", mode: mtMode, lang: (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语", loading: true };
+         renderPending();
+         var call = isExp
+           ? LLM.expand(t, b)
+           : LLM.localize(t, b).then(function (en0) { return { text: en0, zh: t }; });
+         call.then(function (o) {
+           var en = String(o.text || "").trim();
+           if (!en) throw new Error("结果为空");
+           pending.loading = false;
+           pending.en = en;
+           pending.zh = isExp ? (String(o.zh || "").trim() || t) : t;
+           renderPending();
+           App.toast(isExp ? "已按你的意图扩充 · 检查满意再点\"发到 WhatsApp\"" : "已翻译 · 检查一下，满意再点\"发到 WhatsApp\"");
+         }).catch(function (e) {
+           pending = null;
+           renderPending();
+           App.toast((isExp ? "扩充" : "翻译") + "失败，请重试：" + e.message);
+         });
+       }
       function doTranslate() {
         var t = input.value.trim();
         if (!t) { App.toast("先在方式①里写一句中文，AI 翻给你看；或去方式②挑一条 AI 代写的"); return; }
-        if (!/[一-龥]/.test(t)) { AIevt(b, "sent", { src: "manual", text: t }); if (window.Store) Store.commit(); sendWa(t); return; }
+        if (!/[一-龥]/.test(t)) { AIevt(b, "sent", { src: "manual", text: t }); if (window.Store) Store.commit(); sendWa(t); autoZh(t); return; }
         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return; }
         translate(t);
       }
@@ -459,7 +559,7 @@
           btn.addEventListener("click", function () {
             AIevt(b, "sent", { src: "ai", i: suggIndex(container, btn), text: btn.dataset.text });
             if (window.Store) Store.commit();
-            sendWa(btn.dataset.text);
+            sendWa(btn.dataset.text, btn.dataset.zh);
           });
         });
         container.querySelectorAll(".sugg-copy").forEach(function (btn) {
@@ -488,8 +588,8 @@
             b.aiDiag = { at: Date.now(), nextGoal: res.diagnosis.nextGoal || "", blocker: res.diagnosis.blocker || "" };
           }
           AIevt(b, "gen", { stage: Mock.STAGES[b.stage], goal: b.aiDiag ? b.aiDiag.nextGoal : "", texts: items.map(function (s) { return s.text; }) });
-          if (window.Store) Store.commit();
-          wrap.innerHTML = items.map(suggCard).join("");
+           if (window.Store) Store.commit();
+           wrap.innerHTML = items.map(function (s) { return suggCard(s, b); }).join("");
           bindSugg(wrap);
           var dl = root.querySelector("#diagLine");
           if (dl && b.aiDiag) dl.textContent = diagText(b);
@@ -526,8 +626,8 @@
           if (!opt.reply || b._optReplied) return;
           b._optReplied = true;
            setTimeout(function () {
-            push({ from: "buyer", text: opt.reply, time: "刚刚" });
-            b.intent = Math.min(99, b.intent + 2);
+             push({ from: "buyer", text: opt.reply, time: "刚刚" });
+             if (window.Store) Store.bumpIntent(b.id, 2, "回答编号选项");
             var prevStage = b.stage;
             if (b.stage < 4) b.stage++;
             if (b.stage !== prevStage) AIevt(b, "stage", { to: Mock.STAGES[b.stage] });
