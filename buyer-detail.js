@@ -141,17 +141,29 @@
         '<div class="d-tags">' + b.tags.map(function (t) { return '<span class="tag">' + t + "</span>"; }).join("") + "</div></div>" +
         '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
         "</div>" +
-         '<div class="card tracker" style="margin-top:12px">' + U.stageTracker(b.stage) + "</div>" +
-         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">回复客户 · 两种方式任选</div>' +
+         '<div class="card tracker" style="margin-top:10px">' + U.stageTracker(b.stage) + "</div>" +
+         '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
+         '<div class="set-note" style="padding:0 16px 8px;font-size:11px">预填 ≠ 已发：发送后点「✓ 已发」计入记录；没发或改过的点「✕ 没发」删除。</div>' +
+        '<div class="wa-chat">' +
+        '<div class="wa-head">' + WA_ICON +
+        '<div class="wa-hmid"><b>' + b.name + "</b><span>" + (b.wa || "已绑定") + " · 在线</span></div>" +
+        '<button class="wa-lang" data-act="lang">中文对照</button>' +
+        '<span class="wa-pill">官方通道 · 零感知</span>' +
+        "</div>" +
+        '<div class="wa-msgs" id="waMsgs">' + msgHtml + "</div>" +
+         optHtml +
+         "</div>" +
+         "</div>" +
+         '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">回复客户 · 两种方式任选</div>' +
          langCard(b) +
-         '<div class="mode-card mode-a" style="margin:0 16px 12px">' +
+         '<div class="mode-card mode-a" style="margin:0 16px 10px">' +
          '<div class="mode-head"><span class="mode-badge a">①</span>' +
          '<div class="mode-tt"><b>自己写中文 · AI 翻译成外语</b><span>写中文 → AI 翻成客户语言 → 你检查满意再发</span></div></div>' +
          '<div class="mode-a-row"><input id="msgInput" placeholder="写中文要点，如：你好，请问你主要想找什么产品？"/>' +
          '<button class="tr-btn" data-act="send">AI 翻译 →</button></div>' +
          '<div id="pendWrap"></div>' +
          "</div>" +
-         '<div class="mode-card mode-b" style="margin:0 16px 12px">' +
+         '<div class="mode-card mode-b" style="margin:0 16px 10px">' +
          '<div class="mode-head"><span class="mode-badge b">②</span>' +
          '<div class="mode-tt"><b>AI 代写 · 上下文 + 长期记忆</b><span>AI 结合全部对话历史写 3 条，挑一条发</span></div>' +
          '<span id="suggLang" class="lang-chip">→ ' + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</span>" +
@@ -162,17 +174,6 @@
          profileHtml(b) +
          ctxHtml +
          compareHtml(b) +
-         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式（wa.me 一键交接）</div>' +
-         '<div class="set-note" style="padding:0 16px 10px;font-size:11px">交给 WhatsApp 的消息＝已预填，你发送后点「✓ 已发」才计入记录；没发或改过的点「✕ 没发」删除，随时保持和真实对话一致。</div>' +
-        '<div class="wa-chat">' +
-        '<div class="wa-head">' + WA_ICON +
-        '<div class="wa-hmid"><b>' + b.name + "</b><span>" + (b.wa || "已绑定") + " · 在线</span></div>" +
-        '<button class="wa-lang" data-act="lang">中文对照</button>' +
-        '<span class="wa-pill">官方通道 · 零感知</span>' +
-        "</div>" +
-        '<div class="wa-msgs" id="waMsgs">' + msgHtml + "</div>" +
-         optHtml +
-         "</div>" +
          "</div>";
      },
 
