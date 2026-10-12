@@ -48,7 +48,7 @@
           '<button class="h-y" data-act="h-y" data-idx="' + idx + '">✓ 已发</button>' +
           '<button class="h-n" data-act="h-n" data-idx="' + idx + '">✕ 没发</button></div>'
         : "";
-      var meta = (m.time || "") + " " + (isH ? '<span class="h-wait">待确认</span>' : CHECK2) +
+      var meta = (m.time || "") + " " + (isH ? '<span class="h-wait">待确认</span>' : "✓✓") +
         ' <span class="m-del" data-act="m-del" data-idx="' + idx + '" title="删除这条记录">✕</span>';
       return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + m.text + handed + "</div>" +
         '<div class="msg-meta">' + meta + "</div></div>";
