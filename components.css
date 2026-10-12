@@ -146,6 +146,16 @@
 /* 当前语言标识 */
 .lang-chip{display:inline-block;font-size:10.5px;font-weight:700;color:var(--brand-deep);background:var(--b-bg);border:1px solid rgba(14,94,74,.25);padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:1px;white-space:nowrap}
 
+/* 交接确认：预填 ≠ 已发 */
+.handed-bar{display:flex;gap:6px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(14,94,74,.35);flex-wrap:wrap}
+.handed-tag{font-size:10px;font-weight:700;color:var(--accent-deep);background:var(--b-bg);padding:2px 7px;border-radius:999px;white-space:nowrap}
+.h-y{font-size:11px;font-weight:800;color:#fff;background:var(--brand);border:none;padding:4px 10px;border-radius:8px;white-space:nowrap}
+.h-y:active{background:var(--brand-deep)}
+.h-n{font-size:11px;font-weight:600;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line);padding:4px 10px;border-radius:8px;white-space:nowrap}
+.h-wait{color:var(--accent-deep);font-weight:700}
+.m-del{cursor:pointer;opacity:.45;font-weight:700;padding:0 2px}
+.m-del:active{opacity:1}
+
 /* 回复客户：两种方式选项卡 */
 .mode-card{border-radius:var(--r-md);padding:13px 14px}
 .mode-head{display:flex;align-items:center;gap:9px;margin-bottom:11px}

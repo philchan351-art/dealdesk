@@ -39,16 +39,22 @@
       "</div>";
   }
 
-  function bubble(m) {
-    var cls = m.from === "me" ? "msg-me" : "msg-buyer";
-    var zh = (m.from === "buyer" && m.zh)
-      ? '<div class="zh-line">' + m.zh + "</div>"
-      : "";
-    var ticks = m.from === "me"
-      ? '<svg class="tick" viewBox="0 0 18 12" aria-hidden="true"><path d="M1 6.5 4.5 10 11 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 6.5 10.5 10 17 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
-      : "";
-    return '<div class="msg ' + cls + '"><div class="bubble">' + m.text + zh +
-      '<div class="msg-meta"><span>' + m.time + "</span>" + ticks + "</div></div></div>";
+  function bubble(m, idx) {
+    var zh = m.zh ? '<div class="zh-line">' + m.zh + "</div>" : "";
+    if (m.from === "me") {
+      var isH = m.status === "handed";
+      var handed = isH
+        ? '<div class="handed-bar"><span class="handed-tag">已预填到 WhatsApp · 还没发送</span>' +
+          '<button class="h-y" data-act="h-y" data-idx="' + idx + '">✓ 已发</button>' +
+          '<button class="h-n" data-act="h-n" data-idx="' + idx + '">✕ 没发</button></div>'
+        : "";
+      var meta = (m.time || "") + " " + (isH ? '<span class="h-wait">待确认</span>' : CHECK2) +
+        ' <span class="m-del" data-act="m-del" data-idx="' + idx + '" title="删除这条记录">✕</span>';
+      return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + m.text + handed + "</div>" +
+        '<div class="msg-meta">' + meta + "</div></div>";
+    }
+    return '<div class="msg msg-buyer"><div class="bubble">' + m.text + zh + "</div>" +
+      '<div class="msg-meta">' + (m.time || "") + "</div></div>";
   }
 
   function remindHtml(b) {
@@ -115,7 +121,7 @@
           }).join("") + "</div></div>"
         : "";
 
-      var msgHtml = b.messages.map(bubble).join("");
+      var msgHtml = b.messages.map(function (m, i) { return bubble(m, i); }).join("");
       var optHtml = b.options
         ? '<div class="wacard"><div class="wa-opt-label">编号选项触达 · 客户回一个数字即可，自动识别并沉淀</div>' +
           b.options.items.map(function (it, i) {
@@ -156,7 +162,8 @@
          profileHtml(b) +
          ctxHtml +
          compareHtml(b) +
-         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">WhatsApp 对话历史 · 过渡模式（wa.me 一键交接）</div>' +
+         '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式（wa.me 一键交接）</div>' +
+         '<div class="set-note" style="padding:0 16px 10px;font-size:11px">交给 WhatsApp 的消息＝已预填，你发送后点「✓ 已发」才计入记录；没发或改过的点「✕ 没发」删除，随时保持和真实对话一致。</div>' +
         '<div class="wa-chat">' +
         '<div class="wa-head">' + WA_ICON +
         '<div class="wa-hmid"><b>' + b.name + "</b><span>" + (b.wa || "已绑定") + " · 在线</span></div>" +
@@ -204,6 +211,20 @@
         App.toast(langBtn.classList.contains("active") ? "已开启中文对照" : "已关闭中文对照");
       });
 
+      /* 交接确认：✓ 已发 / ✕ 没发 / 任意我方记录可删 */
+      Array.prototype.forEach.call(root.querySelectorAll('.wa-msgs [data-act="h-y"],.wa-msgs [data-act="h-n"],.wa-msgs [data-act="m-del"]'), function (el) {
+        el.addEventListener("click", function () {
+          var idx = +el.getAttribute("data-idx");
+          if (el.getAttribute("data-act") === "h-y") {
+            if (b.messages[idx]) b.messages[idx].status = "sent";
+          } else {
+            b.messages.splice(idx, 1);
+          }
+          if (window.Store) Store.commit();
+          App.refresh();
+        });
+      });
+
       var body = root.querySelector(".detail-body");
       function scrollDown() {
         var wa = root.querySelector(".wa-msgs");
@@ -218,7 +239,7 @@
         b.messages.push(msg);
         if (window.Store) Store.commit();
         var div = document.createElement("div");
-        div.innerHTML = bubble(msg);
+        div.innerHTML = bubble(msg, b.messages.length - 1);
         msgs.appendChild(div.firstChild);
         scrollDown();
       }
@@ -227,10 +248,10 @@
         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return false; }
         var su = waLink(b.wa, finalText);
         if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return false; }
-        push({ from: "me", text: finalText, time: "刚刚" });
+        push({ from: "me", text: finalText, time: "刚刚", status: "handed" });
         input.value = "";
         window.open(su, "_blank");
-        App.toast(note || "已打开 WhatsApp · 已预填，点发送即可（过渡模式）");
+        App.toast(note || "已预填到 WhatsApp · 还没发送！你发送后回来点「✓ 已发」，没发/改了点「✕ 没发」");
         return true;
       }
       function sendWa(text) {
