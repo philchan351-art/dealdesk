@@ -158,7 +158,8 @@
 
 /* 回复客户：两种方式选项卡 */
 .mode-card{border-radius:var(--r-md);padding:11px 12px}
-.mode-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.mode-head{display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap;row-gap:6px}
+.lang-chip.saved{color:var(--ink-soft);border-color:var(--line);background:var(--surface-2)}
 .mode-badge{flex:none;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff}
 .mode-badge.a{background:var(--brand)}
 .mode-badge.b{background:var(--accent)}

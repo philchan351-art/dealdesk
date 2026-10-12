@@ -6,9 +6,16 @@
   var WA_ICON = '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2Zm5.5 14.1c-.2.7-1.3 1.3-1.9 1.4-.5.1-1.1.1-1.8-.1-.4-.1-1-.3-1.7-.6-3-1.3-4.9-4.3-5.1-4.5-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5s.8 1.9.8 2c.1.1.1.3 0 .5l-.4.6c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1.1 2.2 1.4 2.5 1.5.3.1.5.1.6-.1l.8-.9c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.1.1.5-.1 1.1Z"/></svg>';
 
   function waLink(num, text) {
-    var d = String(num || "").replace(/\D/g, "");
-    if (!d) return "";
-    return "https://wa.me/" + d + (text ? "?text=" + encodeURIComponent(text) : "");
+    var digits = String(num || "").replace(/\D/g, "");
+    if (!digits) return "";
+    return "https://wa.me/" + digits + (text ? "?text=" + encodeURIComponent(text) : "");
+  }
+
+  function savedAt(ts) {
+    if (!ts) return "";
+    var d = new Date(ts);
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return p(d.getHours()) + ":" + p(d.getMinutes());
   }
 
   function copyText(t) {
@@ -106,7 +113,7 @@
       if (!b) return '<div class="empty">未找到该买家</div>';
 
       var g = U.grade(b.intent);
-      var sugg = Mock.suggestions[b.id] || [];
+      var sugg = (b.aiSuggests && b.aiSuggests.items && b.aiSuggests.items.length) ? b.aiSuggests.items : (Mock.suggestions[b.id] || []);
 
        var suggHtml = sugg.map(suggCard).join("");
        if (!suggHtml) suggHtml = '<div class="set-note" style="padding:2px 0">还没有建议。已配置 AI 时，点上方「✦ 生成 3 条」，AI 会结合全部历史对话代写（中外语对照）。</div>';
@@ -131,7 +138,7 @@
 
       return '<div class="topbar">' +
         '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
-        '<div class="tb-title"><h1>买家详情</h1><div class="tb-sub">' + b.company + " · " + b.country + " · " + b.lastActive + " 活跃</div></div>" +
+        '<div class="tb-title"><h1>' + b.name + '</h1><div class="tb-sub">' + (b.wa ? "+" + b.wa : "未填 WhatsApp") + " · " + b.country + " · " + b.lastActive + " 活跃</div></div>" +
         '<button class="wa-jump" data-act="jump">' + WA_ICON + "<span>直达对话</span></button>" +
         "</div>" +
         '<div class="detail-body">' +
@@ -167,7 +174,8 @@
          '<div class="mode-head"><span class="mode-badge b">②</span>' +
          '<div class="mode-tt"><b>AI 代写 · 上下文 + 长期记忆</b><span>AI 结合全部对话历史写 3 条，挑一条发</span></div>' +
          '<span id="suggLang" class="lang-chip">→ ' + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</span>" +
-         '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">✦ 生成 3 条</button></div>' +
+         (b.aiSuggests ? '<span class="lang-chip saved">已存 ' + savedAt(b.aiSuggests.at) + "</span>" : "") +
+         '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">' + (b.aiSuggests ? "✦ 重新生成" : "✦ 生成 3 条") + "</button></div>" +
          '<div id="suggWrap">' + suggHtml + "</div>" +
          "</div>" +
          remindHtml(b) +
@@ -348,11 +356,14 @@
         wrap.innerHTML = '<div class="empty" style="padding:20px 0">正在结合最新档案与对话生成…</div>';
         LLM.suggest(b).then(function (list) {
           if (!list || !list.length) throw new Error("返回为空");
-          wrap.innerHTML = list.slice(0, 3).map(suggCard).join("");
-          bindSugg(wrap);
+          var items = list.slice(0, 3);
           var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语";
-          var leaked = lang !== "中文" && list.slice(0, 3).some(function (s) { return /[一-龥]/.test(s.text || ""); });
-          App.toast(leaked ? "注意：AI 仍输出了中文，建议在设置里换成更强模型后重试" : "已基于最新上下文重新生成");
+          b.aiSuggests = { lang: lang, at: Date.now(), items: items };
+          if (window.Store) Store.commit();
+          wrap.innerHTML = items.map(suggCard).join("");
+          bindSugg(wrap);
+          var leaked = lang !== "中文" && items.some(function (s) { return /[一-龥]/.test(s.text || ""); });
+          App.toast(leaked ? "注意：AI 仍输出了中文，建议在设置里换成更强模型后重试" : "已生成并保存 · 退出后还在");
         }).catch(function (e) {
           App.toast("生成失败：" + e.message);
           App.refresh();
