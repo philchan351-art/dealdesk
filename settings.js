@@ -23,13 +23,20 @@
         return "<option" + (m === (llm.model || "qwen-plus") ? " selected" : "") + ">" + m + "</option>";
       }).join("");
 
-      return '<div class="topbar">' +
-        '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
-        '<div class="tb-title"><h1>设置</h1><div class="tb-sub">数据 · 备份 · 智能引擎</div></div>' +
-        "</div>" +
-        '<div class="set-stack">' +
-        '<div class="card card-pad">' +
-        '<div class="set-title">我的称呼</div>' +
+       var au = window.Auth && Auth.get();
+       return '<div class="topbar">' +
+         '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
+         '<div class="tb-title"><h1>设置</h1><div class="tb-sub">数据 · 备份 · 智能引擎</div></div>' +
+         "</div>" +
+         '<div class="set-stack">' +
+         '<div class="card card-pad">' +
+         '<div class="set-title">当前账号</div>' +
+         '<div class="card set-row"><span class="set-k">业务员</span><b>' + (au ? au.name : "未登录") + "</b></div>" +
+         '<div class="set-actions"><button class="set-btn-inline danger" data-act="logout">切换账号 / 退出登录</button></div>' +
+         '<div class="set-note">退出后本机数据清空并回到登录页；你的客户数据安全存在云端，重新登录即可恢复。每个账号只看自己的客户</div>' +
+         "</div>" +
+         '<div class="card card-pad">' +
+         '<div class="set-title">我的称呼</div>' +
         '<label class="set-lbl">你的名字（首页问候用 · 只存本机）</label>' +
         '<input class="set-inp" id="myName" type="text" maxlength="20" placeholder="如 Cherry" value="' + (st.name || "Cherry") + '"/>' +
         '<div class="set-actions"><button class="set-btn-inline" data-act="save-name">保存</button></div>' +
@@ -75,8 +82,15 @@
         "</div>";
     },
 
-    init: function (param, root) {
-      root.querySelector('[data-act="back"]').addEventListener("click", function () { App.go("home"); });
+     init: function (param, root) {
+       root.querySelector('[data-act="back"]').addEventListener("click", function () { App.go("home"); });
+
+       root.querySelector('[data-act="logout"]').addEventListener("click", function () {
+         if (confirm("退出当前账号？本机客户数据将清空（云端数据保留，重新登录可恢复）。")) {
+           if (window.Auth) Auth.clear();
+           location.reload();
+         }
+       });
 
       root.querySelector('[data-act="save-name"]').addEventListener("click", function () {
         var stName = Store.getSettings() || {};

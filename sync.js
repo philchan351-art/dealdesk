@@ -22,9 +22,31 @@
       var c = cfg();
       return !!(c && c.proxyUrl && c.token);
     },
+    key: function () {
+      var a = window.Auth && Auth.get();
+      return (a && a.key) || "";
+    },
+    dataUrl: function () {
+      var k = this.key();
+      return url("/data") + (k ? "?key=" + encodeURIComponent(k) : "");
+    },
+    authCall: function (name, password, mode) {
+      if (!this.enabled()) return Promise.reject(new Error("未配置云服务：请展开下方「云服务设置」填地址和团队口令"));
+      return fetch(url("/auth"), {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ name: name, password: password, mode: mode })
+      }).then(function (r) {
+        return r.json();
+      }).then(function (j) {
+        if (j.error) throw new Error(j.error);
+        return j;
+      });
+    },
     pushNow: function () {
       if (!this.enabled()) return Promise.resolve(null);
-      return fetch(url("/data"), {
+      if (!this.key()) return Promise.resolve(null);
+      return fetch(this.dataUrl(), {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ data: Store.snapshot(), clientAt: new Date().toISOString() })
@@ -45,7 +67,8 @@
     },
     pull: function () {
       if (!this.enabled()) return Promise.resolve(null);
-      return fetch(url("/data"), { headers: headers() })
+      if (!this.key()) return Promise.resolve(null);
+      return fetch(this.dataUrl(), { headers: headers() })
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j.error) throw new Error(j.error);

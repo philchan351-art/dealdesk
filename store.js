@@ -162,6 +162,13 @@
       data.followups = [];
       save();
     },
+    /* 切换/新建登录账号时：清掉本机上一位业务员的客户数据，只保留云端该账号的数据 */
+    wipeLocal: function () {
+      data.buyers = [];
+      data.followups = [];
+      data.savedAt = null;
+      save();
+    },
     snapshot: function () {
       return { buyers: data.buyers, followups: data.followups, updatedAt: data.savedAt };
     },
