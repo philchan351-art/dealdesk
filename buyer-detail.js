@@ -615,50 +615,98 @@
        root.querySelector('[data-act="send"]').addEventListener("click", function () { doTranslate(); });
        input.addEventListener("keydown", function (e) { if (e.key === "Enter") doTranslate(); });
 
-        /* 🎤 按住说话：按住开始听中文，松手停止；文字实时填进输入框，接着按会往后追加 */
+        /* 🎤 按住说话：录音 → 上传云端识别 → 回填文字（iPhone/微信/任意浏览器通用，不依赖浏览器语音引擎） */
         var micBtn = root.querySelector("#micBtn");
         if (micBtn) {
-          var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-          var recog = null, holding = false, baseVal = "";
-          function stopRecog() {
-            holding = false;
-            if (recog && recog.__on) { try { recog.stop(); } catch (e) {} }
+          var MediaRec = window.MediaRecorder || window.webkitMediaRecorder;
+          var rec = null, chunks = [], busy = false, baseVal = "";
+          var DEFAULT_LABEL = micBtn.textContent;
+          function setLabel(t) { micBtn.textContent = t; }
+          function cloudCfg() {
+            var s = (window.Store && Store.getSettings) ? (Store.getSettings() || {}) : {};
+            var c = s.llm || {};
+            var cl = s.cloud || {};
+            if (!c.proxyUrl && cl.proxyUrl) { c.proxyUrl = cl.proxyUrl; c.token = cl.token; }
+            return c;
           }
-          function startRecog() {
-            if (!SR) { App.toast("这台浏览器不支持语音输入：请用 Chrome 打开（手机 Chrome 或电脑 Chrome），再按住说话"); return; }
-            if (recog && recog.__on) return;
-            if (!recog) {
-              recog = new SR();
-              recog.lang = "zh-CN";
-              recog.continuous = true;
-              recog.interimResults = true;
-              recog.maxAlternatives = 1;
-              recog.onstart = function () { recog.__on = true; micBtn.classList.add("rec"); baseVal = (input.value || "").replace(/\s+$/, ""); };
-              recog.onresult = function (ev) {
-                var finalT = "", interim = "";
-                for (var i = ev.resultIndex; i < ev.results.length; i++) {
-                  var t = ev.results[i][0].transcript;
-                  if (ev.results[i].isFinal) finalT += t; else interim += t;
-                }
-                input.value = (baseVal ? baseVal + " " : "") + (finalT + interim).trim();
-              };
-              recog.onerror = function (ev) {
-                var code = ev.error;
-                if (code === "not-allowed" || code === "service-not-allowed") App.toast("麦克风被禁用：点浏览器地址栏左侧图标，允许麦克风，再按住说话");
-                else if (code === "network") App.toast("语音识别要联网，检查网络后再试");
-              };
-              recog.onend = function () {
-                recog.__on = false;
-                micBtn.classList.remove("rec");
-                if (holding) { setTimeout(function () { if (holding && !(recog && recog.__on)) { try { recog.start(); } catch (e) {} } }, 200); }
-              };
+          function pickMime() {
+            var pref = ["audio/mp4", "audio/mp4;codecs=mp4a.40.2", "audio/aac", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
+            if (MediaRec && MediaRec.isTypeSupported) {
+              for (var i = 0; i < pref.length; i++) { try { if (MediaRec.isTypeSupported(pref[i])) return pref[i]; } catch (e) {} }
             }
-            try { recog.start(); } catch (e) {}
+            return "";
           }
-          micBtn.addEventListener("pointerdown", function (e) { e.preventDefault(); holding = true; startRecog(); });
-          micBtn.addEventListener("pointerup", function (e) { e.preventDefault(); stopRecog(); });
-          micBtn.addEventListener("pointercancel", function () { stopRecog(); });
-          micBtn.addEventListener("pointerleave", function () { stopRecog(); });
+          function fmtOf(m) {
+            m = (m || "").toLowerCase();
+            if (m.indexOf("mp4") >= 0 || m.indexOf("aac") >= 0) return "m4a";
+            if (m.indexOf("mp3") >= 0 || m.indexOf("mpeg") >= 0) return "mp3";
+            if (m.indexOf("wav") >= 0 || m.indexOf("pcm") >= 0) return "wav";
+            if (m.indexOf("ogg") >= 0) return "ogg";
+            if (m.indexOf("webm") >= 0) return "webm";
+            return "m4a";
+          }
+          function b64FromBlob(blob) {
+            return new Promise(function (resolve, reject) {
+              var fr = new FileReader();
+              fr.onload = function () { resolve(String(fr.result).split(",")[1] || ""); };
+              fr.onerror = function () { reject(new Error("读取录音失败")); };
+              fr.readAsDataURL(blob);
+            });
+          }
+          function stopStream() {
+            if (rec && rec.stream) { try { rec.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
+          }
+          function stopMic() {
+            if (rec && rec.state && rec.state !== "inactive") { try { rec.stop(); } catch (e) {} }
+          }
+          micBtn.addEventListener("pointerdown", function (e) {
+            e.preventDefault();
+            if (busy) return;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !MediaRec) {
+              App.toast("这台设备/浏览器不支持录音，请用系统浏览器打开，或用键盘输入"); return;
+            }
+            var c = cloudCfg();
+            if (!c.proxyUrl) { App.toast("语音识别需要云服务：请先登录（设置里填云服务地址+口令）"); return; }
+            busy = true;
+            var mime = pickMime();
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+              try { rec = new MediaRec(stream, mime ? { mimeType: mime } : undefined); }
+              catch (err) { rec = new MediaRec(stream); }
+              chunks = [];
+              baseVal = (input.value || "").replace(/\s+$/, "");
+              micBtn.classList.add("rec"); setLabel("松手结束");
+              rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
+              rec.onerror = function (ev) { stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音出错：" + (ev.error || ev.message || "未知")); };
+              rec.onstop = function () {
+                var blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || "audio/mp4" });
+                var fmt = fmtOf((rec && rec.mimeType) || mime);
+                stopStream();
+                if (!blob.size) { busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("没录到声音，再按住说一次"); return; }
+                micBtn.classList.remove("rec"); micBtn.classList.add("busy"); setLabel("识别中…");
+                b64FromBlob(blob).then(function (b64) {
+                  return fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "x-dealdesk-token": c.token || "" },
+                    body: JSON.stringify({ audio: b64, format: fmt })
+                  }).then(function (r) { return r.json(); });
+                }).then(function (j) {
+                  micBtn.classList.remove("busy"); setLabel(DEFAULT_LABEL);
+                  if (j && j.text) { input.value = (baseVal ? baseVal + " " : "") + j.text; input.focus(); }
+                  else App.toast((j && j.error ? j.error : "没识别到内容，再按住说一次").slice(0, 80));
+                }).catch(function (e2) {
+                  micBtn.classList.remove("busy"); setLabel(DEFAULT_LABEL);
+                  App.toast("识别失败，请重试：" + e2.message);
+                }).then(function () { busy = false; });
+              };
+              try { rec.start(); } catch (err) { stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音启动失败：" + err.message); }
+            }).catch(function (e) {
+              busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL);
+              App.toast("麦克风被禁用：点浏览器地址栏左侧图标允许麦克风，再按住说话");
+            });
+          });
+          micBtn.addEventListener("pointerup", function (e) { e.preventDefault(); stopMic(); });
+          micBtn.addEventListener("pointercancel", function () { stopMic(); });
+          micBtn.addEventListener("pointerleave", function () { stopMic(); });
           micBtn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
           micBtn.addEventListener("dragstart", function (e) { e.preventDefault(); });
         }
