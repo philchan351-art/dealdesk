@@ -14,6 +14,8 @@
       var st = Store.getSettings() || {};
       var llm = st.llm || {};
       var cl = st.cloud || {};
+      var p = (Store.getPersona ? Store.getPersona() : null) || { thoughts: "", scripts: "" };
+      var personaOn = !!(p.thoughts || p.scripts);
       /* 部署在 FC 域名下时，云服务地址自动填当前站点（省一次手输、避免打错） */
       var autoUrl = (!cl.proxyUrl && typeof location !== "undefined" && location.protocol === "https:" && /\.fcapp\.run$/.test(location.hostname)) ? location.origin : "";
       var cloudOn = !!(cl.proxyUrl && cl.token);
@@ -41,6 +43,16 @@
         '<input class="set-inp" id="myName" type="text" maxlength="20" placeholder="如 Cherry" value="' + (st.name || "Cherry") + '"/>' +
         '<div class="set-actions"><button class="set-btn-inline" data-act="save-name">保存</button></div>' +
         '<div class="set-note">每人各填各的，只保存在这台设备，不会同步给别人</div>' +
+        "</div>" +
+        '<div class="card card-pad">' +
+        '<div class="set-title">我的思路与话术（训练 AI）<span class="llm-dot ' + (personaOn ? "on" : "") + '"></span></div>' +
+        '<label class="set-lbl">我的谈单思路（你怎么谈、先问什么、什么节奏）</label>' +
+        '<textarea class="set-inp" id="personaThoughts" maxlength="4000" style="min-height:90px;padding:10px;font-family:inherit;line-height:1.5" placeholder="如：我先确认客户的用途和采购量，再报阶梯价；习惯先寄样品建立信任，不急着让下大单…">' + (p.thoughts || "") + "</textarea>" +
+        '<label class="set-lbl">我的常用话术（你习惯怎么开头、怎么报价、怎么催单）</label>' +
+        '<textarea class="set-inp" id="personaScripts" maxlength="6000" style="min-height:110px;padding:10px;font-family:inherit;line-height:1.5" placeholder="如：常用开头 Hi, thanks for your inquiry… ；报价时一定附交期和起订量；催单就说 the price is valid till end of this week…">' + (p.scripts || "") + "</textarea>" +
+        '<div class="set-actions"><button class="set-btn-inline" data-act="save-persona">保存并训练 AI</button></div>' +
+        '<div class="set-note" id="personaStatus">' + (p.updated ? "已训练 · " + new Date(p.updated).toLocaleString("zh-CN") : "还没训练 · AI 暂用通用风格") + "</div>" +
+        '<div class="set-note">每个业务员各填各的，按账号单独保存在云端，互不串味；保存后 AI 翻译、扩充、回复建议都会自动贴近你的思路和语气</div>' +
         "</div>" +
         '<div class="card card-pad">' +
         '<div class="set-title">智能引擎（LLM）<span class="llm-dot ' + (on ? "on" : "") + '"></span></div>' +
@@ -92,12 +104,25 @@
          }
        });
 
-      root.querySelector('[data-act="save-name"]').addEventListener("click", function () {
-        var stName = Store.getSettings() || {};
-        stName.name = root.querySelector("#myName").value.trim();
-        Store.saveSettings(stName);
-        App.toast("称呼已更新");
-      });
+       root.querySelector('[data-act="save-name"]').addEventListener("click", function () {
+         var stName = Store.getSettings() || {};
+         stName.name = root.querySelector("#myName").value.trim();
+         Store.saveSettings(stName);
+         App.toast("称呼已更新");
+       });
+
+       root.querySelector('[data-act="save-persona"]').addEventListener("click", function () {
+         var thoughts = root.querySelector("#personaThoughts").value;
+         var scripts = root.querySelector("#personaScripts").value;
+         Store.savePersona(thoughts, scripts);
+         var el = root.querySelector("#personaStatus");
+         var pp = Store.getPersona();
+         if (el) {
+           el.textContent = pp.updated ? "已训练 · " + new Date(pp.updated).toLocaleString("zh-CN") : "已清空";
+           el.className = "set-note ok";
+         }
+         App.toast("已保存，AI 生成会自动贴近你的风格");
+       });
 
       function readInputs() {
         var st = Store.getSettings() || {};

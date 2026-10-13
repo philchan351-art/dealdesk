@@ -14,16 +14,21 @@
       var raw = localStorage.getItem(KEY);
       if (!raw) return null;
       var d = JSON.parse(raw);
-      if (d && d.v === VERSION && d.seedV === SEED_V && d.buyers && d.followups) return d;
+      if (d && d.v === VERSION && d.seedV === SEED_V && d.buyers && d.followups) {
+        if (!d.persona) d.persona = emptyPersona();
+        return d;
+      }
     } catch (e) {}
     return null;
   }
+  function emptyPersona() { return { thoughts: "", scripts: "", updated: null }; }
 
   var data = load() || {
     v: VERSION,
     seedV: SEED_V,
     buyers: JSON.parse(JSON.stringify(seed.buyers)),
     followups: JSON.parse(JSON.stringify(seed.followups)),
+    persona: emptyPersona(),
     savedAt: null
   };
 
@@ -187,21 +192,33 @@
       replaceArr(data.buyers, data.buyers.filter(function (x) { return x.id !== id; }));
       save();
     },
-    /* 切换/新建登录账号时：清掉本机上一位业务员的客户数据，只保留云端该账号的数据 */
+    /* 切换/新建登录账号时：清掉本机上一位业务员的客户数据和话术，只保留云端该账号的数据 */
     wipeLocal: function () {
       replaceArr(data.buyers, []);
       replaceArr(data.followups, []);
       data.deleted = [];
+      data.persona = emptyPersona();
       data.savedAt = null;
       saveLocal();
     },
+    getPersona: function () { return data.persona; },
+    savePersona: function (thoughts, scripts) {
+      data.persona = {
+        thoughts: String(thoughts || "").slice(0, 4000),
+        scripts: String(scripts || "").slice(0, 6000),
+        updated: new Date().toISOString()
+      };
+      save();
+      return data.persona;
+    },
     snapshot: function () {
-      return { buyers: data.buyers, followups: data.followups, updatedAt: data.savedAt };
+      return { buyers: data.buyers, followups: data.followups, persona: data.persona, updatedAt: data.savedAt };
     },
     applySnapshot: function (snap) {
       if (!snap || !snap.buyers) return false;
       replaceArr(data.buyers, snap.buyers);
       replaceArr(data.followups, snap.followups || []);
+      if (snap.persona && (snap.persona.thoughts || snap.persona.scripts)) data.persona = snap.persona;
       purge();
       data.savedAt = snap.updatedAt || data.savedAt;
       saveLocal();

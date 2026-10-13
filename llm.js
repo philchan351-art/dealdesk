@@ -59,6 +59,16 @@
     return null;
   }
 
+  /* 该业务员自己训练的个人风格：AI 生成回复/翻译时贴近她的思路和常用话术（按账号隔离，互不串味） */
+  function personaLine() {
+    var p = (window.Store && Store.getPersona) ? Store.getPersona() : null;
+    if (!p || (!p.thoughts && !p.scripts)) return "";
+    var s = "\n本账号业务员的个人风格（生成内容必须贴近这种思路与语气，不要套用别的风格）：";
+    if (p.thoughts) s += "\n谈单思路：" + p.thoughts;
+    if (p.scripts) s += "\n常用话术/语气示例：" + p.scripts;
+    return s;
+  }
+
   function ctx(buyer) {
     var last5 = (buyer.messages || []).slice(-5).map(function (m) {
       return (m.from === "me" ? "卖家" : "客户") + "：" + m.text;
@@ -72,7 +82,7 @@
       "｜谈单阶段：" + Mock.STAGES[buyer.stage] + "｜意向分：" + buyer.intent +
       "\n档案：" + (buyer.context || []).map(function (c) { return c.k + "=" + c.v; }).join("；") + certNeg +
       (buyer.profile ? "\n国家画像：" + buyer.profile.address + " / " + buyer.profile.style : "") +
-      "\n最近对话：\n" + last5;
+      "\n最近对话：\n" + last5 + personaLine();
   }
 
   window.LLM = {
