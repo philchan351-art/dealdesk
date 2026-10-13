@@ -30,18 +30,27 @@
       var k = this.key();
       return url("/data") + (k ? "?key=" + encodeURIComponent(k) : "");
     },
-    authCall: function (name, password, mode) {
+    authCall: function (name, password, mode, timeoutMs) {
       if (!this.enabled()) return Promise.reject(new Error("未配置云服务：请展开下方「云服务设置」填地址和团队口令"));
-      return fetch(url("/auth"), {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ name: name, password: password, mode: mode })
-      }).then(function (r) {
-        return r.json();
-      }).then(function (j) {
-        if (j.error) throw new Error(j.error);
-        return j;
-      });
+      var ctrl = (timeoutMs && typeof AbortController !== "undefined") ? new AbortController() : null;
+      var to = ctrl ? setTimeout(function () { ctrl.abort(); }, timeoutMs) : null;
+      var opts = { method: "POST", headers: headers(), body: JSON.stringify({ name: name, password: password, mode: mode }) };
+      if (ctrl) opts.signal = ctrl.signal;
+      return fetch(url("/auth"), opts)
+        .then(function (r) {
+          if (to) clearTimeout(to);
+          return r.text().then(function (t) {
+            var j = null;
+            try { j = JSON.parse(t); } catch (e) { j = null; }
+            if (!j || typeof j !== "object") throw new Error("云服务返回异常（HTTP " + r.status + "），请检查地址和团队口令");
+            if (j.error) throw new Error(j.error);
+            return j;
+          });
+        }).catch(function (e) {
+          if (to) clearTimeout(to);
+          if (e && (e.name === "AbortError" || /abort/i.test(String(e.message)))) throw new Error("连接云服务超时，请检查网络后重试");
+          throw e;
+        });
     },
     pushNow: function () {
       if (!this.enabled()) return Promise.resolve(null);

@@ -96,13 +96,19 @@
       }
       var name = el.querySelector("#authName").value.trim();
       var pass = el.querySelector("#authPass").value;
-      if (!name) { msg.textContent = "请输入姓名"; return; }
-      if (!pass) { msg.textContent = "请输入密码"; return; }
-      if (mode === "register" && pass !== p2.value) { msg.textContent = "两次输入的密码不一致"; return; }
-      if (!window.Sync || !Sync.enabled()) { msg.textContent = "请先展开「云服务设置」填写地址和团队口令"; return; }
+      function fail(text) { msg.textContent = text; App.toast(text); }
+      if (!name) { fail("请先输入姓名"); return; }
+      if (!pass) { fail("请输入密码"); return; }
+      if (mode === "register" && pass !== p2.value) { fail("两次输入的密码不一致"); return; }
+      if (!window.Sync || !Sync.enabled()) {
+        var det = el.querySelector(".auth-cloud");
+        if (det) det.open = true;
+        fail("先填「云服务设置」里的团队口令（找管理员要）");
+        return;
+      }
       go.disabled = true;
       msg.textContent = mode === "register" ? "创建中…" : "登录中…";
-      Sync.authCall(name, pass, mode).then(function (j) {
+      Sync.authCall(name, pass, mode, 15000).then(function (j) {
         Auth.save({ key: j.key, name: j.name });
         var st2 = Store.getSettings() || {};
         st2.name = j.name;
@@ -110,7 +116,7 @@
         App.toast("你好，" + j.name);
         startApp(j.name, true);
       }).catch(function (e) {
-        msg.textContent = e.message;
+        fail(e.message);
         go.disabled = false;
       });
     }
