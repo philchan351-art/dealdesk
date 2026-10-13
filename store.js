@@ -39,11 +39,15 @@
   }
   purge();
 
-  function save() {
+  function saveLocal() {
     data.savedAt = new Date().toISOString();
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
     } catch (e) {}
+  }
+  /* 用户真实改动才上云；wipeLocal/applySnapshot 这类"本地整理"绝不能触发推送（空数据上云会盖掉真数据） */
+  function save() {
+    saveLocal();
     if (window.Sync) Sync.pushNow().catch(function (e) { console.warn("云同步推送失败：", e.message); });
   }
 
@@ -189,7 +193,7 @@
       replaceArr(data.followups, []);
       data.deleted = [];
       data.savedAt = null;
-      save();
+      saveLocal();
     },
     snapshot: function () {
       return { buyers: data.buyers, followups: data.followups, updatedAt: data.savedAt };
@@ -200,18 +204,8 @@
       replaceArr(data.followups, snap.followups || []);
       purge();
       data.savedAt = snap.updatedAt || data.savedAt;
-      save();
+      saveLocal();
       return true;
-    },
-    bumpIntent: function (buyerId, delta, reason) {
-      var b = Mock.getBuyer(buyerId);
-      if (!b) return null;
-      var old = b.intent;
-      b.intent = Math.max(5, Math.min(99, old + delta));
-      b.intentLog = b.intentLog || [];
-      b.intentLog.push({ t: "刚刚", d: delta, r: reason, from: old, to: b.intent });
-      save();
-      return { from: old, to: b.intent };
     },
     toggleFollowup: function (fid, done) {
       for (var i = 0; i < data.followups.length; i++) {

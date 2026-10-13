@@ -59,7 +59,7 @@
       '<label class="set-lbl">云服务地址</label>' +
       '<input class="set-inp" id="authCloudUrl" type="url" placeholder="https://….fcapp.run" value="' + (cl.proxyUrl || "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run") + '"/>' +
       '<label class="set-lbl">团队口令（管理员给）</label>' +
-      '<input class="set-inp" id="authCloudToken" type="password" placeholder="如 dd-2026-fc88" value="' + (cl.token || "") + '"/>' +
+      '<input class="set-inp" id="authCloudToken" type="password" placeholder="形如 dd-2026-xxxx（找管理员要）" value="' + (cl.token || "") + '"/>' +
       "</details>" +
       "</div>" +
       "</div>";
@@ -144,7 +144,9 @@
     nav();
     if (window.Sync && Sync.enabled()) {
       Sync.pull().then(function (server) {
-        if (server && server.updatedAt && server.updatedAt > (Store.snapshot().updatedAt || "")) {
+        /* 重新登录后本地刚被清空，云端就是权威数据源，只要云端有数据就强制应用（不做新旧比较，避免"本地看起来更新"把云端数据扔掉） */
+        var cur = Store.snapshot().updatedAt || "";
+        if (server && server.updatedAt && (freshLogin || server.updatedAt > cur)) {
           Store.applySnapshot(server);
           nav();
           App.toast(freshLogin ? "已拉取你的云端数据" : "已拉取最新数据");
@@ -156,6 +158,7 @@
           App.toast("账号已失效，请重新登录");
         } else {
           console.warn("云端拉取失败：", e.message);
+          App.toast("云端数据没拉下来：" + e.message);
         }
       });
     }
