@@ -492,10 +492,10 @@
            if (window.Store) Store.commit();
            if (openWa(pending.en, pending.zh)) { pending = null; renderPending(); }
          });
-         var r = box.querySelector('[data-act="p-re]');
-         if (r) r.addEventListener("click", function () { translate(pending.raw); });
-         var x = box.querySelector('[data-act="p-x]');
-         if (x) x.addEventListener("click", function () { pending = null; renderPending(); });
+          var r = box.querySelector('[data-act="p-re"]');
+          if (r) r.addEventListener("click", function () { translate(pending.raw); });
+          var x = box.querySelector('[data-act="p-x"]');
+          if (x) x.addEventListener("click", function () { pending = null; renderPending(); });
        }
       function renderPending() {
         var wrap = root.querySelector("#pendWrap");
