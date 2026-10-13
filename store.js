@@ -21,7 +21,7 @@
     } catch (e) {}
     return null;
   }
-  function emptyPersona() { return { thoughts: "", scripts: "", updated: null }; }
+  function emptyPersona() { return { thoughts: "", scripts: "", updated: null, docs: [] }; }
 
   var data = load() || {
     v: VERSION,
@@ -201,15 +201,27 @@
       data.savedAt = null;
       saveLocal();
     },
-    getPersona: function () { return data.persona; },
+    getPersona: function () {
+      if (!data.persona) data.persona = emptyPersona();
+      if (!data.persona.docs) data.persona.docs = [];
+      return data.persona;
+    },
+    /* 文字训练：保存并上云（资料文件走 /doc/upload，不经这里） */
     savePersona: function (thoughts, scripts) {
-      data.persona = {
-        thoughts: String(thoughts || "").slice(0, 4000),
-        scripts: String(scripts || "").slice(0, 6000),
-        updated: new Date().toISOString()
-      };
+      data.persona = data.persona || emptyPersona();
+      data.persona.docs = data.persona.docs || [];
+      data.persona.thoughts = String(thoughts || "").slice(0, 4000);
+      data.persona.scripts = String(scripts || "").slice(0, 6000);
+      data.persona.updated = new Date().toISOString();
       save();
       return data.persona;
+    },
+    /* 资料文件（元数据+内容）：只存本地，由调用方通过 Sync.docUpload 上云 */
+    setPersonaDocs: function (docs) {
+      data.persona = data.persona || emptyPersona();
+      data.persona.docs = docs || [];
+      saveLocal();
+      return data.persona.docs;
     },
     snapshot: function () {
       return { buyers: data.buyers, followups: data.followups, persona: data.persona, updatedAt: data.savedAt };
@@ -218,7 +230,20 @@
       if (!snap || !snap.buyers) return false;
       replaceArr(data.buyers, snap.buyers);
       replaceArr(data.followups, snap.followups || []);
-      if (snap.persona && (snap.persona.thoughts || snap.persona.scripts)) data.persona = snap.persona;
+      if (snap.persona && (snap.persona.thoughts || snap.persona.scripts)) {
+        data.persona = data.persona || emptyPersona();
+        data.persona.thoughts = snap.persona.thoughts || "";
+        data.persona.scripts = snap.persona.scripts || "";
+        data.persona.updated = snap.persona.updated || data.persona.updated;
+        /* 云端只存资料元数据；内容本地已有就保留，没有就留空待用 */
+        var oldDocs = data.persona.docs || [], merged = [];
+        (snap.persona.docs || []).forEach(function (nd) {
+          var od = null;
+          oldDocs.forEach(function (x) { if (x && x.name === nd.name) od = x; });
+          merged.push(od ? od : { key: nd.key, name: nd.name, size: nd.size, updated: nd.updated });
+        });
+        data.persona.docs = merged;
+      }
       purge();
       data.savedAt = snap.updatedAt || data.savedAt;
       saveLocal();

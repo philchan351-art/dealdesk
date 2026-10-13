@@ -83,6 +83,37 @@
           if (j.error) throw new Error(j.error);
           return j.data || null;
         });
+    },
+    /* ===== 个人训练资料（按账号存云端，供 AI 生成时参考）；URL 同时带用户 key 和资料 doc 两个参数 ===== */
+    docUrl: function (p, docKey) {
+      return url(p) + "?key=" + encodeURIComponent(this.key()) + "&doc=" + encodeURIComponent(docKey);
+    },
+    docUpload: function (name, size, content) {
+      if (!this.enabled()) return Promise.reject(new Error("未配置云服务，请先在下方填写团队口令"));
+      return fetch(url("/doc/upload") + "?key=" + encodeURIComponent(this.key()), {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ name: name, size: size, content: content })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j.error) throw new Error(j.error);
+        return j;
+      });
+    },
+    docFetch: function (docKey) {
+      if (!this.enabled()) return Promise.reject(new Error("未配置云服务"));
+      return fetch(this.docUrl("/doc", docKey), { headers: headers() })
+        .then(function (r) { return r.json(); }).then(function (j) {
+          if (j.error) throw new Error(j.error);
+          return j;
+        });
+    },
+    docDelete: function (docKey) {
+      if (!this.enabled()) return Promise.reject(new Error("未配置云服务"));
+      return fetch(this.docUrl("/doc/delete", docKey), { method: "POST", headers: headers() })
+        .then(function (r) { return r.json(); }).then(function (j) {
+          if (j.error) throw new Error(j.error);
+          return j;
+        });
     }
   };
 

@@ -5,6 +5,18 @@
 
   var DEFAULT_BASE = "https://llm-mackvrkxyhgmoftm.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
 
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function docRows(docs) {
+    if (!docs.length) return '<div class="set-note">还没有资料</div>';
+    return docs.map(function (d) {
+      var kb = Math.round((d.size || 0) / 1024);
+      var link = (d.content != null) ? ' · <a data-act="view-doc" data-doc="' + esc(d.key) + '" style="color:var(--brand)">看</a>' : "";
+      return '<div class="set-note">' + esc(d.name || d.key) + "（" + kb + "KB" + link + '）<a data-act="del-doc" data-doc="' + esc(d.key) + '" style="color:#e5484d">删除</a></div>';
+    }).join("");
+  }
+
   window.Screens.settings = {
     title: "设置",
 
@@ -45,14 +57,24 @@
         '<div class="set-note">每人各填各的，只保存在这台设备，不会同步给别人</div>' +
         "</div>" +
         '<div class="card card-pad">' +
-        '<div class="set-title">我的思路与话术（训练 AI）<span class="llm-dot ' + (personaOn ? "on" : "") + '"></span></div>' +
+        '<div class="set-title" data-act="toggle-persona" style="cursor:pointer">我的思路与话术（训练 AI）<span class="llm-dot ' + (personaOn ? "on" : "") + '" id="personaDot"></span></div>' +
+        '<div id="personaSummary" class="set-note" style="margin:6px 0 0">' + (personaOn ? "已训练 · " + (p.updated ? new Date(p.updated).toLocaleString("zh-CN") : "") + (p.docs && p.docs.length ? " · " + p.docs.length + " 份资料" : "") : "还没训练 · 点进来写你的思路和话术，AI 就按你的风格说话") + "</div>" +
+        '<div id="personaBody" style="display:none;margin-top:8px">' +
         '<label class="set-lbl">我的谈单思路（你怎么谈、先问什么、什么节奏）</label>' +
-        '<textarea class="set-inp" id="personaThoughts" maxlength="4000" style="min-height:90px;padding:10px;font-family:inherit;line-height:1.5" placeholder="如：我先确认客户的用途和采购量，再报阶梯价；习惯先寄样品建立信任，不急着让下大单…">' + (p.thoughts || "") + "</textarea>" +
-        '<label class="set-lbl">我的常用话术（你习惯怎么开头、怎么报价、怎么催单）</label>' +
-        '<textarea class="set-inp" id="personaScripts" maxlength="6000" style="min-height:110px;padding:10px;font-family:inherit;line-height:1.5" placeholder="如：常用开头 Hi, thanks for your inquiry… ；报价时一定附交期和起订量；催单就说 the price is valid till end of this week…">' + (p.scripts || "") + "</textarea>" +
+        '<textarea class="set-inp" id="personaThoughts" maxlength="4000" style="min-height:90px;padding:10px;font-family:inherit;line-height:1.5" placeholder="如：我先确认客户的用途和采购量，再报阶梯价；习惯先寄样品建立信任，不急着让下大单…">' + esc(p.thoughts || "") + "</textarea>" +
+        '<button class="persona-mic" id="micThoughts" type="button">🎤 按住说话补充思路</button>' +
+        '<label class="set-lbl">我的常用话术（怎么开头、怎么报价、怎么催单）</label>' +
+        '<textarea class="set-inp" id="personaScripts" maxlength="6000" style="min-height:110px;padding:10px;font-family:inherit;line-height:1.5" placeholder="如：常用开头 Hi, thanks for your inquiry… ；报价时一定附交期和起订量；催单就说 the price is valid till end of this week…">' + esc(p.scripts || "") + "</textarea>" +
+        '<button class="persona-mic" id="micScripts" type="button">🎤 按住说话补充话术</button>' +
+        '<label class="set-lbl">参考资料（公司简介 / 价目表 / 认证清单，AI 报价和介绍公司时自动参考）</label>' +
+        '<div id="docList">' + docRows(p.docs || []) + "</div>" +
+        '<input type="file" id="docFile" accept=".txt,.md,.csv,.json,.html,.htm" style="display:none"/>' +
+        '<div class="set-actions"><button class="set-btn-inline" data-act="add-doc">＋ 上传资料</button></div>' +
+        '<div class="set-note">单个不超过 3MB，最多 10 份；纯文本类（.txt / .md / .csv / .json）</div>' +
         '<div class="set-actions"><button class="set-btn-inline" data-act="save-persona">保存并训练 AI</button></div>' +
         '<div class="set-note" id="personaStatus">' + (p.updated ? "已训练 · " + new Date(p.updated).toLocaleString("zh-CN") : "还没训练 · AI 暂用通用风格") + "</div>" +
         '<div class="set-note">每个业务员各填各的，按账号单独保存在云端，互不串味；保存后 AI 翻译、扩充、回复建议都会自动贴近你的思路和语气</div>' +
+        "</div>" +
         "</div>" +
         '<div class="card card-pad">' +
         '<div class="set-title">智能引擎（LLM）<span class="llm-dot ' + (on ? "on" : "") + '"></span></div>' +
@@ -115,13 +137,79 @@
          var thoughts = root.querySelector("#personaThoughts").value;
          var scripts = root.querySelector("#personaScripts").value;
          Store.savePersona(thoughts, scripts);
-         var el = root.querySelector("#personaStatus");
+         var el2 = root.querySelector("#personaStatus");
          var pp = Store.getPersona();
-         if (el) {
-           el.textContent = pp.updated ? "已训练 · " + new Date(pp.updated).toLocaleString("zh-CN") : "已清空";
-           el.className = "set-note ok";
+         if (el2) {
+           el2.textContent = pp.updated ? "已训练 · " + new Date(pp.updated).toLocaleString("zh-CN") : "已清空";
+           el2.className = "set-note ok";
          }
+         var sum = root.querySelector("#personaSummary");
+         if (sum) sum.textContent = "已训练 · " + (pp.updated ? new Date(pp.updated).toLocaleString("zh-CN") : "") + (pp.docs && pp.docs.length ? " · " + pp.docs.length + " 份资料" : "");
          App.toast("已保存，AI 生成会自动贴近你的风格");
+       });
+
+       /* 话术卡片默认折叠（内容不显露），点标题展开 */
+       root.querySelector('[data-act="toggle-persona"]').addEventListener("click", function () {
+         var body = root.querySelector("#personaBody");
+         body.style.display = body.style.display === "none" ? "block" : "none";
+       });
+
+       /* 语音输入：按住说话 → 识别文字追加进对应框 */
+       if (window.Voice) {
+         Voice.attach(root.querySelector("#micThoughts"), root.querySelector("#personaThoughts"));
+         Voice.attach(root.querySelector("#micScripts"), root.querySelector("#personaScripts"));
+       }
+
+       /* 资料上传 */
+       var docFile = root.querySelector("#docFile");
+       root.querySelector('[data-act="add-doc"]').addEventListener("click", function () { docFile.click(); });
+       docFile.addEventListener("change", function () {
+         var f = docFile.files && docFile.files[0];
+         docFile.value = "";
+         if (!f) return;
+         if (!/\.(txt|md|csv|json|html|htm)$/i.test(f.name)) { App.toast("只支持纯文本类文件（.txt/.md/.csv/.json）"); return; }
+         if (f.size > 3 * 1024 * 1024) { App.toast("资料超过 3MB，请精简后再传"); return; }
+         var pp0 = Store.getPersona();
+         if ((pp0.docs || []).length >= 10) { App.toast("最多 10 份资料，先删旧的"); return; }
+         var rd = new FileReader();
+         rd.onload = function () {
+           var content = String(rd.result || "");
+           App.toast("上传中…");
+           Sync.docUpload(f.name, f.size, content).then(function (j) {
+             var next = (Store.getPersona().docs || []).filter(function (x) { return x.name !== f.name; });
+             next.push({ key: j.key, name: f.name, size: f.size, updated: j.updated || new Date().toISOString(), content: content });
+             Store.setPersonaDocs(next);
+             root.querySelector("#docList").innerHTML = docRows(next);
+             var sum2 = root.querySelector("#personaSummary");
+             if (sum2) sum2.textContent = "已训练 · 资料 " + next.length + " 份";
+             App.toast("已上传「" + f.name + "」，AI 生成时自动参考");
+           }).catch(function (e) { App.toast("上传失败：" + e.message); });
+         };
+         rd.onerror = function () { App.toast("文件读取失败"); };
+         rd.readAsText(f);
+       });
+       root.querySelector("#docList").addEventListener("click", function (e) {
+         var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
+         if (!t) return;
+         var act = t.getAttribute("data-act");
+         var dk = t.getAttribute("data-doc");
+         var docs = Store.getPersona().docs || [];
+         if (act === "del-doc") {
+           Sync.docDelete(dk).then(function () {
+             Store.setPersonaDocs(docs.filter(function (x) { return x.key !== dk; }));
+             root.querySelector("#docList").innerHTML = docRows(Store.getPersona().docs);
+             App.toast("已删除");
+           }).catch(function (err) { App.toast("删除失败：" + err.message); });
+         } else if (act === "view-doc") {
+           var d = null;
+           docs.forEach(function (x) { if (x.key === dk) d = x; });
+           if (d && d.content != null) {
+             var u = URL.createObjectURL(new Blob([d.content], { type: "text/plain;charset=utf-8" }));
+             window.open(u, "_blank");
+           } else {
+             App.toast("这份资料在当前设备没有缓存内容，换原来上传的设备看");
+           }
+         }
        });
 
       function readInputs() {

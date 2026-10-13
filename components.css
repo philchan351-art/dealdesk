@@ -225,6 +225,9 @@
 .mic-btn.rec{background:#e5484d;border-color:#e5484d;border-style:solid;color:#fff;animation:micpulse 1s ease-in-out infinite}
 .mic-btn.busy{background:#f5a623;border-color:#f5a623;border-style:solid;color:#fff;animation:none;cursor:default}
 @keyframes micpulse{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.4)}50%{box-shadow:0 0 0 12px rgba(229,72,77,0)}}
+.persona-mic{display:flex;width:100%;align-items:center;justify-content:center;margin:6px 0 12px;height:42px;border-radius:10px;border:1px dashed var(--line);background:var(--surface-2);font-size:14px;font-weight:600;color:var(--brand-deep);cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;white-space:nowrap}
+.persona-mic.rec{background:#e5484d;border-color:#e5484d;border-style:solid;color:#fff;animation:micpulse 1s ease-in-out infinite}
+.persona-mic.busy{background:#f5a623;border-color:#f5a623;border-style:solid;color:#fff;animation:none;cursor:default}
 .mode-b .sugg{margin-bottom:8px}
 .mode-b .sugg:last-child{margin-bottom:0}
 

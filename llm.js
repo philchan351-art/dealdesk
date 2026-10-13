@@ -15,6 +15,26 @@
     return c;
   }
 
+  /* 训练资料：把该业务员上传的参考文件（公司简介/价目表等，最新 3 个、各截 3000 字）并入系统提示 */
+  function withDocs(system) {
+    var p = Store.getPersona ? Store.getPersona() : null;
+    var docs = (p && p.docs) || [];
+    docs = docs.slice().sort(function (a, b) { return String(b.updated || "") > String(a.updated || "") ? 1 : -1; }).slice(0, 3);
+    if (!docs.length || !window.Sync || !Sync.enabled()) return Promise.resolve(system);
+    var jobs = docs.map(function (d) {
+      return (d && d.content != null ? Promise.resolve(d.content) : Sync.docFetch(d.key))
+        .then(function (v) { return String((v && v.content) || "").slice(0, 3000); })
+        .catch(function () { return ""; });
+    });
+    return Promise.all(jobs).then(function (contents) {
+      var out = "";
+      for (var i = 0; i < docs.length; i++) {
+        if (contents[i]) out += "\n【资料·" + (docs[i].name || "文件") + "】\n" + contents[i];
+      }
+      return out ? system + out : system;
+    });
+  }
+
   function chat(system, user, opt) {
     opt = opt || {};
     var c = cfg();
@@ -97,18 +117,20 @@
       return chat("你是测试助手。", "Reply with the single word OK.", { max_tokens: 8, model: c.model });
     },
     translate: function (text, buyer) {
-      return chat(ctx(buyer), Prompts.translate + "\n\n消息：" + text, { max_tokens: 300, temp: 0.2 })
-        .then(function (t) {
-          var o = parseJSON(t);
-          return (o && o.zh) || null;
-        });
+      return withDocs(ctx(buyer)).then(function (sys) {
+        return chat(sys, Prompts.translate + "\n\n消息：" + text, { max_tokens: 300, temp: 0.2 });
+      }).then(function (t) {
+        var o = parseJSON(t);
+        return (o && o.zh) || null;
+      });
     },
     extract: function (text, buyer) {
-      return chat(ctx(buyer), Prompts.extract + "\n\n消息：" + text, { max_tokens: 400, temp: 0.2 })
-        .then(function (t) {
-          var o = parseJSON(t);
-          return (o && o.fields) || [];
-        });
+      return withDocs(ctx(buyer)).then(function (sys) {
+        return chat(sys, Prompts.extract + "\n\n消息：" + text, { max_tokens: 400, temp: 0.2 });
+      }).then(function (t) {
+        var o = parseJSON(t);
+        return (o && o.fields) || [];
+      });
     },
     intentDelta: function (text, buyer) {
       return chat(ctx(buyer), Prompts.intent + "\n\n消息：" + text, { max_tokens: 120, temp: 0.2 })
@@ -134,7 +156,9 @@
       }
       function call(promptText) {
         /* temp 0.25：编造认证/年份类红线比多样性更要紧，压低随机性 */
-        return chat(ctx(buyer), promptText, { max_tokens: 1300, temp: 0.25 }).then(parse);
+        return withDocs(ctx(buyer)).then(function (sys) {
+          return chat(sys, promptText, { max_tokens: 1300, temp: 0.25 });
+        }).then(parse);
       }
       return call(Prompts.suggest(buyer)).then(function (r) {
         if (leak(r.list)) {
@@ -149,26 +173,28 @@
       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
       var needForeign = lang !== "中文";
       var user = Prompts.localize(buyer) + "\n\n中文原文：" + text;
-      return chat(ctx(buyer), user, { max_tokens: 400, temp: 0.3 })
-        .then(function (t) {
-          if (needForeign && /[一-龥]/.test(String(t || ""))) {
-            return chat(ctx(buyer), Prompts.localize(buyer) + "\n\n【纠正】上一次输出含中文，错误。正文必须为纯" + lang + "，不得出现任何中文。\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2 });
-          }
-          return t;
-        });
+      return withDocs(ctx(buyer)).then(function (sys) {
+        return chat(sys, user, { max_tokens: 400, temp: 0.3 })
+          .then(function (t) {
+            if (needForeign && /[一-龥]/.test(String(t || ""))) {
+              return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】上一次输出含中文，错误。正文必须为纯" + lang + "，不得出现任何中文。\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2 });
+            }
+            return t;
+          });
+      });
     },
     /* 按意图扩充：返回 {text, zh}；text 含中文时纠正重试一次 */
     expand: function (text, buyer) {
       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
       var needForeign = lang !== "中文";
-      var sys = ctx(buyer);
       var base = Prompts.expand(buyer) + "\n\n卖家写的意图：" + text;
-      return chat(sys, base, { max_tokens: 500, temp: 0.4 })
-        .then(function (t) {
-          var o = parseJSON(t);
-          if (!o || !o.text) throw new Error("扩充结果无法解析");
-          if (needForeign && /[一-龥]/.test(String(o.text))) {
-            return chat(sys, base + "\n\n【纠正】上一次 text 字段含中文，错误。text 必须为纯" + lang + "，只有 zh 允许中文。", { max_tokens: 500, temp: 0.2 })
+      return withDocs(ctx(buyer)).then(function (sys) {
+        return chat(sys, base, { max_tokens: 500, temp: 0.4 })
+          .then(function (t) {
+            var o = parseJSON(t);
+            if (!o || !o.text) throw new Error("扩充结果无法解析");
+            if (needForeign && /[一-龥]/.test(String(o.text))) {
+              return chat(sys, base + "\n\n【纠正】上一次 text 字段含中文，错误。text 必须为纯" + lang + "，只有 zh 允许中文。", { max_tokens: 500, temp: 0.2 })
               .then(function (t2) {
                 var o2 = parseJSON(t2);
                 if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
@@ -177,6 +203,7 @@
           }
           return o;
         });
+      });
     }
   };
 })();
