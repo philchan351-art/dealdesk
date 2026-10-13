@@ -144,9 +144,11 @@
     nav();
     if (window.Sync && Sync.enabled()) {
       Sync.pull().then(function (server) {
-        /* 重新登录后本地刚被清空，云端就是权威数据源，只要云端有数据就强制应用（不做新旧比较，避免"本地看起来更新"把云端数据扔掉） */
-        var cur = Store.snapshot().updatedAt || "";
-        if (server && server.updatedAt && (freshLogin || server.updatedAt > cur)) {
+        /* 三种必须应用云端的情况：重新登录（本地刚清空）/ 本地是空的（防"卡空"）/ 云端更新 */
+        var snap = Store.snapshot();
+        var cur = snap.updatedAt || "";
+        var localEmpty = !(snap.buyers && snap.buyers.length);
+        if (server && server.updatedAt && (freshLogin || localEmpty || server.updatedAt > cur)) {
           Store.applySnapshot(server);
           nav();
           App.toast(freshLogin ? "已拉取你的云端数据" : "已拉取最新数据");
