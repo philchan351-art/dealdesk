@@ -656,8 +656,28 @@
           function stopStream() {
             if (rec && rec.stream) { try { rec.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
           }
+          /* 按住说话提示音：按下=高音（开始录），松开=低音（停止录） */
+          var actx = null;
+          function beep(freq, dur) {
+            try {
+              var AC = window.AudioContext || window.webkitAudioContext;
+              if (!AC) return;
+              if (!actx) actx = new AC();
+              if (actx.state === "suspended") actx.resume();
+              var t0 = actx.currentTime;
+              var o = actx.createOscillator(), g = actx.createGain();
+              o.type = "sine"; o.frequency.value = freq;
+              g.gain.setValueAtTime(0.0001, t0);
+              g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02);
+              g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+              o.connect(g); g.connect(actx.destination);
+              o.start(t0); o.stop(t0 + dur + 0.05);
+            } catch (e) {}
+          }
+          var pendingStop = false;
           function stopMic() {
-            if (rec && rec.state && rec.state !== "inactive") { try { rec.stop(); } catch (e) {} }
+            if (rec && rec.state === "recording") { try { rec.stop(); } catch (e) {} }
+            else pendingStop = true; /* 手指先松、录音还没就绪：记一笔，rec.start() 后立即停，防止麦克风一直开着 */
           }
           micBtn.addEventListener("pointerdown", function (e) {
             e.preventDefault();
@@ -668,7 +688,9 @@
             var c = cloudCfg();
             if (!c.proxyUrl) { App.toast("语音识别需要云服务：请先登录（设置里填云服务地址+口令）"); return; }
             busy = true;
+            pendingStop = false;
             var mime = pickMime();
+            beep(880, 0.12); /* 按下提示音：开始录音 */
             navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
               try { rec = new MediaRec(stream, mime ? { mimeType: mime } : undefined); }
               catch (err) { rec = new MediaRec(stream); }
@@ -681,6 +703,7 @@
                 var blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || "audio/mp4" });
                 var fmt = fmtOf((rec && rec.mimeType) || mime);
                 stopStream();
+                beep(520, 0.12); /* 松开提示音：录音已结束 */
                 if (!blob.size) { busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("没录到声音，再按住说一次"); return; }
                 micBtn.classList.remove("rec"); micBtn.classList.add("busy"); setLabel("识别中…");
                 b64FromBlob(blob).then(function (b64) {
@@ -698,7 +721,7 @@
                   App.toast("识别失败，请重试：" + e2.message);
                 }).then(function () { busy = false; });
               };
-              try { rec.start(); } catch (err) { stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音启动失败：" + err.message); }
+              try { rec.start(); if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} } } catch (err) { stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音启动失败：" + err.message); }
             }).catch(function (e) {
               busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL);
               App.toast("麦克风被禁用：点浏览器地址栏左侧图标允许麦克风，再按住说话");
