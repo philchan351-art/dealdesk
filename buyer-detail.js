@@ -256,8 +256,9 @@
           '<div class="mode-head"><span class="mode-badge a">①</span>' +
           '<div class="mode-tt"><b>自己写中文 · AI 帮你写完整</b><span>写大概意图 → AI 按意图扩充成完整消息 → 你检查满意再发</span></div></div>' +
           '<div class="mt-row"><button class="mt-btn active" data-mt="expand">按意图扩充（推荐）</button><button class="mt-btn" data-mt="direct">逐句直译</button></div>' +
-          '<div class="mode-a-row"><input id="msgInput" placeholder="写大概意图即可，如：想多展示下数字化能力"/>' +
-          '<button class="tr-btn" id="mtGo" data-act="send">AI 扩充 →</button></div>' +
+           '<div class="mode-a-row"><input id="msgInput" placeholder="写大概意图，或点 🎤 直接说"/>' +
+           '<button class="mic-btn" id="micBtn" type="button" title="点一下开始说中文，再点一下停止" aria-label="语音输入">🎤</button>' +
+           '<button class="tr-btn" id="mtGo" data-act="send">AI 扩充 →</button></div>' +
           '<div id="pendWrap"></div>' +
           "</div>" +
          '<div class="mode-card mode-b" style="margin:0 16px 10px">' +
@@ -611,8 +612,44 @@
           App.refresh();
         }).finally(function () { regen.disabled = false; });
       });
-      root.querySelector('[data-act="send"]').addEventListener("click", function () { doTranslate(); });
-      input.addEventListener("keydown", function (e) { if (e.key === "Enter") doTranslate(); });
+       root.querySelector('[data-act="send"]').addEventListener("click", function () { doTranslate(); });
+       input.addEventListener("keydown", function (e) { if (e.key === "Enter") doTranslate(); });
+
+       /* 🎤 语音输入：点一下开始说中文，再点一下（或说完停顿）自动停；文字填进输入框，多次点会接着往后加 */
+       var micBtn = root.querySelector("#micBtn");
+       if (micBtn) {
+         var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+         var recog = null;
+         micBtn.addEventListener("click", function () {
+           if (!SR) { App.toast("当前浏览器不支持语音输入，请用 Chrome 或手机浏览器打开，或用键盘输入"); return; }
+           if (recog && recog.__on) { try { recog.stop(); } catch (e) {} return; }
+           if (!recog) {
+             recog = new SR();
+             recog.lang = "zh-CN";
+             recog.interimResults = true;
+             recog.continuous = false;
+             recog.maxAlternatives = 1;
+             var baseVal = "";
+             recog.onstart = function () { recog.__on = true; micBtn.classList.add("rec"); baseVal = (input.value || "").replace(/\s+$/, ""); };
+             recog.onresult = function (ev) {
+               var finalT = "", interim = "";
+               for (var i = ev.resultIndex; i < ev.results.length; i++) {
+                 var t = ev.results[i][0].transcript;
+                 if (ev.results[i].isFinal) finalT += t; else interim += t;
+               }
+               input.value = (baseVal ? baseVal + " " : "") + (finalT + interim).trim();
+             };
+             recog.onerror = function (ev) {
+               var code = ev.error;
+               if (code === "not-allowed" || code === "service-not-allowed") App.toast("麦克风被禁用：请在浏览器里允许麦克风，再点一次 🎤");
+               else if (code === "no-speech") App.toast("没听清，再点一次 🎤，靠近手机说");
+               else if (code === "network") App.toast("语音识别要联网，检查网络后再试");
+             };
+             recog.onend = function () { recog.__on = false; micBtn.classList.remove("rec"); };
+           }
+           try { recog.start(); } catch (e) {}
+         });
+       }
 
       /* 编号选项：客户回数字 → 自动识别 → 上下文沉淀 → 阶段/意向自动推进 */
       root.querySelectorAll(".wa-opt").forEach(function (btn) {
