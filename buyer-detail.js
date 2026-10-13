@@ -1,4 +1,4 @@
-/* ===== 页面：买家详情（WhatsApp 过渡模式 / 中文对照 / 国家沟通画像 / 本地化对比 / 编号选项触达） ===== */
+﻿/* ===== 页面：买家详情（WhatsApp 过渡模式 / 中文对照 / 国家沟通画像 / 本地化对比 / 编号选项触达） ===== */
 (function () {
   "use strict";
   window.Screens = window.Screens || {};
@@ -138,10 +138,10 @@
         : "";
        var meta = (m.time || "") + " " + (isH ? '<span class="h-wait">待确认</span>' : "✓✓") +
          ' <span class="m-del" data-act="m-del" data-idx="' + idx + '" title="删除这条记录">✕</span>';
-       return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + m.text + (m.zh ? '<div class="zh-line">' + m.zh + "</div>" : "") + handed + "</div>" +
+       return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + m.text + (m.zh ? '<div class="zh-line">' + m.zh + "</div>" : "") + handed + (m.tag ? '<div class="imp-tag">' + m.tag + "</div>" : "") + "</div>" +
          '<div class="msg-meta">' + meta + "</div></div>";
     }
-    return '<div class="msg msg-buyer"><div class="bubble">' + m.text + zh + "</div>" +
+    return '<div class="msg msg-buyer"><div class="bubble">' + m.text + zh + (m.tag ? '<div class="imp-tag">' + m.tag + "</div>" : "") + "</div>" +
       '<div class="msg-meta">' + (m.time || "") + "</div></div>";
   }
 
@@ -209,6 +209,23 @@
           }).join("") + "</div></div>"
         : "";
 
+      var memoryHtml = b.memory
+        ? '<div class="card mem-card"><div class="ctx-head"><span class="ctx-title">🧠 AI 长期记忆</span><span class="ctx-hint">过往聊天导入 · 自动影响 AI 回复</span></div><div class="mem-text">' + String(b.memory).replace(/</g, "&lt;") + "</div></div>"
+        : "";
+
+      var importHtml =
+        '<div id="importPanel" class="import-panel" style="display:none">' +
+        '<div class="set-note" style="margin:0 0 8px">粘贴过往聊天文字，或传 WhatsApp 截图 / 文字文件 / 视频（图最多 4 张各≤2MB，文件 1 个，视频 1 个≤4MB）。AI 会：逐条还原进上方对话 + 沉淀档案要点 + 生成长期记忆。只存在你自己的账号里。</div>' +
+        '<textarea class="set-inp" id="importText" style="min-height:70px;padding:9px;font-family:inherit;line-height:1.5" placeholder="粘贴聊天文字（格式随意，如：客户：500台什么价 / 我们：FOB 32美元…）"></textarea>' +
+        '<div class="import-row"><button class="set-btn-inline" data-act="pick-img">📷 图片</button><button class="set-btn-inline" data-act="pick-file">📄 文件</button><button class="set-btn-inline" data-act="pick-video">🎬 视频</button></div>' +
+        '<input type="file" id="importImgs" accept="image/*" multiple style="display:none"/>' +
+        '<input type="file" id="importFile" accept=".txt,.md,.csv,.json" style="display:none"/>' +
+        '<input type="file" id="importVideo" accept="video/*" style="display:none"/>' +
+        '<div class="set-note" id="importPickInfo" style="margin:6px 0"></div>' +
+        '<div class="set-actions"><button class="tr-btn" data-act="do-import" id="importGo" style="flex:1">AI 分析并导入</button></div>' +
+        '<div class="set-note" id="importStatus" style="margin-top:8px"></div>' +
+        "</div>";
+
       var msgHtml = b.messages.map(function (m, i) { return bubble(m, i); }).join("");
       var optHtml = b.options
         ? '<div class="wacard"><div class="wa-opt-label">编号选项触达 · 客户回一个数字即可，自动识别并沉淀</div>' +
@@ -240,9 +257,11 @@
         '<div class="wa-chat">' +
         '<div class="wa-head">' + WA_ICON +
         '<div class="wa-hmid"><b>' + b.name + "</b><span>" + (b.wa || "已绑定") + " · 在线</span></div>" +
+        '<button class="wa-lang" data-act="import" style="margin-right:6px">＋ 导入</button>' +
         '<button class="wa-lang active" data-act="lang">中文对照</button>' +
         '<span class="wa-pill">官方通道 · 零感知</span>' +
         "</div>" +
+        importHtml +
         '<div class="wa-msgs zh-on" id="waMsgs">' + msgHtml + "</div>" +
         optHtml +
         '<div class="wa-logrow"><input id="logBuyer" placeholder="客户回了什么？记一下（如：OK / 运费多少）"/>' +
@@ -273,6 +292,7 @@
          remindHtml(b) +
          profileHtml(b) +
          ctxHtml +
+         memoryHtml +
          compareHtml(b) +
          "</div>";
      },
@@ -439,7 +459,7 @@
       var input = root.querySelector("#msgInput");
       var msgs = root.querySelector("#waMsgs");
 
-      function push(msg) {
+       function push(msg) {
         b.messages.push(msg);
         if (window.Store) Store.commit();
         var div = document.createElement("div");
@@ -447,6 +467,112 @@
         msgs.appendChild(div.firstChild);
         scrollDown();
       }
+
+      /* ===== 过往聊天导入：文字/图片/视频/文件 → 云端 /import 逐份分析 → 预览 → 写入档案（长期记忆） ===== */
+      var importPanel = root.querySelector("#importPanel");
+      var importStatus = root.querySelector("#importStatus");
+      var importPickInfo = root.querySelector("#importPickInfo");
+      var importJobs = [];
+      var impConvo = [], impFields = {}, impimpSummaries = [];
+      function refreshPickInfo() {
+        importPickInfo.textContent = importJobs.length
+          ? "已选：" + importJobs.map(function (j) { return (j.kind === "image" ? "图" : j.kind === "video" ? "视频" : "文件") + " " + (j.name || ""); }).join("；")
+          : "";
+      }
+      function b64Of(file, cb) {
+        var fr = new FileReader();
+        fr.onload = function () { cb(String(fr.result || "").split(",")[1] || ""); };
+        fr.onerror = function () { cb(""); };
+        fr.readAsDataURL(file);
+      }
+      function pushFileJob(kind, file, maxBytes) {
+        if (!file) return;
+        if (file.size > maxBytes) { App.toast("「" + file.name + "」太大（≤" + Math.round(maxBytes / 1048576) + "MB）"); return; }
+        b64Of(file, function (b64) {
+          if (!b64) { App.toast("文件读取失败"); return; }
+          importJobs.push({ kind: kind, data: b64, name: file.name, format: (file.type || "").split("/")[1] || "" });
+          refreshPickInfo();
+        });
+      }
+      root.querySelector('[data-act="import"]').addEventListener("click", function () {
+        importPanel.style.display = importPanel.style.display === "none" ? "block" : "none";
+      });
+      root.querySelector('[data-act="pick-img"]').addEventListener("click", function () { root.querySelector("#importImgs").click(); });
+      root.querySelector('[data-act="pick-file"]').addEventListener("click", function () { root.querySelector("#importFile").click(); });
+      root.querySelector('[data-act="pick-video"]').addEventListener("click", function () { root.querySelector("#importVideo").click(); });
+      root.querySelector("#importImgs").addEventListener("change", function (e) {
+        var fs = Array.prototype.slice.call(e.target.files || []);
+        e.target.value = "";
+        if (fs.length > 4) { App.toast("图片最多 4 张，请按时间顺序选"); fs = fs.slice(0, 4); }
+        fs.forEach(function (f) { pushFileJob("image", f, 2 * 1048576); });
+      });
+      root.querySelector("#importFile").addEventListener("change", function (e) {
+        var f = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if (!f) return;
+        if (!/\.(txt|md|csv|json)$/i.test(f.name)) { App.toast("只支持 .txt/.md/.csv/.json 文件"); return; }
+        pushFileJob("file", f, 3 * 1048576);
+      });
+      root.querySelector("#importVideo").addEventListener("change", function (e) {
+        var f = e.target.files && e.target.files[0];
+        e.target.value = "";
+        pushFileJob("video", f, 4 * 1048576);
+      });
+      root.querySelector('[data-act="do-import"]').addEventListener("click", function () {
+        var txt = root.querySelector("#importText").value.trim();
+        var jobs = importJobs.slice();
+        if (txt) jobs.unshift({ kind: "text", data: txt, name: "粘贴文字", format: "" });
+        if (!jobs.length) { App.toast("先粘贴聊天文字，或选择图片/文件/视频"); return; }
+        var st = Store.getSettings() || {}, c = st.llm || {}, cl = st.cloud || {};
+        if (!c.proxyUrl && cl.proxyUrl) { c.proxyUrl = cl.proxyUrl; c.token = cl.token; }
+        if (!c.proxyUrl) { App.toast("先在设置里配置云代理地址"); return; }
+        var go = root.querySelector("#importGo");
+        go.disabled = true;
+        impConvo = []; impFields = {}; impimpSummaries = [];
+        var errs = [], idx = 0;
+        function esc(s) { return String(s).replace(/</g, "&lt;"); }
+        function next() {
+          if (idx >= jobs.length) {
+            go.disabled = false;
+            if (!impConvo.length && !impSummaries.length) {
+              importStatus.textContent = "分析失败：" + (errs.join("；").slice(0, 120) || "没识别到内容，换更清晰的截图或补点文字再试");
+              return;
+            }
+            importStatus.innerHTML =
+              '<b style="color:var(--brand)">分析完成，确认存进「' + esc(b.name) + "」的档案？</b><br>" +
+              "对话还原 " + impConvo.length + " 条" + (Object.keys(impFields).length ? " · 档案要点 " + Object.keys(impFields).length + " 项" : "") +
+              (impSummaries.length ? '<br><span class="mem-text">' + esc(impSummaries.join("；")).slice(0, 220) + "…</span>" : "") +
+              '<div class="import-row" style="margin-top:8px"><button class="tr-btn" data-act="commit-import" style="flex:1">存入档案（长期记忆）</button><button class="set-btn-inline" data-act="abort-import">取消</button></div>';
+            return;
+          }
+          var j = jobs[idx];
+          importStatus.textContent = "AI 分析中（" + (idx + 1) + "/" + jobs.length + "）" + (j.kind === "text" ? " · 文字" : " · " + (j.kind === "video" ? "视频 " : j.kind === "image" ? "图片 " : "") + (j.name || ""));
+          fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-dealdesk-token": c.token || "" },
+            body: JSON.stringify({ kind: j.kind, data: j.data, name: j.name, format: j.format })
+          }).then(function (r) { return r.json(); }).then(function (res) {
+            if (res.error) { errs.push(res.error); idx++; next(); return; }
+            (res.convo || []).forEach(function (l) { if (l && l.text) impConvo.push({ from: l.from, text: l.text }); });
+            (res.fields || []).forEach(function (f) { if (f && f.k && f.v) impFields[f.k] = f.v; });
+            if (res.summary) impSummaries.push(res.summary);
+            idx++;
+            next();
+          }).catch(function (e) { errs.push(e.message); idx++; next(); });
+        }
+        next();
+      });
+      importStatus.addEventListener("click", function (e) {
+        var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
+        if (!t) return;
+        var act = t.getAttribute("data-act");
+        if (act === "abort-import") { importStatus.innerHTML = ""; }
+        if (act === "commit-import") {
+          Store.importIntoBuyer(b.id, impConvo, impSummaries.join("；"), Object.keys(impFields).map(function (k) { return { k: k, v: impFields[k] }; }));
+          App.toast("已导入：对话 " + impConvo.length + " 条，长期记忆已更新");
+          App.refresh();
+        }
+      });
       /* 直达 WhatsApp（建议卡 / 非中文输入） */
       function openWa(finalText, zh, note) {
         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return false; }

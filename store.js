@@ -216,6 +216,33 @@
       save();
       return data.persona;
     },
+    /* 过往聊天导入：对话前置（标"历史导入"）+ 档案要点合并 + 长期记忆累积（按账号随云端保存） */
+    importIntoBuyer: function (buyerId, convo, summary, fields) {
+      var b = null;
+      data.buyers.forEach(function (x) { if (x.id === buyerId) b = x; });
+      if (!b) return null;
+      var dateStr = new Date().toLocaleDateString("zh-CN");
+      var lines = (convo || []).map(function (line) {
+        return { from: String(line.from || "").indexOf("卖") >= 0 ? "me" : "buyer", text: String(line.text || ""), time: "历史", tag: "历史导入" };
+      }).filter(function (l) { return l.text; }).reverse();
+      lines.forEach(function (l) { b.messages.unshift(l); });
+      if (!b.context) b.context = [];
+      (fields || []).forEach(function (f) {
+        var k = String(f.k || "").slice(0, 40), v = String(f.v || "").slice(0, 200);
+        if (!k || !v) return;
+        var hit = (b.context || []).some(function (c) {
+          if (c.k === k) { c.v = v; return true; }
+          return false;
+        });
+        if (!hit) b.context.push({ k: k, v: v });
+      });
+      if (summary) {
+        b.memory = (b.memory ? b.memory + "\n\n" : "") + "（" + dateStr + " 导入）" + String(summary).slice(0, 1000);
+      }
+      b.updatedAt = new Date().toISOString();
+      save();
+      return b;
+    },
     /* 资料文件（元数据+内容）：只存本地，由调用方通过 Sync.docUpload 上云 */
     setPersonaDocs: function (docs) {
       data.persona = data.persona || emptyPersona();
