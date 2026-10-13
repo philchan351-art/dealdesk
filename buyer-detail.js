@@ -800,8 +800,8 @@
               o.start(t0); o.stop(t0 + dur + 0.05);
             } catch (e) {}
           }
-          var pendingStop = false;
-          function stopMic() {
+           var pendingStop = false, recTimer = null;
+           function stopMic() {
             if (rec && rec.state === "recording") { try { rec.stop(); } catch (e) {} }
             else pendingStop = true; /* 手指先松、录音还没就绪：记一笔，rec.start() 后立即停，防止麦克风一直开着 */
           }
@@ -825,29 +825,34 @@
               micBtn.classList.add("rec"); setLabel("松手结束");
               rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
               rec.onerror = function (ev) { stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音出错：" + (ev.error || ev.message || "未知")); };
-              rec.onstop = function () {
-                var blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || "audio/mp4" });
+               rec.onstop = function () {
+                 try { if (recTimer) { clearTimeout(recTimer); recTimer = null; } } catch (e) {}
+                 var blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || "audio/mp4" });
                 var fmt = fmtOf((rec && rec.mimeType) || mime);
                 stopStream();
                 beep(520, 0.12); /* 松开提示音：录音已结束 */
                 if (!blob.size) { busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("没录到声音，再按住说一次"); return; }
                 micBtn.classList.remove("rec"); micBtn.classList.add("busy"); setLabel("识别中…");
-                b64FromBlob(blob).then(function (b64) {
-                  return fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "x-dealdesk-token": c.token || "" },
-                    body: JSON.stringify({ audio: b64, format: fmt })
-                  }).then(function (r) { return r.json(); });
-                }).then(function (j) {
+                 b64FromBlob(blob).then(function (b64) {
+                   var ctl = new AbortController();
+                   var tm = setTimeout(function () { ctl.abort(); }, 45000); /* 45s 封顶：服务端最坏 ~31s，再多就是网络问题 */
+                   return fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", {
+                     method: "POST",
+                     headers: { "Content-Type": "application/json", "x-dealdesk-token": c.token || "" },
+                     body: JSON.stringify({ audio: b64, format: fmt }),
+                     signal: ctl.signal
+                   }).then(function (r) { clearTimeout(tm); return r.json(); });
+                 }).then(function (j) {
                   micBtn.classList.remove("busy"); setLabel(DEFAULT_LABEL);
                   if (j && j.text) { input.value = (baseVal ? baseVal + " " : "") + j.text; input.focus(); }
                   else App.toast((j && j.error ? j.error : "没识别到内容，再按住说一次").slice(0, 80));
-                }).catch(function (e2) {
-                  micBtn.classList.remove("busy"); setLabel(DEFAULT_LABEL);
-                  App.toast("识别失败，请重试：" + e2.message);
-                }).then(function () { busy = false; });
+                 }).catch(function (e2) {
+                   micBtn.classList.remove("busy"); setLabel(DEFAULT_LABEL);
+                   App.toast(e2 && e2.name === "AbortError" ? "识别超时（网络不稳定），请再试一次或改用打字" : "识别失败，请重试：" + e2.message);
+                 }).then(function () { busy = false; });
               };
-              try { rec.start(); if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} } } catch (err) { stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音启动失败：" + err.message); }
+               recTimer = setTimeout(function () { try { if (rec && rec.state === "recording") rec.stop(); } catch (e3) {} }, 30000); /* 30s 自动结束：录音太长上传慢、识别也难准 */
+               try { rec.start(); if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} } } catch (err) { try { clearTimeout(recTimer); } catch (e4) {} stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音启动失败：" + err.message); }
             }).catch(function (e) {
               busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL);
               App.toast("麦克风被禁用：点浏览器地址栏左侧图标允许麦克风，再按住说话");
