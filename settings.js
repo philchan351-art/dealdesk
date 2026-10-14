@@ -30,29 +30,37 @@
       var personaOn = !!(p.thoughts || p.scripts);
       /* 部署在 FC 域名下时，云服务地址自动填当前站点（省一次手输、避免打错） */
       var autoUrl = (!cl.proxyUrl && typeof location !== "undefined" && location.protocol === "https:" && /\.fcapp\.run$/.test(location.hostname)) ? location.origin : "";
-      var cloudOn = !!(cl.proxyUrl && cl.token);
+      var au0 = window.Auth && Auth.get();
+      var isAdmin = !!(au0 && au0.role === "admin");
+      /* P0：云同步状态 = 有会话且有地址（团队口令不再是长期凭证） */
+      var cloudOn = !!(cl.proxyUrl && au0 && au0.session);
       var on = !!(llm.key && llm.baseUrl) || cloudOn;
 
       var modelOpts = (window.LLM ? LLM.MODELS : ["qwen-plus"]).map(function (m) {
         return "<option" + (m === (llm.model || "qwen-plus") ? " selected" : "") + ">" + m + "</option>";
       }).join("");
 
-       var au = window.Auth && Auth.get();
-       return '<div class="topbar">' +
+        var au = au0;
+        return '<div class="topbar">' +
          '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
          '<div class="tb-title"><h1>设置</h1><div class="tb-sub">数据 · 备份 · 智能引擎</div></div>' +
          "</div>" +
          '<div class="set-stack">' +
          '<div class="card card-pad">' +
-         '<div class="set-title">当前账号</div>' +
-         '<div class="card set-row"><span class="set-k">业务员</span><b>' + (au ? au.name : "未登录") + "</b></div>" +
-         '<div class="set-actions"><button class="set-btn-inline danger" data-act="logout">切换账号 / 退出登录</button></div>' +
-         '<div class="set-note">退出后本机数据清空并回到登录页；你的客户数据安全存在云端，重新登录即可恢复。每个账号只看自己的客户</div>' +
-         "</div>" +
+          '<div class="set-title">当前账号</div>' +
+          '<div class="card set-row"><span class="set-k">业务员</span><b>' + esc(au ? au.name : "未登录") + (au && au.role === "admin" ? " · 管理员" : "") + "</b></div>" +
+          '<div class="set-actions"><button class="set-btn-inline danger" data-act="logout">切换账号 / 退出登录</button></div>' +
+          '<div class="set-note">退出后本机数据清空并回到登录页；你的客户数据安全存在云端，重新登录即可恢复。每个账号只看自己的客户</div>' +
+          "</div>" +
+          (isAdmin ? '<div class="card card-pad">' +
+          '<div class="set-title">团队成员（管理员）</div>' +
+          '<div id="adminList"><div class="set-note">加载中…</div></div>' +
+          '<div class="set-note">重置密码：对方旧密码立即作废，下次登录用新密码。停用：对方立即不能登录/同步（数据保留，随时可启用）。新成员注册时把团队口令告诉他（在服务器端设置，不显示在这里）</div>' +
+          "</div>" : "") +
          '<div class="card card-pad">' +
          '<div class="set-title">我的称呼</div>' +
         '<label class="set-lbl">你的名字（首页问候用 · 只存本机）</label>' +
-        '<input class="set-inp" id="myName" type="text" maxlength="20" placeholder="如 Cherry" value="' + (st.name || "Cherry") + '"/>' +
+        '<input class="set-inp" id="myName" type="text" maxlength="20" placeholder="如 Cherry" value="' + esc(st.name || "Cherry") + '"/>' +
         '<div class="set-actions"><button class="set-btn-inline" data-act="save-name">保存</button></div>' +
         '<div class="set-note">每人各填各的，只保存在这台设备，不会同步给别人</div>' +
         "</div>" +
@@ -79,9 +87,9 @@
         '<div class="card card-pad">' +
         '<div class="set-title">智能引擎（LLM）<span class="llm-dot ' + (on ? "on" : "") + '"></span></div>' +
         '<label class="set-lbl">Base URL</label>' +
-        '<input class="set-inp" id="llmBase" type="url" value="' + (llm.baseUrl || DEFAULT_BASE) + '"/>' +
+        '<input class="set-inp" id="llmBase" type="url" value="' + esc(llm.baseUrl || DEFAULT_BASE) + '"/>' +
         '<label class="set-lbl">API Key</label>' +
-        '<input class="set-inp" id="llmKey" type="password" placeholder="sk-ws-…（从百炼控制台下载 CSV 里的 apiKey）" value="' + (llm.key || "") + '"/>' +
+        '<input class="set-inp" id="llmKey" type="password" placeholder="sk-ws-…（从百炼控制台下载 CSV 里的 apiKey）" value="' + esc(llm.key || "") + '"/>' +
         '<label class="set-lbl">模型</label>' +
         '<select class="set-inp" id="llmModel">' + modelOpts + "</select>" +
         '<div class="set-actions"><button class="set-btn-inline" data-act="save-llm">保存配置</button><button class="set-btn-inline ghost" data-act="test-llm">测试连接</button></div>' +
@@ -91,11 +99,10 @@
         '<div class="card card-pad">' +
         '<div class="set-title">云同步（团队多设备）<span class="llm-dot ' + (cloudOn ? "on" : "") + '"></span></div>' +
         '<label class="set-lbl">云服务地址（FC 触发器 URL）</label>' +
-        '<input class="set-inp" id="cloudUrl" type="url" placeholder="https://….fcapp.run（部署指引：server/FC部署指引.md）" value="' + (cl.proxyUrl || autoUrl) + '"/>' +
-        '<label class="set-lbl">团队口令（token）</label>' +
-        '<input class="set-inp" id="cloudToken" type="password" value="' + (cl.token || "") + '"/>' +
+        '<input class="set-inp" id="cloudUrl" type="url" placeholder="https://….fcapp.run" value="' + esc(cl.proxyUrl || autoUrl) + '"/>' +
         '<div class="set-actions"><button class="set-btn-inline" data-act="save-cloud">保存</button><button class="set-btn-inline ghost" data-act="cloud-pull">拉取最新</button><button class="set-btn-inline ghost" data-act="cloud-push">上云推送</button></div>' +
-        '<div class="set-note" id="cloudStatus">' + (cloudOn ? "已配置 · 变更 2.5 秒自动上云，开 App 自动拉取" : "未配置 · 当前为单机模式") + "</div>" +
+        '<div class="set-note" id="cloudStatus">' + (cloudOn ? "已连接 · 变更 2.5 秒自动上云，开 App 自动拉取" : "未连接 · 当前为单机模式（先登录账号）") + "</div>" +
+        "<div class=\"set-note\">登录状态 30 天有效；身份由服务端会话判定，任何设备登录都只看本人客户</div>" +
         "</div>" +
         '<div class="card set-row"><span class="set-k">买家档案</span><b>' + s.buyers + "</b></div>" +
         '<div class="card set-row"><span class="set-k">已记录消息</span><b>' + s.messages + "</b></div>" +
@@ -240,25 +247,76 @@
           .catch(function (e) { status("失败：" + e.message, false); App.toast("连接失败：" + e.message); });
       });
 
-      function readCloud() {
-        var st2 = Store.getSettings() || {};
-        st2.cloud = {
-          proxyUrl: root.querySelector("#cloudUrl").value.trim(),
-          token: root.querySelector("#cloudToken").value.trim()
-        };
-        return st2;
-      }
+       function readCloud() {
+         var st2 = Store.getSettings() || {};
+         st2.cloud = {
+           proxyUrl: root.querySelector("#cloudUrl").value.trim(),
+           token: (st2.cloud && st2.cloud.token) || "" /* 保留旧字段但不再编辑/使用 */
+         };
+         return st2;
+       }
       function cloudStatus(msg, ok) {
         var el = root.querySelector("#cloudStatus");
         el.textContent = msg;
         el.className = "set-note" + (ok === false ? " err" : ok ? " ok" : "");
       }
-      root.querySelector('[data-act="save-cloud"]').addEventListener("click", function () {
-        Store.saveSettings(readCloud());
-        var cl = Store.getSettings().cloud;
-        cloudStatus(cl.proxyUrl && cl.token ? "已配置 · 变更自动上云" : "未配置 · 当前为单机模式", true);
-        App.toast("云同步配置已保存");
-      });
+       root.querySelector('[data-act="save-cloud"]').addEventListener("click", function () {
+         Store.saveSettings(readCloud());
+         var cl = Store.getSettings().cloud;
+         var au2 = window.Auth && Auth.get();
+         cloudStatus(cl.proxyUrl && au2 && au2.session ? "已连接 · 变更自动上云" : "未连接 · 当前为单机模式（先登录账号）", true);
+         App.toast("云同步配置已保存");
+       });
+
+       /* ===== 管理员卡片：成员列表 / 重置密码 / 停用启用（仅 admin 可见可调）===== */
+       var adminList = root.querySelector("#adminList");
+       if (adminList) {
+         function loadAdmin() {
+           adminList.innerHTML = '<div class="set-note">加载中…</div>';
+           Sync.adminUsers().then(function (j) {
+             adminList.innerHTML = j.users.map(function (u) {
+               var self = u.name === j.self;
+               return '<div class="card set-row" style="margin:0 0 6px;padding:8px 10px">' +
+                 '<span class="set-k">' + esc(u.name) + (self ? "（我）" : "") + (u.role === "admin" ? " · 管理员" : "") + (u.disabled ? ' · <b style="color:#e5484d">已停用</b>' : "") + "</span>" +
+                 "<b>" + u.buyers + " 客户</b>" +
+                 (self ? "" : '<div class="set-actions" style="margin-top:6px;flex-wrap:wrap">' +
+                   '<button class="set-btn-inline ghost" data-act="admin-reset" data-name="' + esc(u.name) + '">重置密码</button>' +
+                   '<button class="set-btn-inline ' + (u.disabled ? "" : "danger") + '" data-act="admin-disable" data-name="' + esc(u.name) + '" data-en="' + (u.disabled ? "1" : "0") + '">' + (u.disabled ? "启用" : "停用") + "</button>" +
+                   "</div>") +
+                 "</div>";
+             }).join("");
+           }).catch(function (e) {
+             adminList.innerHTML = '<div class="set-note" style="color:#e5484d">' + esc(e.message) + "</div>";
+           });
+         }
+         adminList.addEventListener("click", function (e) {
+           var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
+           if (!t) return;
+           var nm = t.getAttribute("data-name");
+           if (t.getAttribute("data-act") === "admin-reset") {
+             var np = prompt("给「" + nm + "」设置新密码（至少 6 位，且同时包含字母和数字）：");
+             if (np == null) return;
+             if (np.length < 6 || !/[a-zA-Z]/.test(np) || !/[0-9]/.test(np)) { App.toast("密码需至少 6 位且同时包含字母和数字"); return; }
+             var np2 = prompt("再输入一次确认：");
+             if (np2 !== np) { App.toast("两次输入不一致"); return; }
+             if (!confirm("确定重置？对方旧密码立即作废，所有已登录设备会被强制重新登录。")) return;
+             Sync.adminResetPassword(nm, np).then(function () {
+               App.toast("已重置「" + nm + "」的密码");
+               loadAdmin();
+             }).catch(function (err) { App.toast("操作失败：" + err.message); });
+           } else if (t.getAttribute("data-act") === "admin-disable") {
+             var en = t.getAttribute("data-en") === "1";
+             var msg = en ? "确定启用「" + nm + "」？启用后对方可正常登录。"
+               : "确定停用「" + nm + "」？停用后对方立即不能登录和同步（数据保留，随时可恢复）。";
+             if (!confirm(msg)) return;
+             Sync.adminToggleDisable(nm, en).then(function () {
+               App.toast(en ? "已启用「" + nm + "」" : "已停用「" + nm + "」");
+               loadAdmin();
+             }).catch(function (err) { App.toast("操作失败：" + err.message); });
+           }
+         });
+         loadAdmin();
+       }
       root.querySelector('[data-act="cloud-pull"]').addEventListener("click", function () {
         Store.saveSettings(readCloud());
         cloudStatus("拉取中…");

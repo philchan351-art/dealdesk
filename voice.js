@@ -98,11 +98,13 @@
           b64(blob, function (b64) {
             var st = Store.getSettings() || {};
             var c = st.llm || {}, cl = st.cloud || {};
-            if (!c.proxyUrl && cl.proxyUrl) { c.proxyUrl = cl.proxyUrl; c.token = cl.token; }
+            if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
             if (!c.proxyUrl) { setCls(false); setLabel(DEFAULT); App.toast("先在设置里配置云代理地址"); return; }
+            var au = window.Auth && Auth.get();
+            if (!au || !au.session) { setCls(false); setLabel(DEFAULT); App.toast("请先登录后再使用语音"); return; }
             var p = {
               method: "POST",
-              headers: { "Content-Type": "application/json", "x-dealdesk-token": c.token || "" },
+              headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session },
               body: JSON.stringify({ audio: b64, format: fmt })
             };
             fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", p)

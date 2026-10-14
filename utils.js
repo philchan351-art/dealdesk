@@ -4,6 +4,14 @@
 
   var AV_COLORS = ["#0E5E4A", "#B4633A", "#41597A", "#5C7A3E", "#8A5A2B", "#2F6B7A"];
 
+  /* P0（XSS 修复）：全应用统一 HTML 转义。所有来自客户消息/AI 输出/导入数据的文本
+     拼进 innerHTML 前必须过这个函数（防 <img onerror> 一类存储型注入偷会话） */
+  window.escHtml = function (s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  };
+
   function grade(score) { return score >= 80 ? "A" : score >= 55 ? "B" : "C"; }
 
   function money(v, cur) {
@@ -26,12 +34,13 @@
   }
 
   function avatar(b, size) {
-    var parts = b.name.split(" ");
+    var nm = String(b.name || "");
+    var parts = nm.split(" ");
     var initials = (parts[0][0] + (parts[1] ? parts[1][0] : "")).toUpperCase();
     var h = 0;
-    for (var i = 0; i < b.name.length; i++) h += b.name.charCodeAt(i);
+    for (var i = 0; i < nm.length; i++) h += nm.charCodeAt(i);
     return '<div class="avatar' + (size ? " lg" : "") + '" style="--av:' + AV_COLORS[h % AV_COLORS.length] + '">' +
-      "<span>" + initials + '</span><i class="av-cc">' + b.cc + "</i></div>";
+      "<span>" + escHtml(initials) + '</span><i class="av-cc">' + escHtml(b.cc) + "</i></div>";
   }
 
   function intentBadge(score) {
@@ -127,6 +136,7 @@
   }
 
   window.U = {
+    esc: escHtml,
     grade: grade, money: money, sum: sum,
     dueLabel: dueLabel, dueBadge: dueBadge,
     avatar: avatar, intentBadge: intentBadge,

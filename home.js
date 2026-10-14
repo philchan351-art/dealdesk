@@ -37,7 +37,7 @@
       var dueHtml = due.map(function (f) {
         var b = Mock.getBuyer(f.buyerId);
         return '<div class="row-item" data-id="' + b.id + '">' + U.avatar(b) +
-          '<div class="row-main"><b>' + f.action + '</b><div class="row-sub">' + b.name + " · " + Mock.STAGES[b.stage] + "</div></div>" +
+          '<div class="row-main"><b>' + escHtml(f.action) + '</b><div class="row-sub">' + escHtml(b.name) + " · " + Mock.STAGES[b.stage] + "</div></div>" +
           U.dueBadge(f.dueIn) + "</div>";
       }).join("") || '<div class="empty">太棒了，暂无逾期或今日跟进</div>';
 
@@ -46,7 +46,7 @@
       var greet = hour < 11 ? "早上好" : hour < 13 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
       var dStr = (now.getMonth() + 1) + "月" + now.getDate() + "日 " + ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][now.getDay()];
       var myName = (Store.getSettings() || {}).name || "Cherry";
-      return UI.topbar(greet + "，" + myName, dStr + " · " + due.length + " 笔跟进待处理，其中 " + overdueCnt + " 笔已逾期", UI.bell + UI.gear) +
+      return UI.topbar(greet + "，" + escHtml(myName), dStr + " · " + due.length + " 笔跟进待处理，其中 " + overdueCnt + " 笔已逾期", UI.bell + UI.gear) +
         '<div class="kpis stagger">' + kpiHtml + "</div>" +
         '<div class="home-row stagger">' +
         '<div class="card chart-card"><div class="chart-head"><b>近 7 日询盘</b><span>合计 ' + U.sum(W.values) + " 条</span></div>" +

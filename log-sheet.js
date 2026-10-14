@@ -30,7 +30,7 @@
       '<div class="sheet-sub">' + (aiOn() ? "粘贴客户消息（任意语言），AI 自动完成中文对照、字段提取、意向分更新" : "粘贴客户消息 → 手填中文对照与动作（设置里配置 LLM 后可全自动）") + "</div>" +
       '<div class="sl-buyers">' + Mock.buyers.map(function (b) {
         return '<button class="sl-b' + (b.id === state.buyerId ? " active" : "") + '" data-bid="' + b.id + '">' +
-          '<span class="sl-b-name">' + b.name + '</span><span class="sl-b-sub">' + b.cc + " · " + Mock.STAGES[b.stage] + " · " + b.intent + "分</span></button>";
+          '<span class="sl-b-name">' + escHtml(b.name) + '</span><span class="sl-b-sub">' + escHtml(b.cc) + " · " + Mock.STAGES[b.stage] + " · " + b.intent + "分</span></button>";
       }).join("") + "</div>" +
       '<textarea class="sl-text" id="slText" rows="3" placeholder="粘贴客户消息…（支持原文，任意语言）"></textarea>' +
       '<input class="sl-zh" id="slZh" placeholder="中文对照（AI 模式自动填充，可修改）"/>' +
@@ -47,15 +47,15 @@
     var b = cur();
     bd.innerHTML = '<div class="sheet">' +
       '<div class="sheet-head"><b>AI 识别结果 · 确认后入库</b><button class="sheet-x" data-act="x">✕</button></div>' +
-      '<div class="sl-msg">' + ai.text + "</div>" +
+      '<div class="sl-msg">' + escHtml(ai.text) + "</div>" +
       '<label class="set-lbl">中文对照（可修改）</label>' +
-      '<input class="sl-zh" id="slZh" value="' + (ai.zh || "").replace(/"/g, "&quot;") + '"/>' +
+      '<input class="sl-zh" id="slZh" value="' + escHtml(ai.zh || "") + '"/>' +
       '<label class="set-lbl">提取字段（勾选入库，新值覆盖旧值）</label>' +
       '<div class="sl-fields">' + (ai.fields && ai.fields.length ? ai.fields.map(function (f, i) {
-        return '<label class="sl-field"><input type="checkbox" data-fi="' + i + '" checked/><span class="slf-k">' + f.k + '</span><span class="slf-v">' + f.v + "</span></label>";
+        return '<label class="sl-field"><input type="checkbox" data-fi="' + i + '" checked/><span class="slf-k">' + escHtml(f.k) + '</span><span class="slf-v">' + escHtml(f.v) + "</span></label>";
       }).join("") : '<div class="set-note">本条消息未检测到业务字段</div>') + "</div>" +
       (ai.delta ? '<div class="sl-delta">意向信号 ' + (ai.delta.delta > 0 ? "+" : "") + ai.delta.delta +
-        ' · ' + (ai.delta.reason || "") + "（" + b.intent + " → " + Math.max(5, Math.min(99, b.intent + ai.delta.delta)) + "）</div>" : "") +
+        ' · ' + escHtml(ai.delta.reason || "") + "（" + b.intent + " → " + Math.max(5, Math.min(99, b.intent + ai.delta.delta)) + "）</div>" : "") +
       '<div class="set-actions"><button class="set-btn-inline ghost" data-act="back">← 重填</button><button class="set-btn-inline" data-act="save">确认入库</button></div>' +
       "</div>";
     wire(bd);

@@ -21,8 +21,8 @@
             var b = Mock.getBuyer(f.buyerId);
             return '<div class="fitem' + (f.done ? " done" : "") + '" data-fid="' + f.id + '" data-go="' + b.id + '">' +
               '<span class="fbx">✓</span>' +
-              '<div class="fmain"><b>' + f.action + "</b>" +
-              '<div class="fsub">' + b.name + " · " + Mock.STAGES[b.stage] + " · " + U.dueLabel(f.dueIn).text + "</div></div>" +
+              '<div class="fmain"><b>' + escHtml(f.action) + "</b>" +
+              '<div class="fsub">' + escHtml(b.name) + " · " + Mock.STAGES[b.stage] + " · " + U.dueLabel(f.dueIn).text + "</div></div>" +
               '<button class="fgo">去谈</button>' +
               "</div>";
           }).join("");
@@ -36,8 +36,8 @@
         var b = Mock.getBuyer(id);
         var m = b.messages[b.messages.length - 1];
         return '<div class="feed-item" data-go="' + b.id + '">' + U.avatar(b) +
-          '<div class="feed-txt"><b>' + b.name + "</b><p>" + m.text + "</p></div>" +
-          '<span class="feed-time">' + m.time + "</span></div>";
+          '<div class="feed-txt"><b>' + escHtml(b.name) + "</b><p>" + escHtml(m.text) + "</p></div>" +
+          '<span class="feed-time">' + escHtml(m.time) + "</span></div>";
       }).join("");
 
       return UI.topbar("跟进", "逾期优先处理，完成后可点击圆框标记") +

@@ -51,7 +51,8 @@
     if (c.proxyUrl) {
       var proxy = c.proxyUrl.replace(/\/+$/, "") + "/llm";
       var pheaders = { "Content-Type": "application/json" };
-      if (c.token) pheaders["x-dealdesk-token"] = c.token;
+      var _ddau = window.Auth && Auth.get();
+      if (_ddau && _ddau.session) pheaders["x-dealdesk-session"] = _ddau.session;
       return fetch(proxy, { method: "POST", headers: pheaders, body: JSON.stringify(payload) })
         .then(function (r) { return r.json(); })
         .then(function (j) {

@@ -21,11 +21,11 @@
           return '<i class="' + (i < b.stage ? "on" : i === b.stage ? "cur" : "") + '"></i>';
         }).join("");
         return '<div class="card dcard" data-id="' + b.id + '">' +
-          '<div class="drow1"><b>' + (b.amount ? U.money(b.amount, b.currency) : "待报价") + '</b><span class="stage-tag">' + Mock.STAGES[b.stage] + "</span><span class=\"dno\">" + b.quoteNo + "</span></div>" +
-          '<div class="drow2">' + b.name + '<span class="co">' + b.company + "</span></div>" +
-          '<div class="dprod">' + b.product + " · " + b.qty + "</div>" +
+          '<div class="drow1"><b>' + (b.amount ? U.money(b.amount, b.currency) : "待报价") + '</b><span class="stage-tag">' + Mock.STAGES[b.stage] + '</span><span class="dno">' + escHtml(b.quoteNo) + "</span></div>" +
+          '<div class="drow2">' + escHtml(b.name) + '<span class="co">' + escHtml(b.company) + "</span></div>" +
+          '<div class="dprod">' + escHtml(b.product) + " · " + escHtml(b.qty) + "</div>" +
           '<div class="tdots">' + dots + "</div>" +
-          (fu ? '<div class="dnext"><span>' + fu.action + "</span>" + U.dueBadge(fu.dueIn) + "</div>" : "") +
+          (fu ? '<div class="dnext"><span>' + escHtml(fu.action) + "</span>" + U.dueBadge(fu.dueIn) + "</div>" : "") +
           "</div>";
       }
 

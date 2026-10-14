@@ -50,16 +50,19 @@
       '<div class="auth-tabs"><span id="authTabLogin" class="on">登录</span><span id="authTabReg">新账号</span></div>' +
       '<label class="set-lbl">姓名</label>' +
       '<input class="set-inp" id="authName" type="text" maxlength="20" placeholder="你的名字（如 Cherry）"/>' +
-      '<label class="set-lbl">密码</label>' +
-      '<input class="set-inp" id="authPass" type="password" placeholder="至少 4 位"/>' +
+      '<label class="set-lbl" id="authPassLbl">密码</label>' +
+      '<input class="set-inp" id="authPass" type="password" placeholder="你的密码"/>' +
       '<input class="set-inp" id="authPass2" type="password" placeholder="确认密码" style="display:none"/>' +
+      '<div id="authTokenBox" style="display:none">' +
+      '<label class="set-lbl">团队口令（找管理员要）</label>' +
+      '<input class="set-inp" id="authTeamToken" type="password" placeholder="形如 dd-2026-xxxx（只在新建账号时需要，不会被保存）"/>' +
+      "</div>" +
       '<button class="auth-btn" id="authGo">登录</button>' +
       '<div class="set-note" id="authMsg"></div>' +
       '<details class="auth-cloud"><summary>云服务设置（首次使用 / 报错时展开）</summary>' +
       '<label class="set-lbl">云服务地址</label>' +
       '<input class="set-inp" id="authCloudUrl" type="url" placeholder="https://….fcapp.run" value="' + (cl.proxyUrl || "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run") + '"/>' +
-      '<label class="set-lbl">团队口令（管理员给）</label>' +
-      '<input class="set-inp" id="authCloudToken" type="password" placeholder="形如 dd-2026-xxxx（找管理员要）" value="' + (cl.token || "") + '"/>' +
+      '<div class="set-note">地址已预填。团队口令只在「新账号」时填一次，登录不需要</div>' +
       "</details>" +
       "</div>" +
       "</div>";
@@ -78,6 +81,8 @@
       tabL.classList.toggle("on", m === "login");
       tabR.classList.toggle("on", m === "register");
       p2.style.display = m === "register" ? "" : "none";
+      el.querySelector("#authTokenBox").style.display = m === "register" ? "" : "none";
+      el.querySelector("#authPass").placeholder = m === "register" ? "至少 6 位，且同时包含字母和数字" : "你的密码";
       go.textContent = m === "register" ? "创建账号并登录" : "登录";
     }
     tabL.addEventListener("click", function () { setMode("login"); });
@@ -85,31 +90,30 @@
 
     function submit() {
       var cUrl = el.querySelector("#authCloudUrl").value.trim();
-      var cTok = el.querySelector("#authCloudToken").value.trim();
-      if (cUrl || cTok) {
+      if (cUrl) {
         var st = Store.getSettings() || {};
-        st.cloud = {
-          proxyUrl: cUrl || (st.cloud || {}).proxyUrl || "",
-          token: cTok || (st.cloud || {}).token || ""
-        };
+        var oldCl = st.cloud || {};
+        /* P0：只存云服务地址；团队口令不再持久化（仅注册时临时使用） */
+        st.cloud = { proxyUrl: cUrl, token: oldCl.token || "" };
         Store.saveSettings(st);
       }
       var name = el.querySelector("#authName").value.trim();
       var pass = el.querySelector("#authPass").value;
+      var teamTok = el.querySelector("#authTeamToken").value.trim();
       function fail(text) { msg.textContent = text; App.toast(text); }
       if (!name) { fail("请先输入姓名"); return; }
       if (!pass) { fail("请输入密码"); return; }
       if (mode === "register" && pass !== p2.value) { fail("两次输入的密码不一致"); return; }
-      if (!window.Sync || !Sync.enabled()) {
+      if (!window.Sync || !Sync.hasCloud()) {
         var det = el.querySelector(".auth-cloud");
         if (det) det.open = true;
-        fail("先填「云服务设置」里的团队口令（找管理员要）");
+        fail("先填「云服务设置」里的云服务地址（已预填，直接点登录即可）");
         return;
       }
       go.disabled = true;
       msg.textContent = mode === "register" ? "创建中…" : "登录中…";
-      Sync.authCall(name, pass, mode, 15000).then(function (j) {
-        Auth.save({ key: j.key, name: j.name });
+      Sync.authCall(name, pass, mode, teamTok, 15000).then(function (j) {
+        Auth.save({ key: j.key, name: j.name, role: j.role || "rep", session: j.session });
         var st2 = Store.getSettings() || {};
         st2.name = j.name;
         Store.saveSettings(st2);
@@ -154,13 +158,14 @@
           App.toast(freshLogin ? "已拉取你的云端数据" : "已拉取最新数据");
         }
       }).catch(function (e) {
-        if (/请重新登录|用户不存在/.test(String(e.message))) {
+        var m = String(e.message || e);
+        if (/请重新登录|会话失效|用户不存在|账号已停用/.test(m)) {
           Auth.clear();
           renderAuth();
-          App.toast("账号已失效，请重新登录");
+          App.toast(/账号已停用/.test(m) ? "账号已停用，请联系管理员" : "登录状态已失效，请重新登录");
         } else {
           console.warn("云端拉取失败：", e.message);
-          App.toast("云端数据没拉下来：" + e.message);
+          App.toast("云端数据没拉下来：" + m);
         }
       });
     }
@@ -191,7 +196,8 @@
       if (st) st.classList.add("preview");
     }
     var a = Auth.get();
-    if (!a) { renderAuth(); return; }
+    /* P0：旧版本只存了姓名没有会话的本地状态一律要求重新登录（一次性的切换成本，之后 30 天免登） */
+    if (!a || !a.session) { renderAuth(); return; }
     startApp(a.name, false);
   });
 })();

@@ -16,6 +16,9 @@
       var d = JSON.parse(raw);
       if (d && d.v === VERSION && d.seedV === SEED_V && d.buyers && d.followups) {
         if (!d.persona) d.persona = emptyPersona();
+        /* P0：旧版本地黑名单 deleted 迁移为墓碑 deletedIds（随推送上云，90 天防删除复活） */
+        if (d.deleted && !d.deletedIds) { d.deletedIds = d.deleted; delete d.deleted; }
+        if (!d.deletedIds) d.deletedIds = [];
         return d;
       }
     } catch (e) {}
@@ -29,18 +32,22 @@
     buyers: JSON.parse(JSON.stringify(seed.buyers)),
     followups: JSON.parse(JSON.stringify(seed.followups)),
     persona: emptyPersona(),
+    deletedIds: [],
     savedAt: null
   };
+  if (!data.deletedIds) data.deletedIds = [];
 
   /* 原地替换数组：保持 Mock.buyers / Mock.followups 引用恒稳，会话内 UI 不读旧数据 */
   function replaceArr(arr, next) {
     arr.length = 0;
     (next || []).forEach(function (x) { arr.push(x); });
   }
-  /* 删除黑名单：被删客户即使被云端并集"复活"也不再显示（本机永久生效） */
+  /* 墓碑（P0）：被删客户的 id 记在 deletedIds，本地立即隐藏；
+     推送时一并上云，服务端在 90 天窗口内阻止"旧设备/旧快照把已删客户并回来" */
   function purge() {
-    if (!data.deleted || !data.deleted.length) return;
-    replaceArr(data.buyers, data.buyers.filter(function (b) { return data.deleted.indexOf(b.id) < 0; }));
+    if (!data.deletedIds.length) return;
+    replaceArr(data.buyers, data.buyers.filter(function (b) { return data.deletedIds.indexOf(b.id) < 0; }));
+    replaceArr(data.followups, data.followups.filter(function (f) { return f.buyerId == null || data.deletedIds.indexOf(f.buyerId) < 0; }));
   }
   purge();
 
@@ -56,7 +63,15 @@
     if (window.Sync) Sync.pushNow().catch(function (e) { console.warn("云同步推送失败：", e.message); });
   }
 
-  function stamp(b) { if (b) b.updatedAt = Date.now(); }
+  /* P0：updatedAt 统一 ISO 字符串（服务端按字符串比较新旧；毫秒数与 ISO 混用会比较错） */
+  function stamp(b) { if (b) b.updatedAt = new Date().toISOString(); }
+  function tombAdd(id) {
+    if (!id) return;
+    if (data.deletedIds.indexOf(id) < 0) {
+      data.deletedIds.push(id);
+      if (data.deletedIds.length > 400) data.deletedIds = data.deletedIds.slice(-400);
+    }
+  }
 
   var Mock = {
     STAGES: seed.STAGES,
@@ -168,35 +183,34 @@
         context: info.product ? [{ k: "需求", v: info.product }] : [],
         profile: cp,
         messages: [],
-        updatedAt: Date.now()
+        updatedAt: new Date().toISOString()
       };
       data.buyers.unshift(b);
       data.followups.unshift({
         id: "f" + Date.now(), buyerId: b.id,
-        action: "首次跟进：发产品资料 + 确认核心需求", dueIn: 1, done: false, updatedAt: Date.now()
+        action: "首次跟进：发产品资料 + 确认核心需求", dueIn: 1, done: false, updatedAt: new Date().toISOString()
       });
       save();
       return b;
     },
     clearAll: function () {
+      /* P0：清空前先给全部客户打墓碑，防止其他设备的旧快照把它们并回来 */
+      data.buyers.forEach(function (b) { tombAdd(b.id); });
       replaceArr(data.buyers, []);
       replaceArr(data.followups, []);
       save();
     },
     removeBuyer: function (id) {
-      data.deleted = data.deleted || [];
-      if (data.deleted.indexOf(id) < 0) {
-        data.deleted.push(id);
-        if (data.deleted.length > 200) data.deleted = data.deleted.slice(-200);
-      }
+      tombAdd(id); /* 墓碑上云，服务端 90 天窗口内防"删除复活" */
       replaceArr(data.buyers, data.buyers.filter(function (x) { return x.id !== id; }));
+      replaceArr(data.followups, data.followups.filter(function (f) { return f.buyerId !== id; }));
       save();
     },
     /* 切换/新建登录账号时：清掉本机上一位业务员的客户数据和话术，只保留云端该账号的数据 */
     wipeLocal: function () {
       replaceArr(data.buyers, []);
       replaceArr(data.followups, []);
-      data.deleted = [];
+      data.deletedIds = [];
       data.persona = emptyPersona();
       data.savedAt = null;
       saveLocal();
@@ -251,10 +265,14 @@
       return data.persona.docs;
     },
     snapshot: function () {
-      return { buyers: data.buyers, followups: data.followups, persona: data.persona, updatedAt: data.savedAt };
+      return { buyers: data.buyers, followups: data.followups, persona: data.persona, updatedAt: data.savedAt, deletedIds: data.deletedIds };
     },
     applySnapshot: function (snap) {
       if (!snap || !snap.buyers) return false;
+      /* P0：云端墓碑并入本地黑名单（多设备删除同步） */
+      if (snap.tombstones && typeof snap.tombstones === "object") {
+        Object.keys(snap.tombstones).forEach(function (id) { tombAdd(id); });
+      }
       replaceArr(data.buyers, snap.buyers);
       replaceArr(data.followups, snap.followups || []);
       if (snap.persona && (snap.persona.thoughts || snap.persona.scripts)) {
@@ -280,7 +298,7 @@
       for (var i = 0; i < data.followups.length; i++) {
         if (data.followups[i].id === fid) {
           data.followups[i].done = done;
-          data.followups[i].updatedAt = Date.now();
+          data.followups[i].updatedAt = new Date().toISOString();
           save();
           return;
         }
