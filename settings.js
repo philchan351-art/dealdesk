@@ -52,11 +52,17 @@
           '<div class="set-actions"><button class="set-btn-inline danger" data-act="logout">切换账号 / 退出登录</button></div>' +
           '<div class="set-note">退出后本机数据清空并回到登录页；你的客户数据安全存在云端，重新登录即可恢复。每个账号只看自己的客户</div>' +
           "</div>" +
-          (isAdmin ? '<div class="card card-pad">' +
-          '<div class="set-title">团队成员（管理员）</div>' +
-          '<div id="adminList"><div class="set-note">加载中…</div></div>' +
-          '<div class="set-note">重置密码：对方旧密码立即作废，下次登录用新密码。停用：对方立即不能登录/同步（数据保留，随时可启用）。新成员注册时把团队口令告诉他（在服务器端设置，不显示在这里）</div>' +
-          "</div>" : "") +
+           (isAdmin ? '<div class="card card-pad">' +
+           '<div class="set-title">团队成员（管理员）</div>' +
+           '<div id="adminList"><div class="set-note">加载中…</div></div>' +
+           '<div class="set-note">重置密码：对方旧密码立即作废。停用：立即不能登录/同步（数据保留）。设为管理员：对方也能管理成员和公共资料。</div>' +
+           '<div class="set-title" style="margin-top:14px">团队公共资料</div>' +
+           '<div id="sharedList"><div class="set-note">加载中…</div></div>' +
+           '<div class="set-actions" style="margin-top:8px"><button class="set-btn-inline" data-act="shared-upload">＋ 上传公共资料</button></div>' +
+           '<input type="file" id="sharedFile" accept=".txt,.md,.csv,.json,.html,.htm" style="display:none">' +
+           '<div id="sharedPreview"></div>' +
+           '<div class="set-note">你上传一次，所有人的 AI 生成都会自动引用（与各自的个人资料叠加，互不覆盖）。业务员在界面上看不到公共资料的内容，只有 AI 会用。</div>' +
+           "</div>" : "") +
          '<div class="card card-pad">' +
          '<div class="set-title">我的称呼</div>' +
         '<label class="set-lbl">你的名字（首页问候用 · 只存本机）</label>' +
@@ -279,11 +285,12 @@
                return '<div class="card set-row" style="margin:0 0 6px;padding:8px 10px">' +
                  '<span class="set-k">' + esc(u.name) + (self ? "（我）" : "") + (u.role === "admin" ? " · 管理员" : "") + (u.disabled ? ' · <b style="color:#e5484d">已停用</b>' : "") + "</span>" +
                  "<b>" + u.buyers + " 客户</b>" +
-                 (self ? "" : '<div class="set-actions" style="margin-top:6px;flex-wrap:wrap">' +
-                   '<button class="set-btn-inline ghost" data-act="admin-reset" data-name="' + esc(u.name) + '">重置密码</button>' +
-                   '<button class="set-btn-inline ' + (u.disabled ? "" : "danger") + '" data-act="admin-disable" data-name="' + esc(u.name) + '" data-en="' + (u.disabled ? "1" : "0") + '">' + (u.disabled ? "启用" : "停用") + "</button>" +
-                   "</div>") +
-                 "</div>";
+                  (self ? "" : '<div class="set-actions" style="margin-top:6px;flex-wrap:wrap">' +
+                    '<button class="set-btn-inline ghost" data-act="admin-reset" data-name="' + esc(u.name) + '">重置密码</button>' +
+                    '<button class="set-btn-inline ' + (u.disabled ? "" : "danger") + '" data-act="admin-disable" data-name="' + esc(u.name) + '" data-en="' + (u.disabled ? "1" : "0") + '">' + (u.disabled ? "启用" : "停用") + "</button>" +
+                    '<button class="set-btn-inline ghost" data-act="admin-role" data-name="' + esc(u.name) + '" data-role="' + (u.role === "admin" ? "rep" : "admin") + '">' + (u.role === "admin" ? "取消管理员" : "设为管理员") + "</button>" +
+                    "</div>") +
+                  "</div>";
              }).join("");
            }).catch(function (e) {
              adminList.innerHTML = '<div class="set-note" style="color:#e5484d">' + esc(e.message) + "</div>";
@@ -308,15 +315,85 @@
              var en = t.getAttribute("data-en") === "1";
              var msg = en ? "确定启用「" + nm + "」？启用后对方可正常登录。"
                : "确定停用「" + nm + "」？停用后对方立即不能登录和同步（数据保留，随时可恢复）。";
-             if (!confirm(msg)) return;
-             Sync.adminToggleDisable(nm, en).then(function () {
-               App.toast(en ? "已启用「" + nm + "」" : "已停用「" + nm + "」");
-               loadAdmin();
-             }).catch(function (err) { App.toast("操作失败：" + err.message); });
-           }
-         });
-         loadAdmin();
-       }
+              if (!confirm(msg)) return;
+              Sync.adminToggleDisable(nm, en).then(function () {
+                App.toast(en ? "已启用「" + nm + "」" : "已停用「" + nm + "」");
+                loadAdmin();
+              }).catch(function (err) { App.toast("操作失败：" + err.message); });
+            } else if (t.getAttribute("data-act") === "admin-role") {
+              var toAdmin = t.getAttribute("data-role") === "admin";
+              var msg2 = toAdmin ? "确定让「" + nm + "」成为管理员？他将能管理成员和团队公共资料。"
+                : "确定取消「" + nm + "」的管理员权限？他仍可正常使用账号，只是看不到管理功能。";
+              if (!confirm(msg2)) return;
+              Sync.adminSetRole(nm, toAdmin ? "admin" : "rep").then(function () {
+                App.toast(toAdmin ? "「" + nm + "」已是管理员" : "「" + nm + "」已取消管理员");
+                loadAdmin();
+              }).catch(function (err) { App.toast("操作失败：" + err.message); });
+            }
+          });
+          loadAdmin();
+
+          /* ===== 团队公共资料：管理员上传一次，所有人 AI 生成自动引用 ===== */
+          var sharedListEl = root.querySelector("#sharedList");
+          var sharedPreview = root.querySelector("#sharedPreview");
+          var sharedFile = root.querySelector("#sharedFile");
+          if (sharedListEl) {
+            function loadShared() {
+              sharedListEl.innerHTML = '<div class="set-note">加载中…</div>';
+              sharedPreview.innerHTML = "";
+              Sync.sharedList().then(function (j) {
+                var docs = j.docs || [];
+                sharedListEl.innerHTML = docs.length ? docs.slice().reverse().map(function (d) {
+                  return '<div class="card set-row" style="margin:0 0 6px;padding:8px 10px">' +
+                    "<span>" + esc(d.name) + ' <span class="set-note">' + Math.round(d.size / 1024) + "KB</span></span>" +
+                    '<div class="set-actions" style="margin-top:6px">' +
+                    '<button class="set-btn-inline ghost" data-act="shared-view" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">查看</button>' +
+                    '<button class="set-btn-inline danger" data-act="shared-del" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">删除</button>' +
+                    "</div></div>";
+                }).join("") : '<div class="set-note">还没有公共资料。上传后所有人的 AI 都会引用（公司简介/付款方式/通用认证等放这里最合适）</div>';
+              }).catch(function (e) {
+                sharedListEl.innerHTML = '<div class="set-note" style="color:#e5484d">' + esc(e.message) + "</div>";
+              });
+            }
+            sharedListEl.addEventListener("click", function (e) {
+              var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
+              if (!t) return;
+              var k = t.getAttribute("data-key"), nm = t.getAttribute("data-name");
+              if (t.getAttribute("data-act") === "shared-view") {
+                Sync.sharedDocs().then(function (j) {
+                  var d = (j.docs || []).filter(function (x) { return x.key === k; })[0];
+                  if (!d) { App.toast("该资料不在最近 3 份里（AI 只引用最新 3 份）"); return; }
+                  sharedPreview.innerHTML = '<div class="card" style="margin-top:8px;padding:10px"><b>' + esc(nm) + "（前 3000 字）</b><pre class='set-note' style='white-space:pre-wrap;font-family:inherit;margin-top:6px'>" + esc(d.content) + "</pre></div>";
+                }).catch(function (err) { App.toast("读取失败：" + err.message); });
+              } else if (t.getAttribute("data-act") === "shared-del") {
+                if (!confirm("确定删除公共资料「" + nm + "」？所有人的 AI 将不再引用它。")) return;
+                Sync.sharedDelete(k).then(function () {
+                  App.toast("已删除「" + nm + "」");
+                  loadShared();
+                }).catch(function (err) { App.toast("删除失败：" + err.message); });
+              }
+            });
+            root.querySelector('[data-act="shared-upload"]').addEventListener("click", function () { sharedFile.click(); });
+            sharedFile.addEventListener("change", function () {
+              var f = sharedFile.files && sharedFile.files[0];
+              sharedFile.value = "";
+              if (!f) return;
+              if (f.size > 3 * 1024 * 1024) { App.toast("文件超过 3MB"); return; }
+              var rd = new FileReader();
+              rd.onload = function () {
+                var content = String(rd.result || "");
+                if (!confirm("将上传《" + f.name + "》为团队公共资料：之后所有人的 AI 生成都会引用它。确认？")) return;
+                Sync.sharedUpload(f.name, content).then(function () {
+                  App.toast("已上传公共资料「" + f.name + "」，全员 AI 立即生效");
+                  loadShared();
+                }).catch(function (err) { App.toast("上传失败：" + err.message); });
+              };
+              rd.onerror = function () { App.toast("读取文件失败"); };
+              rd.readAsText(f);
+            });
+            loadShared();
+          }
+        }
       root.querySelector('[data-act="cloud-pull"]').addEventListener("click", function () {
         Store.saveSettings(readCloud());
         cloudStatus("拉取中…");

@@ -136,6 +136,33 @@
       return fetch(url("/admin/user/disable"), {
         method: "POST", headers: headers(), body: JSON.stringify({ name: name, enabled: enabled })
       }).then(function (r) { return wrap(r); });
+    },
+    adminSetRole: function (name, role) {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/user/role"), {
+        method: "POST", headers: headers(), body: JSON.stringify({ name: name, role: role })
+      }).then(function (r) { return wrap(r); });
+    },
+    /* ===== 团队公共资料（2026-10-14）：管理员维护；/shared 全体登录用户可读（AI 注入用）===== */
+    sharedDocs: function () {
+      if (!this.enabled()) return Promise.resolve({ docs: [] });
+      return fetch(url("/shared"), { headers: headers() }).then(function (r) { return wrap(r); });
+    },
+    sharedList: function () {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/shared"), { headers: headers() }).then(function (r) { return wrap(r); });
+    },
+    sharedUpload: function (name, content) {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/shared"), {
+        method: "POST", headers: headers(), body: JSON.stringify({ name: name, content: content })
+      }).then(function (r) { return wrap(r); });
+    },
+    sharedDelete: function (doc) {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/shared/delete"), {
+        method: "POST", headers: headers(), body: JSON.stringify({ doc: doc })
+      }).then(function (r) { return wrap(r); });
     }
   };
 

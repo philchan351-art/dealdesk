@@ -26,23 +26,44 @@
     return s;
   }
 
-  /* 训练资料：把该业务员上传的参考文件（公司简介/价目表等，最新 3 个、各截 3000 字）并入系统提示 */
+  /* 团队公共资料（2026-10-14）：管理员上传一次，所有成员的 AI 生成自动引用。
+     5 分钟内存缓存，避免每次生成都多一次网络请求；失败时退回上次缓存不阻塞生成。 */
+  var _sharedCache = { at: 0, docs: [] };
+  function getSharedDocs() {
+    var now = Date.now();
+    if (now - _sharedCache.at < 5 * 60 * 1000) return Promise.resolve(_sharedCache.docs);
+    if (!window.Sync || !Sync.enabled()) return Promise.resolve(_sharedCache.docs);
+    return Sync.sharedDocs().then(function (j) {
+      _sharedCache = { at: Date.now(), docs: (j && j.docs) || [] };
+      return _sharedCache.docs;
+    }).catch(function () { return _sharedCache.docs; });
+  }
+
+  /* 训练资料：团队公共资料（管理员）+ 本人个人资料（各最新 3 份、各截 3000 字）叠加并入系统提示 */
   function withDocs(system) {
     var p = Store.getPersona ? Store.getPersona() : null;
     var docs = (p && p.docs) || [];
     docs = docs.slice().sort(function (a, b) { return String(b.updated || "") > String(a.updated || "") ? 1 : -1; }).slice(0, 3);
-    if (!docs.length || !window.Sync || !Sync.enabled()) return Promise.resolve(system + factRule(false));
-    var jobs = docs.map(function (d) {
-      return (d && d.content != null ? Promise.resolve(d.content) : Sync.docFetch(d.key))
-        .then(function (v) { return String((v && v.content) || "").slice(0, 3000); })
-        .catch(function () { return ""; });
-    });
-    return Promise.all(jobs).then(function (contents) {
+    var hasPersonal = docs.length && window.Sync && Sync.enabled();
+    var jobs = [getSharedDocs()];
+    if (hasPersonal) {
+      jobs.push(Promise.all(docs.map(function (d) {
+        return (d && d.content != null ? Promise.resolve(d.content) : Sync.docFetch(d.key))
+          .then(function (v) { return String((v && v.content) || "").slice(0, 3000); })
+          .catch(function () { return ""; });
+      })));
+    }
+    return Promise.all(jobs).then(function (res) {
+      var shared = res[0] || [];
+      var personal = hasPersonal ? (res[1] || []) : [];
       var out = "";
-      for (var i = 0; i < docs.length; i++) {
-        if (contents[i]) out += "\n【资料·" + (docs[i].name || "文件") + "】\n" + contents[i];
+      for (var i = 0; i < shared.length; i++) {
+        if (shared[i] && shared[i].content) out += "\n【团队资料·" + (shared[i].name || "文件") + "】\n" + shared[i].content;
       }
-      return system + out + factRule(true);
+      for (var j2 = 0; j2 < docs.length; j2++) {
+        if (personal[j2]) out += "\n【资料·" + (docs[j2].name || "文件") + "】\n" + personal[j2];
+      }
+      return system + out + factRule(out.length > 0);
     });
   }
 
