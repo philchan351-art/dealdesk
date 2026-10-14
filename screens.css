@@ -319,8 +319,9 @@
   display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
 }
 .wdraft-zh{font-size:11px;color:var(--ink-faint);line-height:1.5;margin-top:5px}
-.wdraft.empty{display:flex;align-items:center;justify-content:space-between}
-.wdraft.empty span{font-size:11.5px;color:var(--ink-faint)}
+.wdraft.empty{display:flex;align-items:center;gap:10px}
+.wdraft.empty span{flex:1;min-width:0;font-size:11.5px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wdraft.empty .wgo{flex:0 0 auto;width:auto;padding:8px 13px;white-space:nowrap}
 
 .wfoot{display:flex;gap:8px;margin-top:10px}
 .wgo{
