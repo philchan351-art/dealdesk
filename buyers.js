@@ -41,11 +41,11 @@
           return '<div class="bcard card' + (b.unread ? " unread" : "") + '" data-id="' + b.id + '">' +
             U.avatar(b) +
             '<div class="bmid">' +
-            '<div class="bmid-top"><b>' + escHtml(b.name) + "</b>" + oc + '<span class="intent intent-' + g + '" data-bid="' + b.id + '" title="点一下看最近一次升降依据"><b>' + g + "</b>" + b.intent + intentArrow(b) + "</span></div>" +
+            '<div class="bmid-top"><b>' + escHtml(b.name) + "</b>" + oc + '<span class="intent intent-' + g + '" data-bid="' + escHtml(b.id) + '" title="点一下看最近一次升降依据"><b>' + g + "</b>" + b.intent + intentArrow(b) + "</span></div>" +
             '<div class="bmid-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + (b.tags && b.tags.length ? " · " + escHtml(b.tags[0]) : "") + "</div>" +
             '<div class="bmid-meta"><span class="stage-tag">' + Mock.STAGES[b.stage] + '</span><span class="wa-badge">WhatsApp</span><span>' + escHtml(b.lastActive) + '</span></div>' +
             "</div>" +
-            '<div class="bright"><button class="bcard-del" data-act="del" data-id="' + b.id + '" data-name="' + escHtml(b.name) + '" title="删除客户">⋯</button><b>' + (b.amount ? U.money(b.amount, b.currency) : "待报价") + "</b>" + U.dueBadge(b.followIn) + "</div>" +
+            '<div class="bright"><button class="bcard-del" data-act="del" data-id="' + escHtml(b.id) + '" data-name="' + escHtml(b.name) + '" title="删除客户">⋯</button><b>' + (b.amount ? U.money(b.amount, b.currency) : "待报价") + "</b>" + U.dueBadge(b.followIn) + "</div>" +
            "</div>";
        }
 

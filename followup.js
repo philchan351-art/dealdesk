@@ -31,14 +31,17 @@
           '<div class="stagger">' + items + "</div>";
       }).join("");
 
-      var feedIds = ["b1", "b2", "b3", "b5", "b6"];
-      var feed = feedIds.map(function (id) {
-        var b = Mock.getBuyer(id);
-        var m = b.messages[b.messages.length - 1];
-        return '<div class="feed-item" data-go="' + b.id + '">' + U.avatar(b) +
-          '<div class="feed-txt"><b>' + escHtml(b.name) + "</b><p>" + escHtml(m.text) + "</p></div>" +
-          '<span class="feed-time">' + escHtml(m.time) + "</span></div>";
-      }).join("");
+      /* H1 修复：旧版写死演示 ID，新账号/删客户后 getBuyer 返回 null 直接抛错，
+         整个"跟进"页打不开（甚至刷新白屏）。改为从真实数据取最近 5 条有消息的客户 */
+      var feed = Mock.buyers
+        .filter(function (b) { return b && b.messages && b.messages.length; })
+        .slice(0, 5)
+        .map(function (b) {
+          var m = b.messages[b.messages.length - 1];
+          return '<div class="feed-item" data-go="' + escHtml(b.id) + '">' + U.avatar(b) +
+            '<div class="feed-txt"><b>' + escHtml(b.name) + "</b><p>" + escHtml(m.text) + "</p></div>" +
+            '<span class="feed-time">' + escHtml(m.time) + "</span></div>";
+        }).join("");
 
       return UI.topbar("跟进", "逾期优先处理，完成后可点击圆框标记") +
         sections +

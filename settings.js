@@ -322,7 +322,8 @@
         cloudStatus("拉取中…");
         Sync.pull().then(function (server) {
           if (!server) { cloudStatus("云端还是空的（先在任一设备点\"上云推送\"建立基线）"); return; }
-          var localAt = Store.snapshot().updatedAt || "";
+          /* 修复（审计 M3）：与启动拉取同口径，用云端版本号比较 */
+          var localAt = (Store.getServerAt && Store.getServerAt()) || "";
           cloudStatus("云端最新：" + server.buyers.length + " 买家 · " + new Date(server.updatedAt).toLocaleString("zh-CN"));
           if (server.updatedAt > localAt) {
             Store.applySnapshot(server);

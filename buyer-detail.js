@@ -254,11 +254,17 @@
          "</div>" +
          outcomeHtml(b) +
           '<div class="card tracker" style="margin-top:10px">' + U.stageTracker(b.stage) + "</div>" +
+           (function () {
+             var rk = riskOf(b);
+              return rk ? '<div class="card risk-card" style="margin:10px 16px 0"><b>⚠ 谈单遇冷</b><span>' + escHtml(rk.reasons) + '</span><div class="risk-strat">建议策略：' + escHtml(rk.strat) + "</div></div>" : "";
+           })() +
+          /* 2026-10-14 真实反馈：没喂产品资料时 AI 会编参数，用醒目横幅引导去上传训练资料 */
           (function () {
-            var rk = riskOf(b);
-             return rk ? '<div class="card risk-card" style="margin:10px 16px 0"><b>⚠ 谈单遇冷</b><span>' + escHtml(rk.reasons) + '</span><div class="risk-strat">建议策略：' + escHtml(rk.strat) + "</div></div>" : "";
+            var p = (window.Store && Store.getPersona) ? Store.getPersona() : null;
+            var hasDocs = !!(p && (p.docs || []).length);
+            return hasDocs ? "" : '<div class="card" style="margin:10px 16px 0;background:#FFF7E8;border:1px solid #FFD591"><b>⚠ 还没喂产品资料</b><div style="font-size:12px;color:#8a6d1a;margin-top:4px">没有资料，AI 回复客户时会"编"参数（续航/认证/价格都可能是假的）。到「设置 → AI 训练资料」上传你的产品目录/公司简介，AI 就只按你资料里写的说。</div></div>';
           })() +
-         '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
+          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
          '<div class="set-note" style="padding:0 16px 8px;font-size:11px">预填 ≠ 已发：发送后点「✓ 已发」计入记录；没发或改过的点「✕ 没发」删除。</div>' +
         '<div class="wa-chat">' +
          '<div class="wa-head">' + WA_ICON +
@@ -599,7 +605,7 @@
           importStatus.innerHTML =
             '<b style="color:var(--brand)">分析完成，确认存进「' + escHtml(b.name) + "」的档案？</b><br>" +
             "对话还原 " + impConvo.length + " 条" + (Object.keys(impFields).length ? " · 档案要点 " + Object.keys(impFields).length + " 项" : "") +
-            (impSummaries.length ? '<br><span class="mem-text">' + escHtml(impSummaries.join("；")).slice(0, 220) + "…</span>" : "") +
+            (impSummaries.length ? '<br><span class="mem-text">' + escHtml(impSummaries.join("；").slice(0, 220)) + "…</span>" : "") +
             '<div class="import-row" style="margin-top:8px"><button class="tr-btn" data-act="commit-import" style="flex:1">存入档案（长期记忆）</button><button class="set-btn-inline" data-act="abort-import">取消</button></div>';
         });
       });
@@ -752,9 +758,9 @@
           if (!list || !list.length) throw new Error("返回为空");
           var items = list.slice(0, 3);
           var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语";
-          b.aiSuggests = { lang: lang, at: Date.now(), items: items };
+          b.aiSuggests = { lang: lang, at: new Date().toISOString(), items: items };
           if (res.diagnosis && (res.diagnosis.nextGoal || res.diagnosis.blocker)) {
-            b.aiDiag = { at: Date.now(), nextGoal: res.diagnosis.nextGoal || "", blocker: res.diagnosis.blocker || "" };
+            b.aiDiag = { at: new Date().toISOString(), nextGoal: res.diagnosis.nextGoal || "", blocker: res.diagnosis.blocker || "" };
           }
           AIevt(b, "gen", { stage: Mock.STAGES[b.stage], goal: b.aiDiag ? b.aiDiag.nextGoal : "", texts: items.map(function (s) { return s.text; }) });
            if (window.Store) Store.commit();
@@ -880,7 +886,7 @@
                 micBtn.classList.remove("rec"); micBtn.classList.add("busy"); setLabel("识别中…");
                  b64FromBlob(blob).then(function (b64) {
                    var ctl = new AbortController();
-                   var tm = setTimeout(function () { ctl.abort(); }, 45000); /* 45s 封顶：服务端最坏 ~31s，再多就是网络问题 */
+                   var tm = setTimeout(function () { ctl.abort(); }, 75000); /* 75s 封顶：服务端最长 60s（60s 长音频），再多就是网络问题 */
                     return fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", {
                       method: "POST",
                       headers: { "Content-Type": "application/json", "x-dealdesk-session": c.session || "" },
@@ -896,7 +902,7 @@
                    App.toast(e2 && e2.name === "AbortError" ? "识别超时（网络不稳定），请再试一次或改用打字" : "识别失败，请重试：" + e2.message);
                  }).then(function () { busy = false; });
               };
-               recTimer = setTimeout(function () { try { if (rec && rec.state === "recording") rec.stop(); } catch (e3) {} }, 30000); /* 30s 自动结束：录音太长上传慢、识别也难准 */
+               recTimer = setTimeout(function () { try { if (rec && rec.state === "recording") rec.stop(); } catch (e3) {} }, 60000); /* 2026-10-14 反馈修复：业务员一次说 30-60s 长句会被 30s 截断"记录不下来"，放宽到 60s */
                try { rec.start(); if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} } } catch (err) { try { clearTimeout(recTimer); } catch (e4) {} stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音启动失败：" + err.message); }
             }).catch(function (e) {
               busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL);

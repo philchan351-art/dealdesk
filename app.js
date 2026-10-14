@@ -148,9 +148,11 @@
     nav();
     if (window.Sync && Sync.enabled()) {
       Sync.pull().then(function (server) {
-        /* 三种必须应用云端的情况：重新登录（本地刚清空）/ 本地是空的（防"卡空"）/ 云端更新 */
+        /* 三种必须应用云端的情况：重新登录（本地刚清空）/ 本地是空的（防"卡空"）/ 云端更新
+           修复（审计 M3）：cur 用"上次同步到的云端版本"(serverAt) 而非本机 savedAt——
+           本机时钟偏快会让 server.updatedAt 永远不大于本地时间，导致这台设备再也拉不到新数据 */
         var snap = Store.snapshot();
-        var cur = snap.updatedAt || "";
+        var cur = (Store.getServerAt && Store.getServerAt()) || "";
         var localEmpty = !(snap.buyers && snap.buyers.length);
         if (server && server.updatedAt && (freshLogin || localEmpty || server.updatedAt > cur)) {
           Store.applySnapshot(server);

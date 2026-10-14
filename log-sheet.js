@@ -14,22 +14,24 @@
   ];
   var state = { buyerId: null, chip: null, ai: null, phase: "input" };
 
+  /* M2 修复：买家为空时 Mock.buyers[0] 是 undefined，取 .id 直接抛错，"记一条"打不开 */
   function defaultBuyer() {
     var open = Mock.followups.filter(function (f) { return !f.done; })
       .sort(function (a, b) { return a.dueIn - b.dueIn; })[0];
-    return open ? open.buyerId : Mock.buyers[0].id;
+    return open ? open.buyerId : (Mock.buyers[0] ? Mock.buyers[0].id : "");
   }
   function cur() { return Mock.getBuyer(state.buyerId); }
   function aiOn() { return window.LLM && LLM.configured(); }
 
   function build(bd) {
-    if (!state.buyerId) state.buyerId = defaultBuyer();
+    if (!state.buyerId || !Mock.getBuyer(state.buyerId)) state.buyerId = defaultBuyer();
+    if (!state.buyerId) { bd.innerHTML = ""; bd.hidden = true; return; }
     if (state.phase === "review" && state.ai) { renderReview(bd); return; }
     bd.innerHTML = '<div class="sheet">' +
       '<div class="sheet-head"><b>记一条 · 客户消息</b><button class="sheet-x" data-act="x">✕</button></div>' +
       '<div class="sheet-sub">' + (aiOn() ? "粘贴客户消息（任意语言），AI 自动完成中文对照、字段提取、意向分更新" : "粘贴客户消息 → 手填中文对照与动作（设置里配置 LLM 后可全自动）") + "</div>" +
       '<div class="sl-buyers">' + Mock.buyers.map(function (b) {
-        return '<button class="sl-b' + (b.id === state.buyerId ? " active" : "") + '" data-bid="' + b.id + '">' +
+        return '<button class="sl-b' + (b.id === state.buyerId ? " active" : "") + '" data-bid="' + escHtml(b.id) + '">' +
           '<span class="sl-b-name">' + escHtml(b.name) + '</span><span class="sl-b-sub">' + escHtml(b.cc) + " · " + Mock.STAGES[b.stage] + " · " + b.intent + "分</span></button>";
       }).join("") + "</div>" +
       '<textarea class="sl-text" id="slText" rows="3" placeholder="粘贴客户消息…（支持原文，任意语言）"></textarea>' +
@@ -44,7 +46,7 @@
 
   function renderReview(bd) {
     var ai = state.ai;
-    var b = cur();
+    var b = cur() || { intent: 50 }; /* 客户在 AI 识别期间被删的兜底 */
     bd.innerHTML = '<div class="sheet">' +
       '<div class="sheet-head"><b>AI 识别结果 · 确认后入库</b><button class="sheet-x" data-act="x">✕</button></div>' +
       '<div class="sl-msg">' + escHtml(ai.text) + "</div>" +
@@ -100,6 +102,7 @@
       btn.disabled = true;
       btn.textContent = "AI 识别中…（翻译 + 提取 + 评分）";
       var b = cur();
+      if (!b) { App.toast("这个客户已不存在，请重新选择"); btn.disabled = false; btn.textContent = "存入客户档案"; return; }
       Promise.all([
         LLM.translate(text, b).catch(function () { return null; }),
         LLM.extract(text, b).catch(function () { return []; }),
@@ -134,6 +137,7 @@
     if (!d && state.chip !== null) { d = CHIPS[state.chip].delta; reason = CHIPS[state.chip].reason; }
 
     var b = cur();
+    if (!b) { App.toast("这个客户已不存在"); closeSheet(); return; }
     var from = b.intent;
     if (d) Store.bumpIntent(state.buyerId, d, reason);
     closeSheet();

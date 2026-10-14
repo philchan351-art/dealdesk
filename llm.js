@@ -15,12 +15,23 @@
     return c;
   }
 
+  /* 参数红线（2026-10-14 真实反馈修复）：业务员实测 AI 会编造产品参数
+     （客户问产品要素，AI 自己编出"20-30km 续航/USB/TSA 锁"，而公司实际做的是通品）。
+     规则随每次生成注入系统提示，优先级高于所有其他要求。 */
+  function factRule(hasDocs) {
+    var s = "\n【参数红线（最高优先级，压过其他所有要求）】";
+    s += "\n1. 产品参数（续航/电池/充电/认证/重量/容量/MOQ/价格/产能/交货期等）只能引用【资料】或客户档案/长期记忆里明确写过的内容。";
+    s += "\n2. 资料与档案里没写明的参数：禁止写任何具体数值，禁止编造认证、奖项、合作客户、成立年份。只允许三种处理：①不提该参数；②反问客户他需要什么规格/数量；③说\"具体参数需与研发/QC 确认后发你\"。";
+    if (!hasDocs) s += "\n3. 当前账号还没有上传任何训练资料：涉及具体产品参数时，一律用\"省略/反问/确认后回复\"，绝不允许用行业常见值填充。宁可回复短一点，也不准编。";
+    return s;
+  }
+
   /* 训练资料：把该业务员上传的参考文件（公司简介/价目表等，最新 3 个、各截 3000 字）并入系统提示 */
   function withDocs(system) {
     var p = Store.getPersona ? Store.getPersona() : null;
     var docs = (p && p.docs) || [];
     docs = docs.slice().sort(function (a, b) { return String(b.updated || "") > String(a.updated || "") ? 1 : -1; }).slice(0, 3);
-    if (!docs.length || !window.Sync || !Sync.enabled()) return Promise.resolve(system);
+    if (!docs.length || !window.Sync || !Sync.enabled()) return Promise.resolve(system + factRule(false));
     var jobs = docs.map(function (d) {
       return (d && d.content != null ? Promise.resolve(d.content) : Sync.docFetch(d.key))
         .then(function (v) { return String((v && v.content) || "").slice(0, 3000); })
@@ -31,7 +42,7 @@
       for (var i = 0; i < docs.length; i++) {
         if (contents[i]) out += "\n【资料·" + (docs[i].name || "文件") + "】\n" + contents[i];
       }
-      return out ? system + out : system;
+      return system + out + factRule(true);
     });
   }
 

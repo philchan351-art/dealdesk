@@ -8,7 +8,8 @@
 
     render: function () {
       var deals = Mock.buyers.filter(function (b) { return b.stage < 5; });
-      var avg = Math.round(deals.reduce(function (s, b) { return s + b.daysInStage; }, 0) / deals.length);
+      /* M1 修复：空列表 0/0 = NaN，界面上会显示"NaN 天" */
+      var avg = deals.length ? Math.round(deals.reduce(function (s, b) { return s + b.daysInStage; }, 0) / deals.length) : 0;
       var neg = deals.filter(function (b) { return b.stage === 3; }).length;
 
       var groups = Mock.STAGES.slice(0, 5).map(function (s, i) {

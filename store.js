@@ -58,9 +58,23 @@
     } catch (e) {}
   }
   /* 用户真实改动才上云；wipeLocal/applySnapshot 这类"本地整理"绝不能触发推送（空数据上云会盖掉真数据） */
+  var pushWarnAt = {};
   function save() {
     saveLocal();
-    if (window.Sync) Sync.pushNow().catch(function (e) { console.warn("云同步推送失败：", e.message); });
+    if (window.Sync) Sync.pushNow().catch(function (e) {
+      var m = String((e && e.message) || e);
+      console.warn("云同步推送失败：", m);
+      /* 修复（审计 H2）：推送失败绝不能静默——会话失效/账号停用意味着本机改动正悄悄丢失；
+         同一原因 60 秒内只提示一次，避免刷屏 */
+      var now = Date.now(), k = m.slice(0, 24);
+      if (now - (pushWarnAt[k] || 0) < 60000) return;
+      pushWarnAt[k] = now;
+      if (/会话失效|请重新登录|已停用|用户不存在/.test(m)) {
+        App.toast("⚠ 登录状态失效，本机新数据未上云：请点「设置 → 切换账号」重新登录（30 天内数据在云端等待合并）", 6000);
+      } else {
+        App.toast("⚠ 云同步失败：" + m.slice(0, 40), 6000);
+      }
+    });
   }
 
   /* P0：updatedAt 统一 ISO 字符串（服务端按字符串比较新旧；毫秒数与 ISO 混用会比较错） */
@@ -291,9 +305,12 @@
       }
       purge();
       data.savedAt = snap.updatedAt || data.savedAt;
+      /* 修复（审计 M3）：单独记录"已同步到的云端版本"，拉取判断用它而不是本机 savedAt（本机时钟漂移会导致永远不拉新数据） */
+      if (snap.updatedAt) data.serverAt = String(snap.updatedAt);
       saveLocal();
       return true;
     },
+    getServerAt: function () { return data.serverAt || ""; },
     toggleFollowup: function (fid, done) {
       for (var i = 0; i < data.followups.length; i++) {
         if (data.followups[i].id === fid) {
