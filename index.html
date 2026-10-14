@@ -1,22 +1,22 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <!-- P0（XSS 兜底）：禁止任何内联脚本/事件处理器——客户消息里就算藏了 <img onerror> 也执行不了 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
-<title>DealDesk · B2B 谈单工作台</title>
-<meta name="theme-color" content="#0E5E4A"/>
-<meta name="description" content="DealDesk · B2B 谈单工作台"/>
+<title>谈单舱 DealPilot · B2B 谈单工作台</title>
+<meta name="theme-color" content="#E8A33D"/>
+<meta name="description" content="谈单舱 DealPilot · B2B 外贸谈单工作台：一屏看清谁在等你，买家管理、意向分级、报价跟踪、AI 回复建议。"/>
 <!-- 添加到主屏幕后按 App 方式运行（全屏、无浏览器栏） -->
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-<meta name="apple-mobile-web-app-title" content="DealDesk"/>
-<link rel="apple-touch-icon" href="dealdesk-icon.png"/>
-<link rel="icon" href="dealdesk-icon.png"/>
-<link rel="apple-touch-icon" href="dealdesk-icon.png"/>
-<link rel="icon" href="dealdesk-icon.png"/>
+<meta name="apple-mobile-web-app-title" content="谈单舱"/>
+<link rel="apple-touch-icon" href="dealdesk-icon-v6.png"/>
+<link rel="icon" href="dealdesk-icon-v6.png"/>
+<link rel="apple-touch-icon" href="dealdesk-icon-v6.png"/>
+<link rel="icon" href="dealdesk-icon-v6.png"/>
 <link rel="stylesheet" href="tokens.css?v=44"/>
 <link rel="stylesheet" href="base.css?v=44"/>
 <link rel="stylesheet" href="components.css?v=44"/>
@@ -26,10 +26,10 @@
 <div class="stage">
   <div class="stage-side" aria-hidden="true">
     <div class="side-brand">
-      <div class="side-mark">D</div>
+      <div class="side-mark">TD</div>
       <div>
-        <div class="side-name">DealDesk</div>
-        <div class="side-cn">谈单工作台 · B2B</div>
+        <div class="side-name">DealPilot</div>
+        <div class="side-cn">谈单舱 · B2B 谈单工作台</div>
       </div>
     </div>
     <ul class="side-feats">
@@ -71,12 +71,12 @@
     </nav>
   </div>
 
-  <div class="stage-cap">DealDesk 谈单工作台 · 手机 App 高保真原型 · 演示数据</div>
+  <div class="stage-cap">谈单舱 DealPilot · 一屏看清谁在等你 · 演示数据</div>
 </div>
 
 <script src="mock.js?v=44"></script>
 <script src="country-profiles.js?v=44"></script>
-<script src="store.js?v=45"></script>
+<script src="store.js?v=46"></script>
 <script src="utils.js?v=44"></script>
 <script src="kb.js?v=44"></script>
 <script src="skills.js?v=44"></script>
@@ -87,12 +87,12 @@
   <script src="components.js?v=44"></script>
 <script src="home.js?v=44"></script>
 <script src="buyers.js?v=44"></script>
-<script src="buyer-detail.js?v=45"></script>
+<script src="buyer-detail.js?v=46"></script>
 <script src="deals.js?v=44"></script>
 <script src="followup.js?v=44"></script>
 <script src="settings.js?v=44"></script>
 <script src="log-sheet.js?v=44"></script>
-<script src="buyer-sheet.js?v=45"></script>
+<script src="buyer-sheet.js?v=46"></script>
 <script src="app.js?v=44"></script>
 </body>
 </html>

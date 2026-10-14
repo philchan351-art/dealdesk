@@ -182,7 +182,7 @@
         country: info.country,
         cc: info.cc || (window.CountryProfiles ? CountryProfiles.cc(info.country) : "—"),
         product: info.product || "待确认",
-        qty: "待确认",
+        qty: info.qty || "待确认",
         amount: 0,
         currency: "$",
         intent: info.intent || 50,
@@ -207,33 +207,25 @@
       save();
       return b;
     },
-    /* 编辑已有客户资料（姓名 / WhatsApp / 国家等）。意向分由 AI 管理，不在此处改动。 */
-    updateBuyer: function (id, info) {
+    /* 编辑档案（2026-10-14 现场需求）：改姓名/WhatsApp/国家等基础信息；不触碰对话、意向、档案要点 */
+    updateBuyer: function (id, f) {
       var b = Mock.getBuyer(id);
       if (!b) return null;
-      if (info.name) b.name = info.name;
-      if (info.country) {
-        if (info.country !== b.country) {
-          /* 换国家 = 换沟通画像（与 addBuyer 同逻辑） */
-          b.profile = (window.CountryProfiles && CountryProfiles.get(info.country)) ||
-            { address: b.name, style: "国家画像待积累（随沟通自动学习）", tip: "首次沟通确认其称呼与沟通偏好" };
-        }
-        b.country = info.country;
-        b.cc = info.cc || (window.CountryProfiles ? CountryProfiles.cc(info.country) : b.cc);
+      if (f.name) b.name = String(f.name).slice(0, 60);
+      if (f.wa !== undefined) b.wa = String(f.wa).slice(0, 30);
+      if (f.company !== undefined) b.company = f.company || "—";
+      if (f.msgLang !== undefined) { if (f.msgLang) b.msgLang = f.msgLang; else delete b.msgLang; }
+      if (f.product !== undefined) b.product = f.product || "待确认";
+      if (f.qty !== undefined) b.qty = f.qty || "待确认";
+      if (f.note !== undefined) {
+        var nt = String(f.note).trim();
+        b.tags = nt ? [nt] : [];
       }
-      if (info.msgLang !== undefined) { if (info.msgLang) b.msgLang = info.msgLang; else delete b.msgLang; }
-      if (info.company !== undefined) b.company = info.company || "—";
-      if (info.wa !== undefined) b.wa = info.wa;
-      if (info.product !== undefined) {
-        b.product = info.product || "待确认";
-        if (info.product) {
-          /* 档案要点里的"需求"与产品线保持同步 */
-          (b.context || []).forEach(function (c) { if (c.k === "需求") c.v = info.product; });
-        }
-      }
-      if (info.note) {
-        /* 备注=第一个标签：编辑表单里预填的就是它，保存=替换原备注，其余标签保留 */
-        b.tags = [info.note].concat((b.tags || []).slice(1).filter(function (t) { return t !== info.note; }));
+      if (f.country && f.country !== b.country) {
+        b.country = f.country;
+        if (window.CountryProfiles) b.cc = CountryProfiles.cc(f.country);
+        var cp = (window.CountryProfiles && CountryProfiles.get(f.country)) || null;
+        if (cp) b.profile = cp; /* 国家变了，沟通画像跟着换 */
       }
       stamp(b);
       save();

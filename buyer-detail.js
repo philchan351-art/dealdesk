@@ -242,12 +242,13 @@
 
        return '<div class="topbar">' +
          '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
-         '<div class="tb-title"><h1>' + escHtml(b.name) + '</h1><div class="tb-sub">' + escHtml(b.wa ? (String(b.wa).charAt(0) === "+" ? b.wa : "+" + b.wa) : "未填 WhatsApp") + " · " + escHtml(b.country) + " · " + escHtml(b.lastActive) + " 活跃</div></div>" +
-         '<button class="wa-jump" data-act="jump">' + WA_ICON + "<span>直达对话</span></button>" +
+          '<div class="tb-title"><h1>' + escHtml(b.name) + '</h1><div class="tb-sub">' + escHtml(b.wa ? (String(b.wa).charAt(0) === "+" ? b.wa : "+" + b.wa) : "未填 WhatsApp") + " · " + escHtml(b.country) + " · " + escHtml(b.lastActive) + " 活跃</div></div>" +
+          '<button class="wa-jump edit-prof" data-act="edit-prof" title="修改姓名/WhatsApp 号码等基础信息">✎ 编辑</button>' +
+          '<button class="wa-jump" data-act="jump">' + WA_ICON + "<span>直达对话</span></button>" +
          "</div>" +
          '<div class="detail-body">' +
          '<div class="card d-info">' + U.avatar(b, true) +
-          '<div><div class="d-name">' + escHtml(b.name) + ' <button class="d-edit" data-act="edit">✎ 编辑</button></div>' +
+         '<div><div class="d-name">' + escHtml(b.name) + "</div>" +
          '<div class="d-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + (b.amount ? " · " + U.money(b.amount, b.currency) : " · 待报价") + "</div>" +
          '<div class="d-tags">' + b.tags.map(function (t) { return '<span class="tag">' + escHtml(t) + "</span>"; }).join("") + "</div></div>" +
          '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
@@ -318,10 +319,6 @@
       if (back) back.addEventListener("click", function () { App.go("buyers"); });
       var fuBtn = root.querySelector('[data-act="fu"]');
       if (fuBtn) fuBtn.addEventListener("click", function () { App.go("followup"); });
-      var editBtn = root.querySelector('[data-act="edit"]');
-      if (editBtn) editBtn.addEventListener("click", function () {
-        if (window.BuyerSheet) BuyerSheet.open(b.id);
-      });
 
       var langSel = root.querySelector("#langSel");
        /* 成交 / 流失标记（学习层的结果标签） */
@@ -382,9 +379,14 @@
           });
         });
 
+      /* 编辑档案：复用新增弹层，预填当前值（2026-10-14 现场需求：姓名/号码等信息可改） */
+      var editProf = root.querySelector('[data-act="edit-prof"]');
+      if (editProf) editProf.addEventListener("click", function () {
+        if (window.BuyerSheet) BuyerSheet.open(b.id);
+      });
       var jump = root.querySelector('[data-act="jump"]');
       if (jump) jump.addEventListener("click", function () {
-         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先点上方「✎ 编辑」补全"); return; }
+         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return; }
         var ju = waLink(b.wa);
         if (!ju) { App.toast("号码格式不正确，请在档案里补全国际号码（含国家码）"); return; }
         window.open(ju, "_blank");
@@ -648,7 +650,7 @@
       });
       /* 直达 WhatsApp（建议卡 / 非中文输入） */
       function openWa(finalText, zh, note) {
-        if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先点上方「✎ 编辑」补全"); return false; }
+        if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return false; }
         var su = waLink(b.wa, finalText);
         if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return false; }
         push({ from: "me", text: finalText, time: "刚刚", status: "handed", zh: zh || undefined });
@@ -746,7 +748,7 @@
         var t = input.value.trim();
         if (!t) { App.toast("先在方式①里写一句中文，AI 翻给你看；或去方式②挑一条 AI 代写的"); return; }
         if (!/[一-龥]/.test(t)) { AIevt(b, "sent", { src: "manual", raw: t, text: t, stage: b.stage }); if (window.Store) Store.commit(); sendWa(t); autoZh(t); return; }
-        if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先点上方「✎ 编辑」补全"); return; }
+        if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return; }
         translate(t);
       }
 
