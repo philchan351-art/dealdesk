@@ -2,7 +2,7 @@
 (function () {
   "use strict";
 
-  var AV_COLORS = ["#0E5E4A", "#B4633A", "#41597A", "#5C7A3E", "#8A5A2B", "#2F6B7A"];
+  var AV_COLORS = ["#B97516", "#B4633A", "#41597A", "#5C7A3E", "#8A5A2B", "#2F6B7A"];
 
   /* P0（XSS 修复）：全应用统一 HTML 转义。所有来自客户消息/AI 输出/导入数据的文本
      拼进 innerHTML 前必须过这个函数（防 <img onerror> 一类存储型注入偷会话） */

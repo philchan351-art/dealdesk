@@ -38,11 +38,11 @@
 
 /* ---------- 看板：WhatsApp 直连横幅 ---------- */
 .wa-banner{
-  display:flex;gap:11px;align-items:center;background:linear-gradient(135deg,var(--wa-deep),var(--brand));
-  color:#fff;border-radius:var(--r-lg);padding:13px 15px;box-shadow:var(--shadow);
+  display:flex;gap:11px;align-items:center;background:linear-gradient(168deg,rgba(255,255,255,.5) 0%,rgba(255,255,255,0) 52%),linear-gradient(135deg,var(--brand),var(--brand-deep));
+  color:var(--brand-ink);border-radius:var(--r-lg);padding:13px 15px;box-shadow:var(--shadow);
   margin:14px 0 2px;animation:fadeUp .5s .25s both;
 }
-.wa-banner>svg{width:26px;height:26px;fill:#fff;flex:none;opacity:.95}
+.wa-banner>svg{width:26px;height:26px;fill:var(--brand-ink);flex:none;opacity:.95}
 .wa-banner b{display:block;font-size:13px;font-weight:900}
 .wa-banner span{display:block;font-size:11px;opacity:.85;margin-top:2px;line-height:1.5}
 
@@ -53,7 +53,8 @@
   box-shadow:0 8px 18px rgba(0,168,132,.35);transition:transform .12s;
 }
 .wa-jump:active{transform:scale(.94)}
-.wa-jump.edit-prof{background:transparent;border:1px solid rgba(255,255,255,.6);box-shadow:none}
+.wa-jump.edit-prof{background:transparent;border:1px solid var(--line);color:var(--brand-deep);box-shadow:none}
+.wa-jump.edit-prof:active{transform:scale(.96)}
 .wa-jump svg{width:16px;height:16px;fill:#fff}
 .wa-badge{
   font-size:9.5px;font-weight:700;color:var(--wa-deep);
@@ -83,7 +84,7 @@
 .rbt:active{background:rgba(140,47,40,.12)}
 
 /* 上下文自动沉淀面板 */
-.ctx-card{margin:12px 16px 0;border:1px dashed rgba(0,168,132,.5);background:linear-gradient(135deg,rgba(0,168,132,.06),rgba(14,94,74,.04))}
+.ctx-card{margin:12px 16px 0;border:1px dashed rgba(0,168,132,.5);background:linear-gradient(135deg,rgba(0,168,132,.06),rgba(185,117,22,.04))}
 .ctx-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 0}
 .ctx-title{font-size:12.5px;font-weight:900;color:var(--wa-deep)}
 .ctx-hint{font-size:10px;color:var(--ink-faint)}
@@ -123,13 +124,13 @@
 .wa-msgs::-webkit-scrollbar{display:none}
 .wa-chat .msg{max-width:86%}
 .wa-chat .msg-buyer .bubble{background:var(--wa-in);color:var(--ink);border-radius:10px;border-top-left-radius:3px;padding:7px 9px 6px}
-.wa-chat .msg-me .bubble{background:var(--wa-out);color:var(--brand-ink);border-radius:10px;border-top-right-radius:3px;padding:7px 9px 6px}
+.wa-chat .msg-me .bubble{background:var(--wa-out);color:#0B3D2E;border-radius:10px;border-top-right-radius:3px;padding:7px 9px 6px}
 .wa-chat .bubble{font-size:13px;line-height:1.55;font-weight:500;box-shadow:0 1px 1px rgba(16,33,27,.12)}
 .wa-chat .msg-meta{opacity:.7}
 .wa-chat .msg-me .tick{color:var(--tick)}
 .zh-line{
   display:none;font-size:12px;color:var(--brand-deep);font-weight:600;line-height:1.5;
-  margin-top:5px;padding-top:5px;border-top:1px dashed rgba(14,94,74,.4);
+  margin-top:5px;padding-top:5px;border-top:1px dashed rgba(185,117,22,.4);
 }
 .wa-msgs.zh-on .zh-line{display:block}
 
@@ -205,7 +206,7 @@
 .dprod{font-size:11.5px;color:var(--ink-faint);margin-top:2px}
 .tdots{display:flex;gap:5px;margin-top:10px}
 .tdots i{width:18px;height:5px;border-radius:3px;background:var(--line)}
-.tdots i.on{background:var(--brand)}
+.tdots i.on{background:var(--brand-fill)}
 .tdots i.cur{background:var(--accent)}
 .dnext{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--ink-soft)}
 .dnext .due{margin-left:auto}
@@ -222,14 +223,14 @@
   margin-top:1px;display:flex;align-items:center;justify-content:center;
   color:transparent;font-size:12px;font-weight:900;transition:all .15s;cursor:pointer;
 }
-.fitem.done .fbx{background:var(--brand);border-color:var(--brand);color:#fff}
+.fitem.done .fbx{background:var(--brand-fill);border-color:var(--brand-deep);color:var(--brand-ink)}
 .fitem.done .fmain{opacity:.5}
 .fitem.done .fmain b{text-decoration:line-through}
 .fmain{flex:1;min-width:0}
 .fmain b{font-size:13px;font-weight:700;display:block;line-height:1.45}
 .fsub{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:11px;color:var(--ink-faint);flex-wrap:wrap}
-.fgo{flex:none;font-size:12px;font-weight:700;color:var(--brand);border:1px solid rgba(14,94,74,.35);padding:6px 12px;border-radius:9px;margin-top:2px}
-.fgo:active{background:var(--brand);color:#fff}
+.fgo{flex:none;font-size:12px;font-weight:700;color:var(--brand-deep);border:1px solid rgba(185,117,22,.35);padding:6px 12px;border-radius:9px;margin-top:2px}
+.fgo:active{background:var(--brand-fill);color:var(--brand-ink)}
 
 .feed{padding:4px 14px}
 .feed-item{display:flex;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line-soft);cursor:pointer}
@@ -246,7 +247,7 @@
   flex:none;font-size:12px;font-weight:700;padding:7px 13px;border-radius:999px;
   border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);transition:all .15s;
 }
-.wtab.on{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 4px 10px rgba(14,94,74,.25)}
+.wtab.on{background:var(--brand-fill);border-color:var(--brand-deep);color:var(--brand-ink);box-shadow:0 4px 10px rgba(185,117,22,.25)}
 
 .wcard{padding:13px 14px 12px;margin-bottom:10px;cursor:pointer;transition:transform .15s}
 .wcard:active{transform:scale(.985)}
@@ -270,14 +271,14 @@
 }
 .wstatus-inp{width:100%;box-sizing:border-box;border:1px solid var(--brand);border-radius:8px;padding:7px 9px;font-size:12.5px;outline:none;background:#fff}
 .wstatus-save{
-  flex:none;margin-left:7px;font-size:11.5px;font-weight:800;color:#fff;background:var(--brand);
+  flex:none;margin-left:7px;font-size:11.5px;font-weight:800;color:var(--brand-ink);background:var(--brand-fill);
   border:none;border-radius:8px;padding:6px 13px;
 }
 
 /* 最近一条消息（客户的话自动带中文对照） */
 .wmsg{margin-top:8px}
 .wmsg-tag{font-size:10px;font-weight:800;letter-spacing:.3px}
-.wmsg-tag.in{color:var(--brand)}
+.wmsg-tag.in{color:var(--brand-deep)}
 .wmsg-tag.me{color:var(--ink-faint)}
 .wmsg p{
   font-size:12px;color:var(--ink-soft);line-height:1.5;margin-top:3px;
@@ -326,10 +327,10 @@
 
 .wfoot{display:flex;gap:8px;margin-top:10px}
 .wgo{
-  flex:1;font-size:12px;font-weight:700;color:var(--brand);background:var(--surface);
-  border:1px solid rgba(14,94,74,.35);padding:8px 0;border-radius:9px;transition:all .15s;
+  flex:1;font-size:12px;font-weight:700;color:var(--brand-deep);background:var(--surface);
+  border:1px solid rgba(185,117,22,.35);padding:8px 0;border-radius:9px;transition:all .15s;
 }
-.wgo:active{background:var(--brand);color:#fff}
+.wgo:active{background:var(--brand-fill);color:var(--brand-ink)}
 
 /* 静音区（等客户、暂不看的） */
 .wmuted{margin-top:4px}

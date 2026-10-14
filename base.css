@@ -4,7 +4,7 @@ html,body{height:100%}
 body{
   font-family:var(--font-body);
   color:var(--ink);
-  background:#081812;
+  background:#171208;
   -webkit-font-smoothing:antialiased;
 }
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
@@ -21,8 +21,8 @@ a{text-decoration:none;color:inherit}
   padding:32px;position:relative;overflow:hidden;
   background:
     radial-gradient(1100px 620px at 88% -12%, rgba(232,163,61,.16), transparent 62%),
-    radial-gradient(900px 560px at -12% 112%, rgba(14,94,74,.5), transparent 60%),
-    linear-gradient(160deg,#0A231B 0%,#081812 55%,#0B1F18 100%);
+    radial-gradient(900px 560px at -12% 112%, rgba(185,117,22,.5), transparent 60%),
+    linear-gradient(160deg,#221607 0%,#171208 55%,#261808 100%);
 }
 .stage::before{
   content:"";position:absolute;inset:0;pointer-events:none;
@@ -67,13 +67,13 @@ a{text-decoration:none;color:inherit}
 .phone{
   width:400px;height:min(860px,94vh);flex:none;
   background:var(--bg);border-radius:48px;position:relative;overflow:hidden;
-  box-shadow:0 40px 90px rgba(0,0,0,.55),0 0 0 12px #101915,0 0 0 13px rgba(255,255,255,.06);
+  box-shadow:0 40px 90px rgba(0,0,0,.55),0 0 0 12px #1D1508,0 0 0 13px rgba(255,255,255,.06);
   display:flex;flex-direction:column;z-index:1;
   animation:phoneIn .8s .05s both;
 }
 .phone-cam{
   position:absolute;top:12px;left:50%;transform:translateX(-50%);
-  width:96px;height:26px;background:#101915;border-radius:20px;z-index:5;
+  width:96px;height:26px;background:#1D1508;border-radius:20px;z-index:5;
 }
 .statusbar{
   height:52px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;
@@ -106,7 +106,7 @@ a{text-decoration:none;color:inherit}
   border-radius:12px;transition:color .2s;position:relative;
 }
 .tab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.tab.active{color:var(--brand);font-weight:700}
+.tab.active{color:var(--brand-deep);font-weight:700}
 .tab.active::before{content:"";position:absolute;top:-9px;width:26px;height:3px;border-radius:3px;background:var(--accent)}
 
 .stage-cap{

@@ -12,7 +12,7 @@
     if (!docs.length) return '<div class="set-note">还没有资料</div>';
     return docs.map(function (d) {
       var kb = Math.round((d.size || 0) / 1024);
-      var link = (d.content != null) ? ' · <a data-act="view-doc" data-doc="' + esc(d.key) + '" style="color:var(--brand)">看</a>' : "";
+      var link = (d.content != null) ? ' · <a data-act="view-doc" data-doc="' + esc(d.key) + '" style="color:var(--brand-deep)">看</a>' : "";
       return '<div class="set-note">' + esc(d.name || d.key) + "（" + kb + "KB" + link + '）<a data-act="del-doc" data-doc="' + esc(d.key) + '" style="color:#e5484d">删除</a></div>';
     }).join("");
   }

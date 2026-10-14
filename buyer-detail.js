@@ -631,7 +631,7 @@
              return;
            }
            importStatus.innerHTML =
-             '<b style="color:var(--brand)">分析完成，确认存进「' + escHtml(b.name) + "」的档案？</b><br>" +
+              '<b style="color:var(--brand-deep)">分析完成，确认存进「' + escHtml(b.name) + "」的档案？</b><br>" +
              "对话还原 " + impConvo.length + " 条" + (Object.keys(impFields).length ? " · 档案要点 " + Object.keys(impFields).length + " 项" : "") + errLine +
             (impSummaries.length ? '<br><span class="mem-text">' + escHtml(impSummaries.join("；").slice(0, 220)) + "…</span>" : "") +
             '<div class="import-row" style="margin-top:8px"><button class="tr-btn" data-act="commit-import" style="flex:1">存入档案（长期记忆）</button><button class="set-btn-inline" data-act="abort-import">取消</button></div>';
