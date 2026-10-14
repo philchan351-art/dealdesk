@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<!-- P0（XSS 兜底）：禁止任何内联脚本/事件处理器——客户消息里就算藏了 <img onerror> 也执行不了 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <title>DealDesk · B2B 谈单工作台</title>
 <meta name="theme-color" content="#0E5E4A"/>
 <meta name="description" content="DealDesk · B2B 谈单工作台"/>
@@ -15,10 +17,10 @@
 <link rel="icon" href="dealdesk-icon.png"/>
 <link rel="apple-touch-icon" href="dealdesk-icon.png"/>
 <link rel="icon" href="dealdesk-icon.png"/>
-<link rel="stylesheet" href="tokens.css?v=39"/>
-<link rel="stylesheet" href="base.css?v=39"/>
-<link rel="stylesheet" href="components.css?v=39"/>
-<link rel="stylesheet" href="screens.css?v=39"/>
+<link rel="stylesheet" href="tokens.css?v=41"/>
+<link rel="stylesheet" href="base.css?v=41"/>
+<link rel="stylesheet" href="components.css?v=41"/>
+<link rel="stylesheet" href="screens.css?v=41"/>
 </head>
 <body>
 <div class="stage">
@@ -72,25 +74,25 @@
   <div class="stage-cap">DealDesk 谈单工作台 · 手机 App 高保真原型 · 演示数据</div>
 </div>
 
-<script src="mock.js?v=39"></script>
-<script src="country-profiles.js?v=39"></script>
-<script src="store.js?v=39"></script>
-<script src="utils.js?v=39"></script>
-<script src="kb.js?v=39"></script>
-<script src="skills.js?v=39"></script>
-<script src="prompts.js?v=39"></script>
-  <script src="llm.js?v=39"></script>
-  <script src="sync.js?v=39"></script>
-  <script src="voice.js?v=39"></script>
-  <script src="components.js?v=39"></script>
-<script src="home.js?v=39"></script>
-<script src="buyers.js?v=39"></script>
-<script src="buyer-detail.js?v=41"></script>
-<script src="deals.js?v=39"></script>
-<script src="followup.js?v=39"></script>
-<script src="settings.js?v=39"></script>
-<script src="log-sheet.js?v=39"></script>
-<script src="buyer-sheet.js?v=39"></script>
-<script src="app.js?v=39"></script>
+<script src="mock.js?v=41"></script>
+<script src="country-profiles.js?v=41"></script>
+<script src="store.js?v=41"></script>
+<script src="utils.js?v=41"></script>
+<script src="kb.js?v=41"></script>
+<script src="skills.js?v=41"></script>
+<script src="prompts.js?v=41"></script>
+  <script src="llm.js?v=41"></script>
+  <script src="sync.js?v=41"></script>
+  <script src="voice.js?v=41"></script>
+  <script src="components.js?v=41"></script>
+<script src="home.js?v=41"></script>
+<script src="buyers.js?v=41"></script>
+<script src="buyer-detail.js?v=42"></script>
+<script src="deals.js?v=41"></script>
+<script src="followup.js?v=41"></script>
+<script src="settings.js?v=41"></script>
+<script src="log-sheet.js?v=41"></script>
+<script src="buyer-sheet.js?v=41"></script>
+<script src="app.js?v=41"></script>
 </body>
 </html>

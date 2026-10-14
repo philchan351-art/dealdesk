@@ -43,7 +43,8 @@
   function riskOf(b) {
     if (b.outcome) return null;
     var now = Date.now();
-    var silent = b.updatedAt && (now - b.updatedAt) > 48 * 3600 * 1000;
+    /* P0：updatedAt 统一 ISO 字符串后，旧式 now - updatedAt（数值相减）会得到 NaN，必须 new Date() 解析 */
+    var silent = b.updatedAt && (now - new Date(b.updatedAt).getTime()) > 48 * 3600 * 1000;
     var log = b.intentLog || [];
     var drops = 0;
     for (var i = log.length - 1; i >= 0; i--) { if (log[i].d < 0) drops++; else break; }
@@ -60,9 +61,9 @@
   function outcomeHtml(b) {
     if (b.outcome) {
       var won = b.outcome.status === "won";
-      return '<div class="outcome-row" style="margin:0 16px 12px">' +
-        '<span class="outcome-chip ' + (won ? "won" : "lost") + '">' + (won ? "✓ 已成交" : "✗ 已流失" + (b.outcome.reason ? " · " + b.outcome.reason : "")) + "</span>" +
-        '<button class="oc-clear" data-act="oc-clear">清除标记</button></div>';
+    return '<div class="outcome-row" style="margin:0 16px 12px">' +
+      '<span class="outcome-chip ' + (won ? "won" : "lost") + '">' + (won ? "✓ 已成交" : "✗ 已流失" + (b.outcome.reason ? " · " + escHtml(b.outcome.reason) : "")) + "</span>" +
+      '<button class="oc-clear" data-act="oc-clear">清除标记</button></div>';
     }
     return '<div class="outcome-row" style="margin:0 16px 12px">' +
       '<button class="oc-btn won" data-act="oc-won">✓ 标记已成交</button>' +
@@ -97,15 +98,16 @@
   function suggCard(s, b) {
     var t = String(s.text || "");
     var w = limitWarn(b, t);
+    /* P0 XSS：AI 文案/风格全部转义后再入 HTML（属性内 getAttribute 会自动还原实体） */
     return '<div class="sugg">' +
-      '<div class="sugg-top"><span class="sugg-style">' + s.style + "</span>" +
+      '<div class="sugg-top"><span class="sugg-style">' + escHtml(s.style) + "</span>" +
       '<div class="sugg-btns">' +
-      '<button class="sugg-use" data-text="' + t.replace(/"/g, "&quot;") + '" data-zh="' + String(s.zh || "").replace(/"/g, "&quot;") + '">发到 WhatsApp</button>' +
-      '<button class="sugg-copy" data-ctext="' + t.replace(/"/g, "&quot;") + '">复制</button>' +
+      '<button class="sugg-use" data-text="' + escHtml(t) + '" data-zh="' + escHtml(s.zh || "") + '">发到 WhatsApp</button>' +
+      '<button class="sugg-copy" data-ctext="' + escHtml(t) + '">复制</button>' +
       "</div></div>" +
-      '<div class="sugg-text">' + t + "</div>" +
-      (w ? '<div class="sugg-warn">⚠ ' + w + " · 超出你设的底线，需你本人确认</div>" : "") +
-      (s.zh ? '<div class="sugg-zh">中文：' + s.zh + "</div>" : "") +
+      '<div class="sugg-text">' + escHtml(t) + "</div>" +
+      (w ? '<div class="sugg-warn">⚠ ' + escHtml(w) + " · 超出你设的底线，需你本人确认</div>" : "") +
+      (s.zh ? '<div class="sugg-zh">中文：' + escHtml(s.zh) + "</div>" : "") +
       "</div>";
   }
 
@@ -113,8 +115,8 @@
   function limitCard(b) {
     var L = b.limit || {};
     function item(id, label, val, unit) {
-      return '<div class="limit-item"><span>' + label + "</span>" +
-        '<div class="limit-in"><input id="lim_' + id + '" type="number" inputmode="decimal" step="any" min="0" value="' + (val != null ? val : "") + '" placeholder="—"/><i>' + unit + "</i></div></div>";
+      return '<div class="limit-item"><span>' + escHtml(label) + "</span>" +
+        '<div class="limit-in"><input id="lim_' + id + '" type="number" inputmode="decimal" step="any" min="0" value="' + escHtml(val != null ? val : "") + '" placeholder="—"/><i>' + escHtml(unit) + "</i></div></div>";
     }
     return '<div class="card limit-card" style="margin:0 16px 10px;padding:11px 13px">' +
       '<div class="limit-head"><b>价格底线</b><span>选填 · AI 谈判不越过这条线</span></div>' +
@@ -128,7 +130,11 @@
   }
 
   function bubble(m, idx) {
-    var zh = m.zh ? '<div class="zh-line">' + m.zh + "</div>" : "";
+    /* P0 XSS：客户消息/译文/标签/时间全部来自外部数据，必须转义（存储型注入的主入口） */
+    var zh = m.zh ? '<div class="zh-line">' + escHtml(m.zh) + "</div>" : "";
+    var txt = escHtml(m.text);
+    var tag = m.tag ? '<div class="imp-tag">' + escHtml(m.tag) + "</div>" : "";
+    var time = escHtml(m.time || "");
     if (m.from === "me") {
       var isH = m.status === "handed";
       var handed = isH
@@ -136,19 +142,19 @@
           '<button class="h-y" data-act="h-y" data-idx="' + idx + '">✓ 已发</button>' +
           '<button class="h-n" data-act="h-n" data-idx="' + idx + '">✕ 没发</button></div>'
         : "";
-       var meta = (m.time || "") + " " + (isH ? '<span class="h-wait">待确认</span>' : "✓✓") +
+       var meta = time + " " + (isH ? '<span class="h-wait">待确认</span>' : "✓✓") +
          ' <span class="m-del" data-act="m-del" data-idx="' + idx + '" title="删除这条记录">✕</span>';
-       return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + m.text + (m.zh ? '<div class="zh-line">' + m.zh + "</div>" : "") + handed + (m.tag ? '<div class="imp-tag">' + m.tag + "</div>" : "") + "</div>" +
+       return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + txt + zh + handed + tag + "</div>" +
          '<div class="msg-meta">' + meta + "</div></div>";
     }
-    return '<div class="msg msg-buyer"><div class="bubble">' + m.text + zh + (m.tag ? '<div class="imp-tag">' + m.tag + "</div>" : "") + "</div>" +
-      '<div class="msg-meta">' + (m.time || "") + "</div></div>";
+    return '<div class="msg msg-buyer"><div class="bubble">' + txt + zh + tag + "</div>" +
+      '<div class="msg-meta">' + time + "</div></div>";
   }
 
   function remindHtml(b) {
     var fu = U.getFollowupByBuyer(b.id);
     if (!fu || fu.done) return "";
-    return '<div class="remind"><b>' + U.dueLabel(fu.dueIn).text + '</b><span>' + fu.action +
+    return '<div class="remind"><b>' + U.dueLabel(fu.dueIn).text + '</b><span>' + escHtml(fu.action) +
       '</span><button class="rbt" data-act="fu">去跟进</button></div>';
   }
 
@@ -156,27 +162,27 @@
     if (!b.profile) return "";
     return '<div class="card ctx-card profile-card">' +
       '<div class="ctx-head"><span class="ctx-title">对方国家沟通画像</span><span class="ctx-hint">本地化引擎自动应用</span></div>' +
-      '<div class="profile-rows">' +
-      '<div class="prow"><span>称呼</span><b>' + b.profile.address + "</b></div>" +
-      '<div class="prow"><span>风格</span><b>' + b.profile.style + "</b></div>" +
-      '<div class="prow"><span>提示</span><b>' + b.profile.tip + "</b></div>" +
-      "</div></div>";
+       '<div class="profile-rows">' +
+       '<div class="prow"><span>称呼</span><b>' + escHtml(b.profile.address) + "</b></div>" +
+       '<div class="prow"><span>风格</span><b>' + escHtml(b.profile.style) + "</b></div>" +
+       '<div class="prow"><span>提示</span><b>' + escHtml(b.profile.tip) + "</b></div>" +
+       "</div></div>";
   }
 
   function compareHtml(b) {
     if (!b.compare) return "";
     return '<div class="d-sec-title" style="margin-left:16px;margin-right:16px">直译 vs 地道 · 本地化对比</div>' +
       '<div class="card cmp-card" style="margin:0 16px 12px">' +
-      '<div class="cmp-intent">中文意图：' + b.compare.intent + "</div>" +
-      '<div class="cmp-col bad"><div class="cmp-tag">直译 · 普通翻译软件</div><p>' + b.compare.literal + "</p></div>" +
-      '<div class="cmp-col good"><div class="cmp-tag">本地化改写 · DealDesk</div><p>' + b.compare.local + "</p></div>" +
-      '<div class="cmp-notes">' + b.compare.notes.map(function (n) { return "<div>· " + n + "</div>"; }).join("") + "</div>" +
+       '<div class="cmp-intent">中文意图：' + escHtml(b.compare.intent) + "</div>" +
+       '<div class="cmp-col bad"><div class="cmp-tag">直译 · 普通翻译软件</div><p>' + escHtml(b.compare.literal) + "</p></div>" +
+       '<div class="cmp-col good"><div class="cmp-tag">本地化改写 · DealDesk</div><p>' + escHtml(b.compare.local) + "</p></div>" +
+       '<div class="cmp-notes">' + b.compare.notes.map(function (n) { return "<div>· " + escHtml(n) + "</div>"; }).join("") + "</div>" +
       "</div>";
   }
 
   function langCard(b) {
     var LANGS = CountryProfiles.langs();
-    var opts = '<option value="">自动 · 按国家（' + (b.country || "未知") + "）</option>" +
+    var opts = '<option value="">自动 · 按国家（' + escHtml(b.country || "未知") + "）</option>" +
       LANGS.map(function (l) { return '<option value="' + l + '"' + (b.msgLang === l ? " selected" : "") + ">" + l + "</option>"; }).join("");
     return '<div class="card" style="margin-top:12px;padding:11px 13px">' +
       '<div style="display:flex;align-items:center;gap:10px">' +
@@ -205,12 +211,12 @@
           '<div class="ctx-head"><span class="ctx-title">已自动沉淀</span>' +
           '<span class="ctx-hint">沟通中自动提取 · 永不重复问客户</span></div>' +
           '<div class="ctx-grid">' + ctx.map(function (c) {
-            return '<div class="ctx-item"><span class="ctx-k">' + c.k + '</span><span class="ctx-v">' + c.v + "</span></div>";
+            return '<div class="ctx-item"><span class="ctx-k">' + escHtml(c.k) + '</span><span class="ctx-v">' + escHtml(c.v) + "</span></div>";
           }).join("") + "</div></div>"
         : "";
 
       var memoryHtml = b.memory
-        ? '<div class="card mem-card"><div class="ctx-head"><span class="ctx-title">🧠 AI 长期记忆</span><span class="ctx-hint">过往聊天导入 · 自动影响 AI 回复</span></div><div class="mem-text">' + String(b.memory).replace(/</g, "&lt;") + "</div></div>"
+        ? '<div class="card mem-card"><div class="ctx-head"><span class="ctx-title">🧠 AI 长期记忆</span><span class="ctx-hint">过往聊天导入 · 自动影响 AI 回复</span></div><div class="mem-text">' + escHtml(b.memory) + "</div></div>"
         : "";
 
       var importHtml =
@@ -230,33 +236,33 @@
       var optHtml = b.options
         ? '<div class="wacard"><div class="wa-opt-label">编号选项触达 · 客户回一个数字即可，自动识别并沉淀</div>' +
           b.options.items.map(function (it, i) {
-            return '<button class="wa-opt" data-oi="' + i + '">' + it.t + "</button>";
+            return '<button class="wa-opt" data-oi="' + i + '">' + escHtml(it.t) + "</button>";
           }).join("") + "</div>"
         : "";
 
-      return '<div class="topbar">' +
-        '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
-        '<div class="tb-title"><h1>' + b.name + '</h1><div class="tb-sub">' + (b.wa ? (String(b.wa).charAt(0) === "+" ? b.wa : "+" + b.wa) : "未填 WhatsApp") + " · " + b.country + " · " + b.lastActive + " 活跃</div></div>" +
-        '<button class="wa-jump" data-act="jump">' + WA_ICON + "<span>直达对话</span></button>" +
-        "</div>" +
-        '<div class="detail-body">' +
-        '<div class="card d-info">' + U.avatar(b, true) +
-        '<div><div class="d-name">' + b.name + "</div>" +
-        '<div class="d-sub">' + b.product + " · " + b.qty + (b.amount ? " · " + U.money(b.amount, b.currency) : " · 待报价") + "</div>" +
-        '<div class="d-tags">' + b.tags.map(function (t) { return '<span class="tag">' + t + "</span>"; }).join("") + "</div></div>" +
+       return '<div class="topbar">' +
+         '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
+         '<div class="tb-title"><h1>' + escHtml(b.name) + '</h1><div class="tb-sub">' + escHtml(b.wa ? (String(b.wa).charAt(0) === "+" ? b.wa : "+" + b.wa) : "未填 WhatsApp") + " · " + escHtml(b.country) + " · " + escHtml(b.lastActive) + " 活跃</div></div>" +
+         '<button class="wa-jump" data-act="jump">' + WA_ICON + "<span>直达对话</span></button>" +
+         "</div>" +
+         '<div class="detail-body">' +
+         '<div class="card d-info">' + U.avatar(b, true) +
+         '<div><div class="d-name">' + escHtml(b.name) + "</div>" +
+         '<div class="d-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + (b.amount ? " · " + U.money(b.amount, b.currency) : " · 待报价") + "</div>" +
+         '<div class="d-tags">' + b.tags.map(function (t) { return '<span class="tag">' + escHtml(t) + "</span>"; }).join("") + "</div></div>" +
          '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
          "</div>" +
          outcomeHtml(b) +
           '<div class="card tracker" style="margin-top:10px">' + U.stageTracker(b.stage) + "</div>" +
           (function () {
             var rk = riskOf(b);
-            return rk ? '<div class="card risk-card" style="margin:10px 16px 0"><b>⚠ 谈单遇冷</b><span>' + rk.reasons + '</span><div class="risk-strat">建议策略：' + rk.strat + "</div></div>" : "";
+             return rk ? '<div class="card risk-card" style="margin:10px 16px 0"><b>⚠ 谈单遇冷</b><span>' + escHtml(rk.reasons) + '</span><div class="risk-strat">建议策略：' + escHtml(rk.strat) + "</div></div>" : "";
           })() +
          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
          '<div class="set-note" style="padding:0 16px 8px;font-size:11px">预填 ≠ 已发：发送后点「✓ 已发」计入记录；没发或改过的点「✕ 没发」删除。</div>' +
         '<div class="wa-chat">' +
-        '<div class="wa-head">' + WA_ICON +
-        '<div class="wa-hmid"><b>' + b.name + "</b><span>" + (b.wa || "已绑定") + " · 在线</span></div>" +
+         '<div class="wa-head">' + WA_ICON +
+         '<div class="wa-hmid"><b>' + escHtml(b.name) + "</b><span>" + escHtml(b.wa || "已绑定") + " · 在线</span></div>" +
         '<button class="wa-lang" data-act="import" style="margin-right:6px">＋ 导入</button>' +
         '<button class="wa-lang active" data-act="lang">中文对照</button>' +
         '<span class="wa-pill">官方通道 · 零感知</span>' +
@@ -283,10 +289,10 @@
          '<div class="mode-card mode-b" style="margin:0 16px 10px">' +
          '<div class="mode-head"><span class="mode-badge b">②</span>' +
          '<div class="mode-tt"><b>AI 代写 · 上下文 + 长期记忆</b><span>AI 结合全部对话历史写 3 条，挑一条发</span></div>' +
-         '<span id="suggLang" class="lang-chip">→ ' + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</span>" +
-          (b.aiSuggests ? '<span id="suggSaved" class="lang-chip saved">已存 ' + savedAt(b.aiSuggests.at) + "</span>" : "") +
-          '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">' + (b.aiSuggests ? "✦ 重新生成" : "✦ 生成 3 条") + "</button></div>" +
-          '<div id="diagLine" class="diag-line">' + (b.aiDiag ? diagText(b) : "谈单诊断：点「✦ 生成 3 条」后，AI 先诊断这单在哪一步、下一步推什么，再给建议") + "</div>" +
+          '<span id="suggLang" class="lang-chip">→ ' + escHtml((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</span>" +
+           (b.aiSuggests ? '<span id="suggSaved" class="lang-chip saved">已存 ' + savedAt(b.aiSuggests.at) + "</span>" : "") +
+           '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">' + (b.aiSuggests ? "✦ 重新生成" : "✦ 生成 3 条") + "</button></div>" +
+           '<div id="diagLine" class="diag-line">' + (b.aiDiag ? escHtml(diagText(b)) : "谈单诊断：点「✦ 生成 3 条」后，AI 先诊断这单在哪一步、下一步推什么，再给建议") + "</div>" +
           '<div id="suggWrap">' + suggHtml + "</div>" +
           "</div>" +
          remindHtml(b) +
@@ -477,7 +483,7 @@
       var importStatus = root.querySelector("#importStatus");
       var importPickInfo = root.querySelector("#importPickInfo");
       var importJobs = [];
-      var impConvo = [], impFields = {}, impimpSummaries = [];
+      var impConvo = [], impFields = {}, impSummaries = [];
       function refreshPickInfo() {
         importPickInfo.textContent = importJobs.length
           ? "已选：" + importJobs.map(function (j) { return (j.kind === "image" ? "图" : j.kind === "video" ? "视频" : "文件") + " " + (j.name || ""); }).join("；")
@@ -489,14 +495,37 @@
         fr.onerror = function () { cb(""); };
         fr.readAsDataURL(file);
       }
+      /* 图片本地压缩：最长边 ≤1600px、JPEG ~82%。上传体积和视觉模型推理时间大幅下降，聊天截图 OCR 清晰度不受影响；加载/编码失败自动回退原始 base64 */
+      function compressImage(file, cb) {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        function fall() { try { URL.revokeObjectURL(url); } catch (e) {} b64Of(file, function (b) { cb(b, (file.type || "").split("/")[1] || "jpg"); }); }
+        img.onload = function () {
+          try {
+            var MAX = 1600, w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+            var scale = Math.min(1, MAX / Math.max(w, h));
+            var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+            var cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
+            cv.getContext("2d").drawImage(img, 0, 0, cw, ch);
+            var out = cv.toDataURL("image/jpeg", 0.82).split(",")[1] || "";
+            URL.revokeObjectURL(url);
+            if (out) { cb(out, "jpg"); return; }
+          } catch (e) { /* 编码失败，落到原始 base64 */ }
+          fall();
+        };
+        img.onerror = fall;
+        img.src = url;
+      }
       function pushFileJob(kind, file, maxBytes) {
         if (!file) return;
         if (file.size > maxBytes) { App.toast("「" + file.name + "」太大（≤" + Math.round(maxBytes / 1048576) + "MB）"); return; }
-        b64Of(file, function (b64) {
+        function finish(b64, fmt) {
           if (!b64) { App.toast("文件读取失败"); return; }
-          importJobs.push({ kind: kind, data: b64, name: file.name, format: (file.type || "").split("/")[1] || "" });
+          importJobs.push({ kind: kind, data: b64, name: file.name, format: fmt || ((file.type || "").split("/")[1] || "") });
           refreshPickInfo();
-        });
+        }
+        if (kind === "image") compressImage(file, finish);
+        else b64Of(file, function (b64) { finish(b64); });
       }
       root.querySelector('[data-act="import"]').addEventListener("click", function () {
         importPanel.style.display = importPanel.style.display === "none" ? "block" : "none";
@@ -528,43 +557,51 @@
         if (txt) jobs.unshift({ kind: "text", data: txt, name: "粘贴文字", format: "" });
         if (!jobs.length) { App.toast("先粘贴聊天文字，或选择图片/文件/视频"); return; }
         var st = Store.getSettings() || {}, c = st.llm || {}, cl = st.cloud || {};
-        if (!c.proxyUrl && cl.proxyUrl) { c.proxyUrl = cl.proxyUrl; c.token = cl.token; }
-        if (!c.proxyUrl) { App.toast("先在设置里配置云代理地址"); return; }
+        if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
+        var impAu = window.Auth && Auth.get();
+        if (!c.proxyUrl || !impAu || !impAu.session) { App.toast("请先登录（设置里配置云代理地址）"); return; }
         var go = root.querySelector("#importGo");
         go.disabled = true;
-        impConvo = []; impFields = {}; impimpSummaries = [];
-        var errs = [], idx = 0;
-        function esc(s) { return String(s).replace(/</g, "&lt;"); }
-        function next() {
-          if (idx >= jobs.length) {
-            go.disabled = false;
-            if (!impConvo.length && !impSummaries.length) {
-              importStatus.textContent = "分析失败：" + (errs.join("；").slice(0, 120) || "没识别到内容，换更清晰的截图或补点文字再试");
-              return;
-            }
-            importStatus.innerHTML =
-              '<b style="color:var(--brand)">分析完成，确认存进「' + esc(b.name) + "」的档案？</b><br>" +
-              "对话还原 " + impConvo.length + " 条" + (Object.keys(impFields).length ? " · 档案要点 " + Object.keys(impFields).length + " 项" : "") +
-              (impSummaries.length ? '<br><span class="mem-text">' + esc(impSummaries.join("；")).slice(0, 220) + "…</span>" : "") +
-              '<div class="import-row" style="margin-top:8px"><button class="tr-btn" data-act="commit-import" style="flex:1">存入档案（长期记忆）</button><button class="set-btn-inline" data-act="abort-import">取消</button></div>';
-            return;
+        impConvo = []; impFields = {}; impSummaries = [];
+        /* 多份材料并行分析（原来串行，2 张图 = 2 倍时间）；结果仍按选择顺序合并，保证对话还原不乱序 */
+        var total = jobs.length, done = 0;
+        importStatus.textContent = "AI 分析中（0/" + total + "）";
+        var results = jobs.map(function (j) {
+          var label = j.kind === "text" ? "文字" : (j.kind === "video" ? "视频" : j.kind === "image" ? "图片" : "文件");
+          function tick() {
+            done++;
+            importStatus.textContent = "AI 分析中（" + done + "/" + total + "）· 完成 " + label + " " + (j.name || "") + (done < total ? "，其余并行进行中…" : "");
           }
-          var j = jobs[idx];
-          importStatus.textContent = "AI 分析中（" + (idx + 1) + "/" + jobs.length + "）" + (j.kind === "text" ? " · 文字" : " · " + (j.kind === "video" ? "视频 " : j.kind === "image" ? "图片 " : "") + (j.name || ""));
-          fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/import", {
+          return fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/import", {
             method: "POST",
-            headers: { "Content-Type": "application/json", "x-dealdesk-token": c.token || "" },
+            headers: { "Content-Type": "application/json", "x-dealdesk-session": impAu.session },
             body: JSON.stringify({ kind: j.kind, data: j.data, name: j.name, format: j.format })
           }).then(function (r) { return r.json(); }).then(function (res) {
-            if (res.error) { errs.push(res.error); idx++; next(); return; }
-            (res.convo || []).forEach(function (l) { if (l && l.text) impConvo.push({ from: l.from, text: l.text }); });
-            (res.fields || []).forEach(function (f) { if (f && f.k && f.v) impFields[f.k] = f.v; });
-            if (res.summary) impSummaries.push(res.summary);
-            idx++;
-            next();
-          }).catch(function (e) { errs.push(e.message); idx++; next(); });
-        }
-        next();
+            tick();
+            if (res.error) return { err: res.error };
+            return { ok: true, convo: res.convo || [], fields: res.fields || [], summary: res.summary || "" };
+          }).catch(function (e) { tick(); return { err: String(e.message || e) }; });
+        });
+        Promise.all(results).then(function (outs) {
+          go.disabled = false;
+          var errs = [];
+          outs.forEach(function (o) {
+            if (!o) return;
+            if (o.err) { errs.push(o.err); return; }
+            o.convo.forEach(function (l) { if (l && l.text) impConvo.push({ from: l.from, text: l.text }); });
+            o.fields.forEach(function (f) { if (f && f.k && f.v) impFields[f.k] = f.v; });
+            if (o.summary) impSummaries.push(o.summary);
+          });
+          if (!impConvo.length && !impSummaries.length) {
+            importStatus.textContent = "分析失败：" + (errs.join("；").slice(0, 120) || "没识别到内容，换更清晰的截图或补点文字再试");
+            return;
+          }
+          importStatus.innerHTML =
+            '<b style="color:var(--brand)">分析完成，确认存进「' + escHtml(b.name) + "」的档案？</b><br>" +
+            "对话还原 " + impConvo.length + " 条" + (Object.keys(impFields).length ? " · 档案要点 " + Object.keys(impFields).length + " 项" : "") +
+            (impSummaries.length ? '<br><span class="mem-text">' + escHtml(impSummaries.join("；")).slice(0, 220) + "…</span>" : "") +
+            '<div class="import-row" style="margin-top:8px"><button class="tr-btn" data-act="commit-import" style="flex:1">存入档案（长期记忆）</button><button class="set-btn-inline" data-act="abort-import">取消</button></div>';
+        });
       });
       importStatus.addEventListener("click", function (e) {
         var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
@@ -599,13 +636,13 @@
        function pendingHtml() {
          var loading = pending.loading;
          var isExp = pending.mode === "expand";
-         return '<div class="pending">' +
-           '<div class="pending-head"><span class="pending-tag">' + (loading ? (isExp ? "AI 正在按意图扩充…" : "AI 正在翻译…") : (isExp ? "① 已扩充 · 确认后发送" : "① 已翻译 · 确认后发送")) + '</span><span class="pending-lang">→ ' + pending.lang + "</span></div>" +
-           (loading
-             ? '<div class="pending-text pending-loading">' + (isExp ? "正在把你的意图补成一条完整消息…" : "正在把中文改写为符合客户习惯的表达…") + "</div>"
-             : '<div class="pending-text">' + pending.en + "</div>" +
-               (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + limitWarn(b, pending.en) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
-               '<div class="pending-zh">' + (isExp ? "这条消息的意思：" : "你写的中文：") + pending.zh + "</div>" +
+          return '<div class="pending">' +
+            '<div class="pending-head"><span class="pending-tag">' + (loading ? (isExp ? "AI 正在按意图扩充…" : "AI 正在翻译…") : (isExp ? "① 已扩充 · 确认后发送" : "① 已翻译 · 确认后发送")) + '</span><span class="pending-lang">→ ' + escHtml(pending.lang) + "</span></div>" +
+            (loading
+              ? '<div class="pending-text pending-loading">' + (isExp ? "正在把你的意图补成一条完整消息…" : "正在把中文改写为符合客户习惯的表达…") + "</div>"
+              : '<div class="pending-text">' + escHtml(pending.en) + "</div>" +
+                (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + escHtml(limitWarn(b, pending.en)) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
+                '<div class="pending-zh">' + (isExp ? "这条消息的意思：" : "你写的中文：") + escHtml(pending.zh) + "</div>" +
                '<div class="pending-btns">' +
                '<button class="p-send" data-act="p-send">发到 WhatsApp</button>' +
                '<button class="p-re" data-act="p-re">不满意 · 再来一条</button>' +
@@ -753,13 +790,15 @@
           var rec = null, chunks = [], busy = false, baseVal = "";
           var DEFAULT_LABEL = micBtn.textContent;
           function setLabel(t) { micBtn.textContent = t; }
-          function cloudCfg() {
-            var s = (window.Store && Store.getSettings) ? (Store.getSettings() || {}) : {};
-            var c = s.llm || {};
-            var cl = s.cloud || {};
-            if (!c.proxyUrl && cl.proxyUrl) { c.proxyUrl = cl.proxyUrl; c.token = cl.token; }
-            return c;
-          }
+           function cloudCfg() {
+             var s = (window.Store && Store.getSettings) ? (Store.getSettings() || {}) : {};
+             var c = s.llm || {};
+             var cl = s.cloud || {};
+             if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
+             var au = window.Auth && Auth.get();
+             c.session = (au && au.session) || "";
+             return c;
+           }
           function pickMime() {
             var pref = ["audio/mp4", "audio/mp4;codecs=mp4a.40.2", "audio/aac", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
             if (MediaRec && MediaRec.isTypeSupported) {
@@ -817,7 +856,8 @@
               App.toast("这台设备/浏览器不支持录音，请用系统浏览器打开，或用键盘输入"); return;
             }
             var c = cloudCfg();
-            if (!c.proxyUrl) { App.toast("语音识别需要云服务：请先登录（设置里填云服务地址+口令）"); return; }
+            if (!c.proxyUrl) { App.toast("语音识别需要云服务：请先登录（设置里填云服务地址）"); return; }
+            if (!c.session) { App.toast("请先登录后再使用语音识别"); return; }
             busy = true;
             pendingStop = false;
             var mime = pickMime();
@@ -841,11 +881,11 @@
                  b64FromBlob(blob).then(function (b64) {
                    var ctl = new AbortController();
                    var tm = setTimeout(function () { ctl.abort(); }, 45000); /* 45s 封顶：服务端最坏 ~31s，再多就是网络问题 */
-                   return fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", {
-                     method: "POST",
-                     headers: { "Content-Type": "application/json", "x-dealdesk-token": c.token || "" },
-                     body: JSON.stringify({ audio: b64, format: fmt }),
-                     signal: ctl.signal
+                    return fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", "x-dealdesk-session": c.session || "" },
+                      body: JSON.stringify({ audio: b64, format: fmt }),
+                      signal: ctl.signal
                    }).then(function (r) { clearTimeout(tm); return r.json(); });
                  }).then(function (j) {
                   micBtn.classList.remove("busy"); setLabel(DEFAULT_LABEL);
