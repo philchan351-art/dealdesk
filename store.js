@@ -207,6 +207,38 @@
       save();
       return b;
     },
+    /* 编辑已有客户资料（姓名 / WhatsApp / 国家等）。意向分由 AI 管理，不在此处改动。 */
+    updateBuyer: function (id, info) {
+      var b = Mock.getBuyer(id);
+      if (!b) return null;
+      if (info.name) b.name = info.name;
+      if (info.country) {
+        if (info.country !== b.country) {
+          /* 换国家 = 换沟通画像（与 addBuyer 同逻辑） */
+          b.profile = (window.CountryProfiles && CountryProfiles.get(info.country)) ||
+            { address: b.name, style: "国家画像待积累（随沟通自动学习）", tip: "首次沟通确认其称呼与沟通偏好" };
+        }
+        b.country = info.country;
+        b.cc = info.cc || (window.CountryProfiles ? CountryProfiles.cc(info.country) : b.cc);
+      }
+      if (info.msgLang !== undefined) { if (info.msgLang) b.msgLang = info.msgLang; else delete b.msgLang; }
+      if (info.company !== undefined) b.company = info.company || "—";
+      if (info.wa !== undefined) b.wa = info.wa;
+      if (info.product !== undefined) {
+        b.product = info.product || "待确认";
+        if (info.product) {
+          /* 档案要点里的"需求"与产品线保持同步 */
+          (b.context || []).forEach(function (c) { if (c.k === "需求") c.v = info.product; });
+        }
+      }
+      if (info.note) {
+        /* 备注=第一个标签：编辑表单里预填的就是它，保存=替换原备注，其余标签保留 */
+        b.tags = [info.note].concat((b.tags || []).slice(1).filter(function (t) { return t !== info.note; }));
+      }
+      stamp(b);
+      save();
+      return b;
+    },
     clearAll: function () {
       /* P0：清空前先给全部客户打墓碑，防止其他设备的旧快照把它们并回来 */
       data.buyers.forEach(function (b) { tombAdd(b.id); });
