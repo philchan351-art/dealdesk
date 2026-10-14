@@ -192,6 +192,8 @@
 .wa-logrow input::placeholder{color:var(--ink-soft);font-weight:500}
 .log-btn{flex:none;font-size:12px;font-weight:800;color:#fff;background:var(--brand);border:none;border-radius:999px;padding:9px 13px;white-space:nowrap;cursor:pointer}
 .log-btn:active{background:var(--brand-deep)}
+.log-btn-me{background:#b3541e}
+.log-btn-me:active{background:#8f4217}
 
 /* 交接确认：预填 ≠ 已发 */
 .handed-bar{display:flex;gap:6px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(14,94,74,.35);flex-wrap:wrap}

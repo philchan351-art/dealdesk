@@ -221,7 +221,7 @@
 
       var importHtml =
         '<div id="importPanel" class="import-panel" style="display:none">' +
-        '<div class="set-note" style="margin:0 0 8px">粘贴过往聊天文字，或传 WhatsApp 截图 / 文字文件 / 视频（图最多 4 张各≤2MB，文件 1 个，视频 1 个≤4MB）。AI 会：逐条还原进上方对话 + 沉淀档案要点 + 生成长期记忆。只存在你自己的账号里。</div>' +
+        '<div class="set-note" style="margin:0 0 8px">粘贴过往聊天文字，或传 WhatsApp 截图 / 文字文件 / 视频（图最多 8 张、单张原图≤20MB，自动压缩；文件 1 个，视频 1 个≤4MB）。AI 会：逐条还原进上方对话 + 沉淀档案要点 + 生成长期记忆。只存在你自己的账号里。</div>' +
         '<textarea class="set-inp" id="importText" style="min-height:70px;padding:9px;font-family:inherit;line-height:1.5" placeholder="粘贴聊天文字（格式随意，如：客户：500台什么价 / 我们：FOB 32美元…）"></textarea>' +
         '<div class="import-row"><button class="set-btn-inline" data-act="pick-img">📷 图片</button><button class="set-btn-inline" data-act="pick-file">📄 文件</button><button class="set-btn-inline" data-act="pick-video">🎬 视频</button></div>' +
         '<input type="file" id="importImgs" accept="image/*" multiple style="display:none"/>' +
@@ -276,8 +276,9 @@
         importHtml +
         '<div class="wa-msgs zh-on" id="waMsgs">' + msgHtml + "</div>" +
         optHtml +
-        '<div class="wa-logrow"><input id="logBuyer" placeholder="客户回了什么？记一下（如：OK / 运费多少）"/>' +
-        '<button class="log-btn" data-act="log-buyer">记入对话</button></div>' +
+        '<div class="wa-logrow"><input id="logBuyer" placeholder="记一句（客户说的 / 你发的，如：已报价 EXW 222）"/>' +
+        '<button class="log-btn" data-act="log-buyer">记客户</button>' +
+        '<button class="log-btn log-btn-me" data-act="log-me">记我发</button></div>' +
         "</div>" +
          "</div>" +
          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">回复客户 · 两种方式任选</div>' +
@@ -428,18 +429,30 @@
            App.refresh();
          }).catch(function () {});
        }
-       function doLogBuyer() {
-         var t = logIn && logIn.value.trim();
-         if (!t) { App.toast("先写客户说的内容"); return; }
-         b.messages.push({ from: "buyer", text: t, time: "刚刚" });
-         AIevt(b, "reply", { via: "quicklog", text: t });
-         if (window.Store) Store.commit();
-         App.refresh();
-         autoZh(t);
-         judgeIntent(t);
+        function doLogBuyer() {
+          var t = logIn && logIn.value.trim();
+          if (!t) { App.toast("先写客户说的内容"); return; }
+          b.messages.push({ from: "buyer", text: t, time: "刚刚" });
+          AIevt(b, "reply", { via: "quicklog", text: t });
+          if (window.Store) Store.commit();
+          App.refresh();
+          autoZh(t);
+          judgeIntent(t);
+        }
+       /* 2026-10-14 现场反馈：业务员在 WhatsApp 自己报了价，但记录里只有客户那句"多少钱"，
+          看板就一直显示"他在等你的回复/待报价"。记我发 = 手动补记我方消息，最新一条变我方 → 状态立即翻成"你已回" */
+       function doLogMe() {
+          var t = logIn && logIn.value.trim();
+          if (!t) { App.toast("先写你发给客户的内容（如：已报价 EXW 222 / FOB 236）"); return; }
+          b.messages.push({ from: "me", text: t, time: "刚刚" });
+          AIevt(b, "reply", { via: "quicklog-me", text: t });
+          if (window.Store) Store.commit();
+          App.refresh();
        }
-      if (logBtn) logBtn.addEventListener("click", doLogBuyer);
-      if (logIn) logIn.addEventListener("keydown", function (e) { if (e.key === "Enter") doLogBuyer(); });
+       var logMeBtn = root.querySelector('[data-act="log-me"]');
+       if (logBtn) logBtn.addEventListener("click", doLogBuyer);
+       if (logMeBtn) logMeBtn.addEventListener("click", doLogMe);
+       if (logIn) logIn.addEventListener("keydown", function (e) { if (e.key === "Enter") doLogBuyer(); });
 
        /* 页面加载时：给最近缺中文对照的外语消息自动补翻译（客户和我发的都算，最多 6 条，不刷屏） */
        b.messages.filter(function (m) { return !m.zh && m.text && !/[一-龥]/.test(m.text); }).slice(-6)
@@ -522,17 +535,22 @@
         img.onerror = fall;
         img.src = url;
       }
-      function pushFileJob(kind, file, maxBytes) {
-        if (!file) return;
-        if (file.size > maxBytes) { App.toast("「" + file.name + "」太大（≤" + Math.round(maxBytes / 1048576) + "MB）"); return; }
-        function finish(b64, fmt) {
-          if (!b64) { App.toast("文件读取失败"); return; }
-          importJobs.push({ kind: kind, data: b64, name: file.name, format: fmt || ((file.type || "").split("/")[1] || "") });
-          refreshPickInfo();
-        }
-        if (kind === "image") compressImage(file, finish);
-        else b64Of(file, function (b64) { finish(b64); });
-      }
+       function pushFileJob(kind, file, maxBytes) {
+         if (!file) return;
+         /* 2026-10-14 现场反馈修复：原逻辑按"压缩前原图大小"卡 2MB——iPhone 聊天截图 PNG 普遍 2-4MB，
+            含产品图的页面必被拒（这就是"后面两页传不上去"的根因）。
+            现在：原图只卡 20MB 安全上限，真正的大小校验放到压缩之后（压完一般只有几百 KB） */
+         var rawCap = kind === "image" ? 20 * 1048576 : maxBytes;
+         if (file.size > rawCap) { App.toast("「" + file.name + "」太大（≤" + Math.round(rawCap / 1048576) + "MB）"); return; }
+         function finish(b64, fmt) {
+           if (!b64) { App.toast("文件读取失败"); return; }
+           if (b64.length > 8 * 1024 * 1024) { App.toast("「" + file.name + "」压缩后仍太大，请裁剪页面范围后重截"); return; }
+           importJobs.push({ kind: kind, data: b64, name: file.name, format: fmt || ((file.type || "").split("/")[1] || "") });
+           refreshPickInfo();
+         }
+         if (kind === "image") compressImage(file, finish);
+         else b64Of(file, function (b64) { finish(b64); });
+       }
       root.querySelector('[data-act="import"]').addEventListener("click", function () {
         importPanel.style.display = importPanel.style.display === "none" ? "block" : "none";
       });
@@ -542,7 +560,7 @@
       root.querySelector("#importImgs").addEventListener("change", function (e) {
         var fs = Array.prototype.slice.call(e.target.files || []);
         e.target.value = "";
-        if (fs.length > 4) { App.toast("图片最多 4 张，请按时间顺序选"); fs = fs.slice(0, 4); }
+         if (fs.length > 8) { App.toast("一次最多 8 张，请按时间顺序选；再多请分两次导入"); fs = fs.slice(0, 8); }
         fs.forEach(function (f) { pushFileJob("image", f, 2 * 1048576); });
       });
       root.querySelector("#importFile").addEventListener("change", function (e) {
@@ -594,17 +612,21 @@
           outs.forEach(function (o) {
             if (!o) return;
             if (o.err) { errs.push(o.err); return; }
-            o.convo.forEach(function (l) { if (l && l.text) impConvo.push({ from: l.from, text: l.text }); });
+            o.convo.forEach(function (l) { if (l && l.text) impConvo.push({ from: l.from, text: l.text, time: l.time || undefined }); });
             o.fields.forEach(function (f) { if (f && f.k && f.v) impFields[f.k] = f.v; });
             if (o.summary) impSummaries.push(o.summary);
           });
-          if (!impConvo.length && !impSummaries.length) {
-            importStatus.textContent = "分析失败：" + (errs.join("；").slice(0, 120) || "没识别到内容，换更清晰的截图或补点文字再试");
-            return;
-          }
-          importStatus.innerHTML =
-            '<b style="color:var(--brand)">分析完成，确认存进「' + escHtml(b.name) + "」的档案？</b><br>" +
-            "对话还原 " + impConvo.length + " 条" + (Object.keys(impFields).length ? " · 档案要点 " + Object.keys(impFields).length + " 项" : "") +
+           /* 2026-10-14：部分失败必须显式告知（原来只要有一份成功就静默吞掉错误，用户以为 4 页全导入了） */
+           var errLine = errs.length
+             ? '<div style="color:#e5484d;margin-top:4px">⚠ ' + errs.length + ' 份材料分析失败：' + escHtml(errs.join("；").slice(0, 150)) + "（失败的截图可单独再传一次）</div>"
+             : "";
+           if (!impConvo.length && !impSummaries.length) {
+             importStatus.textContent = "分析失败：" + (errs.join("；").slice(0, 120) || "没识别到内容，换更清晰的截图或补点文字再试");
+             return;
+           }
+           importStatus.innerHTML =
+             '<b style="color:var(--brand)">分析完成，确认存进「' + escHtml(b.name) + "」的档案？</b><br>" +
+             "对话还原 " + impConvo.length + " 条" + (Object.keys(impFields).length ? " · 档案要点 " + Object.keys(impFields).length + " 项" : "") + errLine +
             (impSummaries.length ? '<br><span class="mem-text">' + escHtml(impSummaries.join("；").slice(0, 220)) + "…</span>" : "") +
             '<div class="import-row" style="margin-top:8px"><button class="tr-btn" data-act="commit-import" style="flex:1">存入档案（长期记忆）</button><button class="set-btn-inline" data-act="abort-import">取消</button></div>';
         });
