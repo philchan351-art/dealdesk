@@ -440,8 +440,12 @@
         el.addEventListener("click", function () {
           var idx = +el.getAttribute("data-idx");
           if (el.getAttribute("data-act") === "h-y") {
-            if (b.messages[idx]) { b.messages[idx].status = "sent"; AIevt(b, "confirmed", { text: b.messages[idx].text }); }
+            if (b.messages[idx]) { b.messages[idx].status = "sent"; AIevt(b, "confirmed", { text: b.messages[idx].text, stage: b.stage }); }
           } else {
+            /* 埋点：「✕ 没发」＝建议被弃用的负样本，必须先留痕再删；「删除记录」属数据清理，不记 */
+            if (el.getAttribute("data-act") === "h-n" && b.messages[idx]) {
+              AIevt(b, "rejected", { src: "ai", text: b.messages[idx].text, zh: b.messages[idx].zh, stage: b.stage });
+            }
             b.messages.splice(idx, 1);
           }
           if (window.Store) Store.commit();
@@ -614,12 +618,13 @@
          if (!box) return;
          var s = box.querySelector('[data-act="p-send"]');
          if (s) s.addEventListener("click", function () {
-           AIevt(b, "sent", { src: pending.mode === "expand" ? "expand" : "translate", text: pending.en });
+            /* 埋点：raw↔text 配对——业务员自己写的中文原话 vs AI 输出，是个体化风格学习的唯一证据 */
+            AIevt(b, "sent", { src: pending.mode === "expand" ? "expand" : "translate", raw: pending.raw, zh: pending.zh, text: pending.en, stage: b.stage });
            if (window.Store) Store.commit();
            if (openWa(pending.en, pending.zh)) { pending = null; renderPending(); }
          });
           var r = box.querySelector('[data-act="p-re"]');
-          if (r) r.addEventListener("click", function () { translate(pending.raw); });
+          if (r) r.addEventListener("click", function () { AIevt(b, "regen", { raw: pending.raw, mode: pending.mode, stage: b.stage }); translate(pending.raw); });
           var x = box.querySelector('[data-act="p-x"]');
           if (x) x.addEventListener("click", function () { pending = null; renderPending(); });
        }
@@ -671,7 +676,7 @@
       function doTranslate() {
         var t = input.value.trim();
         if (!t) { App.toast("先在方式①里写一句中文，AI 翻给你看；或去方式②挑一条 AI 代写的"); return; }
-        if (!/[一-龥]/.test(t)) { AIevt(b, "sent", { src: "manual", text: t }); if (window.Store) Store.commit(); sendWa(t); autoZh(t); return; }
+        if (!/[一-龥]/.test(t)) { AIevt(b, "sent", { src: "manual", raw: t, text: t, stage: b.stage }); if (window.Store) Store.commit(); sendWa(t); autoZh(t); return; }
         if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先用\"新增客户\"补录"); return; }
         translate(t);
       }
@@ -684,7 +689,7 @@
       function bindSugg(container) {
         container.querySelectorAll(".sugg-use").forEach(function (btn) {
           btn.addEventListener("click", function () {
-            AIevt(b, "sent", { src: "ai", i: suggIndex(container, btn), text: btn.dataset.text });
+            AIevt(b, "sent", { src: "ai", i: suggIndex(container, btn), text: btn.dataset.text, zh: btn.dataset.zh, stage: b.stage });
             if (window.Store) Store.commit();
             sendWa(btn.dataset.text, btn.dataset.zh);
           });
