@@ -46,8 +46,11 @@
       var greet = hour < 11 ? "早上好" : hour < 13 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
       var dStr = (now.getMonth() + 1) + "月" + now.getDate() + "日 " + ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][now.getDay()];
       var myName = (Store.getSettings() || {}).name || "Cherry";
+      /* AI 学习进度：统计本账号真实消息里的原话配对（sent 且带 raw），用于提示离 ②/④ 的门槛还差多少 */
+      var learned = Mock.buyers.reduce(function (s, b) { return s + (b.aiEvents || []).filter(function (e) { return e.t === "sent" && e.raw; }).length; }, 0);
       return UI.topbar(greet + "，" + escHtml(myName), dStr + " · " + due.length + " 笔跟进待处理，其中 " + overdueCnt + " 笔已逾期", UI.bell + UI.gear) +
         '<div class="kpis stagger">' + kpiHtml + "</div>" +
+        '<div style="margin:0 16px 12px;padding:10px 12px;border-radius:10px;background:#EAF5F0;border:1px solid #CDE7DC;color:#0F5138;font-size:13px;line-height:1.5"><b>AI 学习进度</b> · 已从你的真实消息学到 <b>' + learned + '</b> 条原话配对（满 30 条可开启「风格自动学习」，满 1 周可出「教练周报」）</div>' +
         '<div class="home-row stagger">' +
         '<div class="card chart-card"><div class="chart-head"><b>近 7 日询盘</b><span>合计 ' + U.sum(W.values) + " 条</span></div>" +
           U.barChart(W.values, W.labels, W.todayIdx) + "</div>" +
