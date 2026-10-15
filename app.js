@@ -45,7 +45,7 @@
     var st = Store.getSettings() || {};
     var cl = st.cloud || {};
     return '<div class="auth-wrap">' +
-      '<div class="auth-brand"><div class="auth-logo">D</div><h1>DealDesk</h1><p>谈单工作台 · 每位业务员只看自己的客户</p></div>' +
+      '<div class="auth-brand"><div class="auth-logo"><img src="logo.jpg?v=50" alt="DealDesk"/></div><h1>DealDesk</h1><p>谈单工作台 · 每位业务员只看自己的客户</p></div>' +
       '<div class="auth-card">' +
       '<div class="auth-tabs"><span id="authTabLogin" class="on">登录</span><span id="authTabReg">新账号</span></div>' +
       '<label class="set-lbl">姓名</label>' +
