@@ -20,14 +20,23 @@
     return el ? el.value.trim() : "";
   }
 
+  /* 产品线（2026-10-15）：决定该客户页显示哪套公共资料 / 新客话术剧本 */
+  function scopeField(val) {
+    function o(v2, l) { return '<option value="' + v2 + '"' + (val === v2 ? " selected" : "") + ">" + l + "</option>"; }
+    return '<label class="set-lbl">产品线</label>' +
+      '<select class="set-inp" id="nbScope">' + o("", "通用（显示全部公共资料）") + o("suitcase", "电动行李箱") + o("pet", "宠物产品") + "</select>" +
+      '<div class="set-note">决定这个客户的「新客话术」和 AI 引用哪套公共资料：宠物客户不会看到行李箱话术</div>';
+  }
+
   function build(bd, editB) {
     var isEdit = !!editB;
     bd.innerHTML = '<div class="sheet">' +
       '<div class="sheet-head"><b>' + (isEdit ? "编辑档案" : "新增买家") + '</b><button class="sheet-x" data-act="x">✕</button></div>' +
       '<div class="sheet-sub">' + (isEdit ? "修改姓名、WhatsApp 号码、国家等基础信息。对话记录、意向分、档案要点不受影响" : "登记新客户的来源（WhatsApp / 广告 / 展会）。保存后即可\"记一条\"、建档自动套用国家沟通画像") + "</div>" +
       field("nbName", "姓名", "如 Carla Mendes", true, null, isEdit ? editB.name : "") +
-        field("nbCountry", "国家", "如 巴西（本地化画像库已收录常见市场）", true, KNOWN, isEdit ? editB.country : "") +
-        field("nbLang", "语言", "选填：留空=按国家自动；可填 英语/中文/西班牙语…", false, CountryProfiles.langs(), isEdit ? editB.msgLang : "") +
+         field("nbCountry", "国家", "如 巴西（本地化画像库已收录常见市场）", true, KNOWN, isEdit ? editB.country : "") +
+         scopeField(isEdit ? (editB.scope || "") : "") +
+         field("nbLang", "语言", "选填：留空=按国家自动；可填 英语/中文/西班牙语…", false, CountryProfiles.langs(), isEdit ? editB.msgLang : "") +
         field("nbCompany", "公司", "选填", false, null, isEdit && editB.company && editB.company !== "—" ? editB.company : "") +
       field("nbWa", "WhatsApp 号码", "+55 …（选填，一键交接发送需要）", false, null, isEdit ? editB.wa : "") +
       field("nbProduct", "产品线 / 意向产品", "如 学生书包（选填，会进档案）", false, null, isEdit && editB.product && editB.product !== "待确认" ? editB.product : "") +
@@ -46,7 +55,7 @@
       if (isEdit) {
         Store.updateBuyer(editB.id, {
           name: name, country: country, msgLang: v("nbLang"), company: v("nbCompany"),
-          wa: v("nbWa"), product: v("nbProduct"), qty: v("nbQty"), note: v("nbNote")
+          wa: v("nbWa"), product: v("nbProduct"), qty: v("nbQty"), note: v("nbNote"), scope: v("nbScope")
         });
         closeIt();
         App.toast("已保存 · " + name);
@@ -58,7 +67,7 @@
       var b = Store.addBuyer({
         name: name, country: country, cc: CountryProfiles.cc(country), msgLang: v("nbLang"),
         company: v("nbCompany"), wa: v("nbWa"), product: v("nbProduct"), qty: v("nbQty"),
-        intent: intent, note: v("nbNote")
+        intent: intent, note: v("nbNote"), scope: v("nbScope")
       });
       closeIt();
       App.toast("已建档 · " + name);

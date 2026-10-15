@@ -39,6 +39,44 @@
     }).catch(function () { return _sharedCache.docs; });
   }
 
+  /* 团队话术剧本（2026-10-15）：业务员在客户页一步步发给客户的固定剧本。
+     注入 AI 上下文的目的：AI 报价/介绍时与剧本口径一致，并知道哪些步已经发过（不重复整段发）。
+     按客户产品线过滤（suitcase/pet/all），5 分钟缓存与公共资料同策略。 */
+  var _scriptCache = { at: 0, docs: [] };
+  function getSharedScripts() {
+    var now = Date.now();
+    if (now - _scriptCache.at < 5 * 60 * 1000) return Promise.resolve(_scriptCache.docs);
+    if (!window.Sync || !Sync.enabled()) return Promise.resolve(_scriptCache.docs);
+    return Sync.sharedAll().then(function (j) {
+      _scriptCache = { at: Date.now(), docs: ((j && j.docs) || []).filter(function (d) { return d.type === "script"; }) };
+      return _scriptCache.docs;
+    }).catch(function () { return _scriptCache.docs; });
+  }
+  function scriptLine(buyer) {
+    return getSharedScripts().then(function (docs) {
+      var line = ["suitcase", "pet", "all"].indexOf(buyer.scope) >= 0 ? buyer.scope : "all";
+      /* 通用客户（或未设产品线）→ 全部剧本；指定产品线 → 该产品线 + 通用 */
+      var hits = docs.filter(function (d) { return line === "all" || d.scope === "all" || d.scope === line; });
+      if (!hits.length) return "";
+      var prog = buyer.scriptProg || {};
+      var parts = [];
+      for (var i = 0; i < hits.length; i++) {
+        var d = hits[i];
+        if (!d.steps || !d.steps.length) continue;
+        var sent = Math.min(Number(prog[d.key] || 0), d.steps.length);
+        var s = "\n【团队话术剧本·" + (d.name || "剧本") + "（已发 " + sent + "/" + d.steps.length + " 步）】\n";
+        for (var k = 0; k < d.steps.length; k++) {
+          s += (k + 1) + ". " + (d.steps[k].title || "") + (k < sent ? "（已发）" : "") + "：\n" + String(d.steps[k].text || "") + "\n";
+        }
+        parts.push(s);
+      }
+      if (!parts.length) return "";
+      var s2 = parts.join("");
+      if (s2.length > 6000) s2 = s2.slice(0, 6000) + "\n（剧本过长已截断，以档案与资料为准）";
+      return s2 + "\n与客户沟通时，产品参数/价格/MOQ 必须与上述团队话术剧本保持一致，不得另报；已标记（已发）的步骤不要整段重发，只针对客户当前的问题回答。\n";
+    });
+  }
+
   /* 训练资料：团队公共资料（管理员）+ 本人个人资料（各最新 3 份、各截 3000 字）叠加并入系统提示 */
   function withDocs(system) {
     var p = Store.getPersona ? Store.getPersona() : null;
@@ -64,6 +102,13 @@
         if (personal[j2]) out += "\n【资料·" + (docs[j2].name || "文件") + "】\n" + personal[j2];
       }
       return system + out + factRule(out.length > 0);
+    });
+  }
+
+  /* 完整系统提示 = 档案上下文 + 资料 + 参数红线 + 团队话术剧本 */
+  function fullSystem(buyer) {
+    return withDocs(ctx(buyer)).then(function (sys) {
+      return scriptLine(buyer).then(function (sl) { return sys + sl; });
     });
   }
 
@@ -188,7 +233,7 @@
       return chat("你是测试助手。", "Reply with the single word OK.", { max_tokens: 8, model: c.model });
     },
     translate: function (text, buyer) {
-      return withDocs(ctx(buyer)).then(function (sys) {
+      return fullSystem(buyer).then(function (sys) {
         return chat(sys, Prompts.translate + "\n\n消息：" + text, { max_tokens: 300, temp: 0.2 });
       }).then(function (t) {
         var o = parseJSON(t);
@@ -196,7 +241,7 @@
       });
     },
     extract: function (text, buyer) {
-      return withDocs(ctx(buyer)).then(function (sys) {
+      return fullSystem(buyer).then(function (sys) {
         return chat(sys, Prompts.extract + "\n\n消息：" + text, { max_tokens: 400, temp: 0.2 });
       }).then(function (t) {
         var o = parseJSON(t);
@@ -229,9 +274,9 @@
        function call(promptText) {
          /* temp 0.25：编造认证/年份类红线比多样性更要紧，压低随机性；
             max_tokens 1300→900（2026-10-14 提速）：3 条≤50词+诊断实际用不到 1300，砍掉无效尾段 */
-         return withDocs(ctx(buyer)).then(function (sys) {
-           return chat(sys, promptText, { max_tokens: 900, temp: 0.25, onChunk: onChunk });
-         }).then(parse);
+          return fullSystem(buyer).then(function (sys) {
+            return chat(sys, promptText, { max_tokens: 900, temp: 0.25, onChunk: onChunk });
+          }).then(parse);
        }
       return call(Prompts.suggest(buyer)).then(function (r) {
         if (leak(r.list)) {
@@ -246,7 +291,7 @@
       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
       var needForeign = lang !== "中文";
       var user = Prompts.localize(buyer) + "\n\n中文原文：" + text;
-      return withDocs(ctx(buyer)).then(function (sys) {
+      return fullSystem(buyer).then(function (sys) {
         return chat(sys, user, { max_tokens: 400, temp: 0.3 })
           .then(function (t) {
             if (needForeign && /[一-龥]/.test(String(t || ""))) {
@@ -261,7 +306,7 @@
       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
       var needForeign = lang !== "中文";
       var base = Prompts.expand(buyer) + "\n\n卖家写的意图：" + text;
-      return withDocs(ctx(buyer)).then(function (sys) {
+      return fullSystem(buyer).then(function (sys) {
         return chat(sys, base, { max_tokens: 500, temp: 0.4 })
           .then(function (t) {
             var o = parseJSON(t);

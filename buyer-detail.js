@@ -265,7 +265,8 @@
             var hasDocs = !!(p && (p.docs || []).length);
             return hasDocs ? "" : '<div class="card" style="margin:10px 16px 0;background:#FFF7E8;border:1px solid #FFD591"><b>⚠ 还没喂产品资料</b><div style="font-size:12px;color:#8a6d1a;margin-top:4px">没有资料，AI 回复客户时会"编"参数（续航/认证/价格都可能是假的）。到「设置 → AI 训练资料」上传你的产品目录/公司简介，AI 就只按你资料里写的说。</div></div>';
           })() +
-          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
+           '<div id="scriptCard"></div>' +
+           '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
          '<div class="set-note" style="padding:0 16px 8px;font-size:11px">预填 ≠ 已发：发送后点「✓ 已发」计入记录；没发或改过的点「✕ 没发」删除。</div>' +
         '<div class="wa-chat">' +
          '<div class="wa-head">' + WA_ICON +
@@ -659,10 +660,94 @@
         App.toast(note || "已预填到 WhatsApp · 还没发送！你发送后回来点「✓ 已发」，没发/改了点「✕ 没发」");
         return true;
       }
-      function sendWa(text, zh) {
-        if (!text) return;
-        openWa(text, zh);
-      }
+       function sendWa(text, zh) {
+         if (!text) return;
+         openWa(text, zh);
+       }
+
+       /* ===== 2026-10-15 新客话术播放器：按客户产品线取团队剧本，业务员按顺序一步步发 =====
+          - 署名自动替换为当前发送人（谁发署谁的名）
+          - 进度记在 b.scriptProg（docKey → 已发步数），客户以后忘了参数可随时「重发」某步
+          - 只预填到 WhatsApp，实际发送由业务员确认（与「发到 WhatsApp」同一模式） */
+       (function loadScriptCard() {
+         var box = root.querySelector("#scriptCard");
+         if (!box || b.outcome || !window.Sync || !Sync.enabled()) return;
+         Sync.sharedAll().then(function (j) {
+           var line = b.scope || "all";
+           /* 产品线=通用（或未设）→ 看全部剧本；指定产品线 → 该产品线 + 通用 */
+           var scripts = ((j && j.docs) || []).filter(function (d) {
+             return d.type === "script" && d.steps && d.steps.length && (line === "all" || d.scope === "all" || d.scope === line);
+           });
+           if (!scripts.length) return;
+           var st0 = (window.Store && Store.getSettings) ? (Store.getSettings() || {}) : {};
+           var au0 = window.Auth && Auth.get();
+           var myName = st0.name || (au0 && au0.name) || "";
+           var cf = String(b.name || "").trim().split(/\s+/)[0] || "";
+           function renderCard() {
+             var prog = b.scriptProg || {};
+             var total = 0, sent = 0;
+             scripts.forEach(function (d) {
+               total += d.steps.length;
+               sent += Math.min(Number(prog[d.key] || 0), d.steps.length);
+             });
+             var isNew = (b.messages || []).length < 2;
+             var html = '<div class="card ctx-card" style="margin:12px 16px 0">' +
+               '<div class="ctx-head"><span class="ctx-title">📜 新客话术（' + sent + "/" + total + '）</span>' +
+               '<span class="ctx-hint">' + (scripts.length > 1 ? scripts.length + " 套 · " : "") + "按顺序一步步发</span></div>" +
+               (isNew ? '<div class="sp-hint">💡 新客户首谈：按下面顺序一步步发（一段、客户回一段）。署名会自动换成你的名字；客户过段时间再问参数，直接重发对应那一步。</div>' : "") +
+               '<div class="sp-body">';
+             scripts.forEach(function (d, si) {
+               var snt = Math.min(Number(prog[d.key] || 0), d.steps.length);
+               if (scripts.length > 1) html += '<div class="sp-setname">' + escHtml(d.name || "话术 " + (si + 1)) + "</div>";
+               d.steps.forEach(function (st, i) {
+                 var done = i < snt;
+                 var txt = String(st.text || "");
+                 var preview = txt.replace(/\s+/g, " ").slice(0, 44);
+                 html += '<div class="sp-step' + (done ? " done" : "") + '">' +
+                   '<div class="sp-tt"><span class="sp-no">' + (done ? "✓" : (i + 1)) + '</span>' +
+                   '<div class="sp-txt"><b>' + escHtml(st.title || ("第 " + (i + 1) + " 步")) + '</b>' +
+                   '<span class="sp-prev">' + escHtml(preview) + (txt.length > 44 ? "…" : "") + "</span></div></div>" +
+                   '<div class="sp-btns">' +
+                   '<button class="sp-view" data-si="' + si + '" data-i="' + i + '">查看全文</button>' +
+                   '<button class="sp-send' + (done ? " re" : "") + '" data-si="' + si + '" data-i="' + i + '">' + (done ? "重发" : "发到 WhatsApp") + "</button></div>" +
+                   '<pre class="sp-full" id="spf_s' + si + "p" + i + '" style="display:none">' + escHtml(txt) + "</pre>" +
+                   "</div>";
+               });
+             });
+             html += "</div></div>";
+             box.innerHTML = html;
+             box.querySelectorAll(".sp-view").forEach(function (btn) {
+               btn.addEventListener("click", function () {
+                 var pre = box.querySelector("#spf_s" + btn.getAttribute("data-si") + "p" + btn.getAttribute("data-i"));
+                 if (!pre) return;
+                 var open = pre.style.display !== "none";
+                 pre.style.display = open ? "none" : "block";
+                 btn.textContent = open ? "查看全文" : "收起";
+               });
+             });
+             box.querySelectorAll(".sp-send").forEach(function (btn) {
+               btn.addEventListener("click", function () {
+                 var si = +btn.getAttribute("data-si"), i = +btn.getAttribute("data-i");
+                 var d = scripts[si], st = d && d.steps[i];
+                 if (!st) return;
+                 if (!b.wa) { App.toast("这个客户还没有 WhatsApp 号码，先用上方「编辑」补录再发"); return; }
+                 var text = (window.DocExtract && DocExtract.fillVars) ? DocExtract.fillVars(st.text, cf, myName) : String(st.text || "");
+                 var su = waLink(b.wa, text);
+                 if (!su) { App.toast("号码格式不对，打不开 WhatsApp，请检查档案里的号码"); return; }
+                 b.messages.push({ from: "me", text: text, time: "刚刚", status: "handed" });
+                 AIevt(b, "script", { doc: d.key, step: i, title: st.title || "" });
+                 b.scriptProg = b.scriptProg || {};
+                 b.scriptProg[d.key] = Math.max(Number(b.scriptProg[d.key] || 0), i + 1);
+                 if (window.Store) Store.commit();
+                 window.open(su, "_blank");
+                 App.toast("已打开第 " + (i + 1) + " 步 · 还没发送！发完回来点「✓ 已发」");
+                 App.refresh();
+               });
+             });
+           }
+           renderCard();
+         }).catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
+       })();
 
        /* ① 写大概意图 → AI 按意图扩充（或逐句直译）→ 对话区展示对照 → 再手动跳 WhatsApp */
        var mtMode = "expand"; // expand=按意图扩充 / direct=逐句直译

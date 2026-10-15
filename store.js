@@ -206,6 +206,7 @@
         quoteNo: "—",
         daysInStage: 0,
         wa: info.wa || "",
+        scope: ["suitcase", "pet", "all"].indexOf(info.scope) >= 0 ? info.scope : "",
         context: info.product ? [{ k: "需求", v: info.product }] : [],
         profile: cp,
         messages: [],
@@ -229,6 +230,8 @@
       if (f.msgLang !== undefined) { if (f.msgLang) b.msgLang = f.msgLang; else delete b.msgLang; }
       if (f.product !== undefined) b.product = f.product || "待确认";
       if (f.qty !== undefined) b.qty = f.qty || "待确认";
+      /* 产品线（2026-10-15）：决定客户页显示哪套公共资料/话术剧本 */
+      if (f.scope !== undefined) b.scope = ["suitcase", "pet", "all"].indexOf(f.scope) >= 0 ? f.scope : "";
       if (f.note !== undefined) {
         var nt = String(f.note).trim();
         b.tags = nt ? [nt] : [];

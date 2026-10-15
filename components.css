@@ -281,13 +281,30 @@
 /* 空状态 */
 .empty{padding:44px 0;text-align:center;color:var(--ink-faint);font-size:13px}
 
-/* Toast */
+/* Toast（2026-10-15 修复：长文件名不再溢出手机框——允许换行并限制宽度） */
 .toast{
   position:absolute;left:50%;bottom:96px;transform:translateX(-50%) translateY(12px);
-  background:var(--ink);color:#fff;font-size:12.5px;padding:10px 18px;border-radius:999px;
-  opacity:0;pointer-events:none;transition:all .25s;z-index:60;white-space:nowrap;
+  background:var(--ink);color:#fff;font-size:12.5px;padding:10px 18px;border-radius:14px;
+  opacity:0;pointer-events:none;transition:all .25s;z-index:60;
+  max-width:calc(100% - 32px);width:max-content;white-space:normal;text-align:center;line-height:1.55;
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* 新客话术播放器卡（2026-10-15） */
+.sp-hint{margin:8px 0 2px;font-size:12px;line-height:1.6;background:#FFF7E8;border:1px solid #FFD591;border-radius:10px;padding:8px 10px;color:#8a6d1a}
+.sp-setname{font-size:12px;font-weight:700;color:var(--brand-deep);margin:10px 0 2px}
+.sp-step{border-top:1px solid var(--line);padding:9px 0}
+.sp-tt{display:flex;gap:8px;align-items:flex-start}
+.sp-no{flex:0 0 20px;height:20px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-faint);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.sp-step.done .sp-no{background:rgba(18,138,95,.12);border-color:rgba(18,138,95,.35);color:#0E6B49}
+.sp-txt{flex:1;min-width:0}
+.sp-txt b{font-size:13px;color:var(--ink)}
+.sp-prev{display:block;font-size:11px;color:var(--ink-faint);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-btns{display:flex;gap:8px;margin:7px 0 0 28px}
+.sp-btns button{font-size:11.5px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font-weight:600}
+.sp-btns .sp-send{background:var(--brand,#EFB530);border-color:var(--brand,#EFB530);color:#3d2e05}
+.sp-btns .sp-send.re{background:var(--surface-2);color:var(--ink)}
+.sp-full{white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.6;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0 0 28px;max-height:260px;overflow:auto;font-family:inherit}
 
 /* 进场交错动画（作用于列表 / 卡片组） */
 .stagger>*{animation:fadeUp .45s both}
