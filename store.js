@@ -50,6 +50,18 @@
     replaceArr(data.followups, data.followups.filter(function (f) { return f.buyerId == null || data.deletedIds.indexOf(f.buyerId) < 0; }));
   }
   purge();
+  /* 2026-10-14 现场反馈：初版原型的 9 个示例客户（b1-b9）混进了真实数据，看板一直显示案例数字。
+     一次性清理：删除 + 打墓碑（随云同步上云，服务端 90 天内阻止恢复）；每次云端拉取后复查，防其他设备并回来 */
+  var DEMO_IDS = ["b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9"];
+  function purgeDemo() {
+    var hit = false;
+    data.buyers.forEach(function (b) { if (DEMO_IDS.indexOf(b.id) >= 0) { tombAdd(b.id); hit = true; } });
+    if (!hit) return;
+    replaceArr(data.buyers, data.buyers.filter(function (b) { return DEMO_IDS.indexOf(b.id) < 0; }));
+    replaceArr(data.followups, data.followups.filter(function (f) { return DEMO_IDS.indexOf(f.buyerId) < 0; }));
+    saveLocal();
+  }
+  purgeDemo();
 
   function saveLocal() {
     data.savedAt = new Date().toISOString();
@@ -327,8 +339,9 @@
         });
         data.persona.docs = merged;
       }
-      purge();
-      data.savedAt = snap.updatedAt || data.savedAt;
+       purge();
+       purgeDemo();
+       data.savedAt = snap.updatedAt || data.savedAt;
       /* 修复（审计 M3）：单独记录"已同步到的云端版本"，拉取判断用它而不是本机 savedAt（本机时钟漂移会导致永远不拉新数据） */
       if (snap.updatedAt) data.serverAt = String(snap.updatedAt);
       saveLocal();

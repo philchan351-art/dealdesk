@@ -118,9 +118,8 @@
         '<button class="set-btn" data-act="csv">导出备份（CSV）</button>' +
         '<button class="set-btn" data-act="imp">导入备份（CSV）</button>' +
         '<input type="file" id="impFile" accept=".csv,text/csv" hidden/>' +
-        '<button class="set-btn danger" data-act="reset">恢复示例数据</button>' +
         '<button class="set-btn danger" data-act="clear">清空全部买家（真实数据起步）</button>' +
-        '<div class="set-note">恢复/清空都会清除手动记录的消息、沉淀字段与意向分变动（LLM 配置保留）。清空后从"＋ 新增"开始录真实客户，建议先导出 CSV 备份</div>' +
+        '<div class="set-note">清空会清除全部客户、跟进与手动记录的消息（LLM 配置保留）。清空后从"＋ 新增"开始录真实客户，建议先导出 CSV 备份</div>' +
         "</div>" +
         '<div class="card card-pad">' +
         '<div class="set-title">关于</div>' +
@@ -438,9 +437,6 @@
           else { App.toast(n > 0 ? "已导入 " + n + " 条消息" : "导入完成（无新增消息）"); App.refresh(); }
           fileEl.value = "";
         });
-      });
-      root.querySelector('[data-act="reset"]').addEventListener("click", function () {
-        if (confirm("恢复示例数据？手动记录的记录将清除（LLM 配置保留）。")) Store.reset();
       });
       root.querySelector('[data-act="clear"]').addEventListener("click", function () {
         if (confirm("清空全部买家与跟进？此操作不可撤销，建议先点\"导出备份（CSV）\"。")) {

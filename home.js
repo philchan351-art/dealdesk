@@ -76,24 +76,53 @@
     title: "谈单看板",
 
     render: function () {
-      var K = Mock.kpis.slice(), W = Mock.week;
-      var open = Mock.buyers.filter(function (b) { return b.stage < 5; });
+      /* 2026-10-14：下线全部示例数字（Mock.kpis / Mock.week）——看板指标一律由真实客户数据实时计算 */
+      var buyers = Mock.buyers, followups = Mock.followups;
+      var now = new Date(), DAY = 86400000;
+      var open = buyers.filter(function (b) { return b.stage < 5; });
       var neg = open.filter(function (b) { return b.stage === 3; }).length;
       var qte = open.filter(function (b) { return b.stage === 2; }).length;
-      K[2] = { label: "进行中谈单", value: open.length, sub: neg + " 笔谈判 · " + qte + " 笔报价" };
-
-      var dist = [
-        { label: "A · 高意向 (80+)", color: "#128A5F", value: Mock.buyers.filter(function (b) { return U.grade(b.intent) === "A"; }).length },
-        { label: "B · 中意向 (55+)", color: "#C77F1B", value: Mock.buyers.filter(function (b) { return U.grade(b.intent) === "B"; }).length },
-        { label: "C · 低意向", color: "#8A968F", value: Mock.buyers.filter(function (b) { return U.grade(b.intent) === "C"; }).length }
+      var waiting = open.filter(function (b) {
+        var ms = b.messages || [];
+        return ms.length && ms[ms.length - 1].from === "buyer";
+      }).length;
+      var ym = now.getFullYear() + "-" + (now.getMonth() < 9 ? "0" : "") + (now.getMonth() + 1);
+      var wonMonth = buyers.filter(function (b) {
+        return b.outcome && b.outcome.status === "won" && String(b.outcome.at || "").indexOf(ym) === 0;
+      });
+      var wonAmt = wonMonth.reduce(function (s, b) { return s + (Number(b.amount) || 0); }, 0);
+      var labels = [], values = [], weekIds = {};
+      for (var i = 6; i >= 0; i--) {
+        var d = new Date(now.getTime() - i * DAY);
+        labels.push((d.getMonth() + 1) + "/" + d.getDate());
+        var s0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        values.push(0);
+        buyers.forEach(function (b) {
+          var t = Date.parse(b.updatedAt || "");
+          if (t >= s0 && t < s0 + DAY) { values[6 - i]++; weekIds[b.id] = 1; }
+        });
+      }
+      var weekN = Object.keys(weekIds).length;
+      var W = { labels: labels, values: values, todayIdx: 6 };
+      var K = [
+        { label: "客户总数", value: buyers.length, sub: weekN + " 位本周有动态" },
+        { label: "待我回复", value: waiting, sub: waiting ? "最后一条来自客户 · 尽快跟" : "都已跟到位，赞" },
+        { label: "进行中谈单", value: open.length, sub: neg + " 笔谈判 · " + qte + " 笔报价" },
+        { label: "本月成交", value: wonMonth.length, sub: wonAmt > 0 ? "金额 $" + wonAmt.toLocaleString() : "成交后在客户页标记" }
       ];
 
-      var due = Mock.followups
-        .filter(function (f) { return f.dueIn <= 0 && !f.done; })
+      var dist = [
+        { label: "A · 高意向 (80+)", color: "#128A5F", value: buyers.filter(function (b) { return U.grade(b.intent) === "A"; }).length },
+        { label: "B · 中意向 (55+)", color: "#C77F1B", value: buyers.filter(function (b) { return U.grade(b.intent) === "B"; }).length },
+        { label: "C · 低意向", color: "#8A968F", value: buyers.filter(function (b) { return U.grade(b.intent) === "C"; }).length }
+      ];
+
+      var due = followups
+        .filter(function (f) { return f.dueIn <= 0 && !f.done && Mock.getBuyer(f.buyerId); })
         .sort(function (a, b) { return a.dueIn - b.dueIn; })
         .slice(0, 3);
 
-      var overdueCnt = Mock.followups.filter(function (f) { return f.dueIn < 0 && !f.done; }).length;
+      var overdueCnt = followups.filter(function (f) { return f.dueIn < 0 && !f.done && Mock.getBuyer(f.buyerId); }).length;
 
       var kpiHtml = K.map(function (k) {
         return '<div class="card kpi">' +
@@ -138,9 +167,11 @@
       return UI.topbar(greet + "，" + escHtml(myName), dStr + " · " + due.length + " 笔跟进待处理，其中 " + overdueCnt + " 笔已逾期", UI.bell + UI.gear) +
         '<div class="kpis stagger">' + kpiHtml + "</div>" +
         learnHtml +
-        '<div class="home-row stagger">' +
-        '<div class="card chart-card"><div class="chart-head"><b>近 7 日询盘</b><span>合计 ' + U.sum(W.values) + " 条</span></div>" +
-          U.barChart(W.values, W.labels, W.todayIdx) + "</div>" +
+         '<div class="home-row stagger">' +
+         (buyers.length
+           ? '<div class="card chart-card"><div class="chart-head"><b>近 7 日活跃客户</b><span>合计 ' + U.sum(W.values) + " 人次</span></div>" +
+             U.barChart(W.values, W.labels, W.todayIdx) + "</div>"
+           : '<div class="card chart-card"><div class="chart-head"><b>还没有客户</b></div><div class="empty" style="padding:18px 0">去「买家」页点 ＋ 新增第一位客户；<br>或在客户详情里「导入过往聊天」，AI 自动建档</div></div>') +
         '<div class="card donut-card"><div class="chart-head"><b>意向分布</b></div>' +
           U.donut(dist) +
           '<div class="legend">' + dist.map(function (d) {
