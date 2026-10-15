@@ -175,7 +175,7 @@
       '<div class="card cmp-card" style="margin:0 16px 12px">' +
        '<div class="cmp-intent">中文意图：' + escHtml(b.compare.intent) + "</div>" +
        '<div class="cmp-col bad"><div class="cmp-tag">直译 · 普通翻译软件</div><p>' + escHtml(b.compare.literal) + "</p></div>" +
-       '<div class="cmp-col good"><div class="cmp-tag">本地化改写 · DealDesk</div><p>' + escHtml(b.compare.local) + "</p></div>" +
+       '<div class="cmp-col good"><div class="cmp-tag">本地化改写 · 谈单舱</div><p>' + escHtml(b.compare.local) + "</p></div>" +
        '<div class="cmp-notes">' + b.compare.notes.map(function (n) { return "<div>· " + escHtml(n) + "</div>"; }).join("") + "</div>" +
       "</div>";
   }
@@ -778,11 +778,21 @@
       var regen = root.querySelector('[data-act="regen"]');
       if (regen) regen.addEventListener("click", function () {
         if (!window.LLM || !LLM.configured()) { App.toast("请先在设置里配置 LLM"); return; }
-        var wrap = root.querySelector("#suggWrap");
-        regen.disabled = true;
-        wrap.innerHTML = '<div class="empty" style="padding:20px 0">正在结合最新档案与对话生成…</div>';
-        LLM.suggest(b).then(function (res) {
-          var list = res && res.list;
+         var wrap = root.querySelector("#suggWrap");
+         regen.disabled = true;
+         /* 2026-10-14 提速体验：流式打字机预览——AI 边写边显示，不再是干等 20 秒的静止状态 */
+         var t0 = Date.now();
+         wrap.innerHTML = '<div class="empty" style="padding:14px 0"><div id="regenTimer" style="margin-bottom:6px;color:var(--brand-deep)"><b>AI 正在结合档案、资料与对话写…</b> 0 秒</div><div id="regenLive" class="mem-text" style="max-height:190px;overflow:hidden"></div></div>';
+         var timer = setInterval(function () {
+           var te = wrap.querySelector("#regenTimer");
+           if (te) te.innerHTML = "<b>AI 正在结合档案、资料与对话写…</b> " + Math.floor((Date.now() - t0) / 1000) + " 秒";
+         }, 1000);
+         LLM.suggest(b, function (full) {
+           var lv = wrap.querySelector("#regenLive");
+           if (lv) lv.textContent = String(full || "").length > 2200 ? "…" + String(full).slice(-2200) : String(full || "");
+         }).then(function (res) {
+           clearInterval(timer);
+           var list = res && res.list;
           if (!list || !list.length) throw new Error("返回为空");
           var items = list.slice(0, 3);
           var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语";

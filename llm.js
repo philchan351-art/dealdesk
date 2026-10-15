@@ -85,11 +85,48 @@
       var pheaders = { "Content-Type": "application/json" };
       var _ddau = window.Auth && Auth.get();
       if (_ddau && _ddau.session) pheaders["x-dealdesk-session"] = _ddau.session;
+      var useStream = !!opt.onChunk;
+      if (useStream) payload.stream = true;
+      function streamParse(resp) {
+        /* 读 DashScope SSE：每包 data: {"choices":[{"delta":{"content":"..."}}]}；累计全文并逐包上报 onChunk */
+        var reader = resp.body.getReader();
+        var dec = new TextDecoder("utf-8");
+        var buf = "", full = "";
+        function pump() {
+          return reader.read().then(function (p) {
+            if (p.done) return full;
+            buf += dec.decode(p.value, { stream: true });
+            var lines = buf.split("\n");
+            buf = lines.pop() || "";
+            for (var i = 0; i < lines.length; i++) {
+              var ln = lines[i].replace(/^\s+/, "");
+              if (ln.indexOf("data:") !== 0) continue;
+              var data = ln.slice(5).replace(/^\s+/, "");
+              if (data === "[DONE]") continue;
+              try {
+                var sj = JSON.parse(data);
+                var d = sj.choices && sj.choices[0] && sj.choices[0].delta && sj.choices[0].delta.content;
+                if (d) { full += d; opt.onChunk(full, d); }
+              } catch (e) { /* 半包，等下一段拼齐 */ }
+            }
+            return pump();
+          });
+        }
+        return pump();
+      }
       return fetch(proxy, { method: "POST", headers: pheaders, body: JSON.stringify(payload) })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (j.error) throw new Error(j.error);
-          return j.content || "";
+        .then(function (r) {
+          var ct = String(r.headers.get("content-type") || "");
+          if (useStream && r.ok && ct.indexOf("text/event-stream") >= 0) return streamParse(r);
+          /* 非流式，或服务端未走流式（降级）：整包 JSON */
+          return r.text().then(function (t) {
+            if (!r.ok) throw new Error("API " + r.status + "：" + t.slice(0, 160));
+            var j = JSON.parse(t);
+            if (j.error) throw new Error(j.error);
+            var content = j.content || "";
+            if (useStream && content) opt.onChunk(content, content);
+            return content;
+          });
         });
     }
     return fetch(c.baseUrl + "/chat/completions", {
@@ -135,7 +172,7 @@
       "｜谈单阶段：" + Mock.STAGES[buyer.stage] + "｜意向分：" + buyer.intent +
       "\n档案：" + (buyer.context || []).map(function (c) { return c.k + "=" + c.v; }).join("；") + certNeg +
       (buyer.profile ? "\n国家画像：" + buyer.profile.address + " / " + buyer.profile.style : "") +
-      (buyer.memory ? "\n客户长期记忆（来自导入的过往聊天记录总结，重要背景，回答涉及这些话题时必须一致）：" + buyer.memory.slice(0, 1500) : "") +
+       (buyer.memory ? "\n客户长期记忆（来自导入的过往聊天记录总结，重要背景，回答涉及这些话题时必须一致）：" + buyer.memory.slice(0, 800) : "") +
       "\n最近对话：\n" + last5 + personaLine();
   }
 
@@ -175,8 +212,9 @@
           return o;
         });
     },
-    suggest: function (buyer) {
-      var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
+     /* onChunk（可选）：流式生成时逐包回调（full, delta）；AI 代写「重新生成」用它做打字机预览 */
+     suggest: function (buyer, onChunk) {
+       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
       var needForeign = lang !== "中文";
       function hasCjk(s) { return /[一-龥]/.test(String(s || "")); }
       function leak(list) {
@@ -188,12 +226,13 @@
         var o = parseJSON(t);
         return { diagnosis: (o && o.diagnosis) || null, list: (o && o.suggestions) || null };
       }
-      function call(promptText) {
-        /* temp 0.25：编造认证/年份类红线比多样性更要紧，压低随机性 */
-        return withDocs(ctx(buyer)).then(function (sys) {
-          return chat(sys, promptText, { max_tokens: 1300, temp: 0.25 });
-        }).then(parse);
-      }
+       function call(promptText) {
+         /* temp 0.25：编造认证/年份类红线比多样性更要紧，压低随机性；
+            max_tokens 1300→900（2026-10-14 提速）：3 条≤50词+诊断实际用不到 1300，砍掉无效尾段 */
+         return withDocs(ctx(buyer)).then(function (sys) {
+           return chat(sys, promptText, { max_tokens: 900, temp: 0.25, onChunk: onChunk });
+         }).then(parse);
+       }
       return call(Prompts.suggest(buyer)).then(function (r) {
         if (leak(r.list)) {
           return call(Prompts.suggest(buyer) + "\n\n[纠正] 上一次输出的 text 字段里出现了中文，这是错误的。text 必须是纯" + lang + "，只有 zh 字段允许中文。").then(function (r2) {
