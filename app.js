@@ -29,7 +29,7 @@
     document.querySelectorAll(".tabbar .tab").forEach(function (t) {
       t.classList.toggle("active", t.dataset.tab === p.screen || (p.screen === "buyer-detail" && t.dataset.tab === "buyers"));
     });
-    document.title = "DealDesk · " + mod.title;
+    document.title = "谈单舱 · " + mod.title;
     var fab = $(".fab");
     if (fab) {
       if (p.screen === "buyer-detail") { fab.style.display = "none"; }
@@ -45,7 +45,7 @@
     var st = Store.getSettings() || {};
     var cl = st.cloud || {};
     return '<div class="auth-wrap">' +
-      '<div class="auth-brand"><div class="auth-logo"><img src="logo.jpg?v=50" alt="DealDesk"/></div><h1>DealDesk</h1><p>谈单工作台 · 每位业务员只看自己的客户</p></div>' +
+      '<div class="auth-brand"><div class="auth-logo"><img src="logo.jpg?v=51" alt="谈单舱"/></div><h1>谈单舱</h1><p>B2B 谈单工作台 · 每位业务员只看自己的客户</p></div>' +
       '<div class="auth-card">' +
       '<div class="auth-tabs"><span id="authTabLogin" class="on">登录</span><span id="authTabReg">新账号</span></div>' +
       '<label class="set-lbl">姓名</label>' +
@@ -65,6 +65,7 @@
       '<div class="set-note">地址已预填。团队口令只在「新账号」时填一次，登录不需要</div>' +
       "</details>" +
       "</div>" +
+      '<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:12px">第一次用？<a href="manual.html" style="color:var(--brand-deep);text-decoration:underline">先看 2 分钟使用手册</a>，看完就能上手</div>' +
       "</div>";
   }
 
@@ -133,7 +134,7 @@
     var el = $("#screen");
     el.classList.remove("detail");
     el.innerHTML = authHtml();
-    document.title = "DealDesk · 业务员登录";
+    document.title = "谈单舱 · 业务员登录";
     var p = phoneEl();
     if (p) p.classList.add("auth-on");
     bindAuth();

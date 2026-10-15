@@ -124,7 +124,8 @@
         "</div>" +
         '<div class="card card-pad">' +
         '<div class="set-title">关于</div>' +
-        '<div class="set-note">DealDesk 谈单工作台 · MVP H5 · v0.3（W2：LLM 管线）<br/>通道：WhatsApp 过渡模式（官方 wa.me 一键交接）<br/>数据：本机 localStorage（方案 A）</div>' +
+          '<div class="set-note">谈单舱 DealPilot · B2B 谈单工作台<br/>通道：WhatsApp 过渡模式（官方 wa.me 一键交接）<br/>数据：云端同步（多设备一致）+ 本机缓存</div>' +
+          '<div class="set-actions" style="margin-top:10px"><button class="set-btn-inline ghost" data-act="open-manual" style="text-decoration:underline">📖 查看使用手册（长期有效网址）</button></div>' +
         "</div>" +
         "</div>";
     },
@@ -132,12 +133,15 @@
      init: function (param, root) {
        root.querySelector('[data-act="back"]').addEventListener("click", function () { App.go("home"); });
 
-       root.querySelector('[data-act="logout"]').addEventListener("click", function () {
-         if (confirm("退出当前账号？本机客户数据将清空（云端数据保留，重新登录可恢复）。")) {
-           if (window.Auth) Auth.clear();
-           location.reload();
-         }
-       });
+        root.querySelector('[data-act="logout"]').addEventListener("click", function () {
+          if (confirm("退出当前账号？本机客户数据将清空（云端数据保留，重新登录可恢复）。")) {
+            if (window.Auth) Auth.clear();
+            location.reload();
+          }
+        });
+
+        var manualBtn = root.querySelector('[data-act="open-manual"]');
+        if (manualBtn) manualBtn.addEventListener("click", function () { window.open("manual.html", "_blank"); });
 
        root.querySelector('[data-act="save-name"]').addEventListener("click", function () {
          var stName = Store.getSettings() || {};
