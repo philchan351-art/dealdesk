@@ -133,6 +133,36 @@
     });
   }
 
+  /* 话术剧本自动拆步（2026-10-15）：以独占一行的「一/二/三…」或「1、2、」为分隔；
+     拆不出（少于 2 个分隔）时整篇作为一步，由上传人改名后保存 */
+  function splitScript(text) {
+    var lines = String(text || "").split(/\r?\n/);
+    var marks = [];
+    lines.forEach(function (ln, i) {
+      if (/^\s*[一二三四五六七八九十]{1,2}\s*[、.．:：]?\s*$/.test(ln) || /^\s*\d{1,2}\s*[、.．]\s*$/.test(ln)) marks.push(i);
+    });
+    var steps = [];
+    if (marks.length >= 2) {
+      for (var i = 0; i < marks.length; i++) {
+        var start = marks[i] + 1;
+        var end = (i + 1 < marks.length) ? marks[i + 1] : lines.length;
+        var body = lines.slice(start, end).join("\n").trim();
+        if (!body) continue;
+        var first = body.split("\n").filter(function (x) { return x.trim(); })[0] || "";
+        steps.push({ title: first.length > 26 ? first.slice(0, 26) + "…" : first, text: body });
+      }
+    }
+    if (!steps.length) steps = [{ title: "全文", text: String(text || "").trim() }];
+    return steps;
+  }
+  /* 发送前变量替换：【name】/[Name] → 客户名；落款人名 → 当前发送人（谁发署名谁） */
+  function fillVars(text, customerFirst, me) {
+    var t = String(text || "");
+    if (customerFirst) t = t.replace(/【\s*[nN]ame\s*】|\[\s*[nN]ame\s*\]/g, customerFirst);
+    if (me) t = t.replace(/(Best regards,|Regards,|Sincerely,|Warm regards,)\s*[\w\u4e00-\u9fa5'’-]+/i, "$1 " + me);
+    return t;
+  }
+
   window.DocExtract = {
     /* Promise<text>。支持 .txt/.md/.csv/.json/.html/.htm/.docx/.pdf；.doc 明确拒绝 */
     extract: function (file) {
@@ -142,6 +172,8 @@
       if (ext === "pdf") return readAsBuffer(file).then(pdfToText);
       if (ext === "txt" || ext === "md" || ext === "csv" || ext === "json" || ext === "html" || ext === "htm") return readAsText(file);
       return Promise.reject(new Error("暂不支持「." + ext + "」，支持 Word(.docx)、PDF、纯文本(.txt/.md/.csv/.json)"));
-    }
+    },
+    splitScript: splitScript,
+    fillVars: fillVars
   };
 })();

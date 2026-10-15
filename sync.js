@@ -152,11 +152,19 @@
       if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
       return fetch(url("/admin/shared"), { headers: headers() }).then(function (r) { return wrap(r); });
     },
-    sharedUpload: function (name, content) {
+    /* 2026-10-15：steps 非空即存为话术剧本；scope = suitcase / pet / all（产品线隔离） */
+    sharedUpload: function (name, content, steps, scope) {
       if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      var p = { name: name, content: content || "", scope: scope || "all" };
+      if (steps && steps.length) p.steps = steps;
       return fetch(url("/admin/shared"), {
-        method: "POST", headers: headers(), body: JSON.stringify({ name: name, content: content })
+        method: "POST", headers: headers(), body: JSON.stringify(p)
       }).then(function (r) { return wrap(r); });
+    },
+    sharedAll: function () {
+      /* 业务员可读：剧本含完整步骤；普通资料只回名称（内容保密规则不变） */
+      if (!this.enabled()) return Promise.resolve({ docs: [] });
+      return fetch(url("/shared/all"), { headers: headers() }).then(function (r) { return wrap(r); });
     },
     sharedDelete: function (doc) {
       if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));

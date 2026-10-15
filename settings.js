@@ -22,6 +22,7 @@
       return '<div class="set-note" style="margin-bottom:4px">' + badge + " " + esc(d.name || d.key) + "（" + kb + "KB" + link + '）<a data-act="del-doc" data-doc="' + esc(d.key) + '" style="color:#e5484d">删除</a></div>';
     }).join("");
   }
+  var SCOPE_LABEL = { suitcase: "行李箱", pet: "宠物", all: "通用" };
   /* 资料预览：格式化的文档卡（替代原来的裸文本倾倒，2026-10-15） */
   function showDocView(box, name, content, active) {
     if (!box) return;
@@ -78,12 +79,19 @@
            '<div class="set-title">团队成员（管理员）</div>' +
            '<div id="adminList"><div class="set-note">加载中…</div></div>' +
            '<div class="set-note">重置密码：对方旧密码立即作废。停用：立即不能登录/同步（数据保留）。设为管理员：对方也能管理成员和公共资料。</div>' +
-           '<div class="set-title" style="margin-top:14px">团队公共资料</div>' +
-           '<div id="sharedList"><div class="set-note">加载中…</div></div>' +
-           '<div class="set-actions" style="margin-top:8px"><button class="set-btn-inline" data-act="shared-upload">＋ 上传公共资料</button></div>' +
-            '<input type="file" id="sharedFile" accept=".txt,.md,.csv,.json,.html,.htm,.docx,.pdf" style="display:none">' +
-            '<div id="sharedPreview"></div>' +
-            '<div class="set-note">你上传一次，所有人的 AI 生成都会自动引用：最新 3 份生效（各取前 3000 字），更早的存档。与各自的个人资料叠加，互不覆盖。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。业务员在界面上看不到公共资料的内容，只有 AI 会用。</div>' +
+            '<div class="set-title" style="margin-top:14px">团队公共资料</div>' +
+            '<div id="sharedList"><div class="set-note">加载中…</div></div>' +
+            '<div class="set-actions" style="margin-top:8px;display:flex;gap:8px">' +
+            '<button class="set-btn" data-act="shared-upload-script" style="flex:1">📜 上传话术剧本</button>' +
+            '<button class="set-btn" data-act="shared-upload" style="flex:1">＋ 普通资料</button>' +
+            "</div>" +
+             '<input type="file" id="sharedFile" accept=".txt,.md,.csv,.json,.html,.htm,.docx,.pdf" style="display:none">' +
+             '<input type="file" id="scriptFile" accept=".txt,.md,.csv,.json,.html,.htm,.docx" style="display:none">' +
+             '<div id="scriptDraft"></div>' +
+             '<label class="set-lbl" style="margin-top:8px">普通资料的产品线</label>' +
+             '<select class="set-inp" id="sharedScope"><option value="all">通用（所有客户）</option><option value="suitcase">电动行李箱</option><option value="pet">宠物产品</option></select>' +
+             '<div id="sharedPreview"></div>' +
+             '<div class="set-note">📜 话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：AI 引用最新 3 份（各前 6000 字），内容业务员不可见。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。</div>' +
            "</div>" : "") +
          '<div class="card card-pad">' +
          '<div class="set-title">我的称呼</div>' +
@@ -370,8 +378,10 @@
                 var docs = j.docs || [];
                 sharedListEl.innerHTML = docs.length ? docs.slice().reverse().map(function (d, idx) {
                   var badge = idx < 3 ? '<span class="doc-badge on">AI 生效中</span>' : '<span class="doc-badge off">存档</span>';
+                  var typeB = d.type === "script" ? ' <span class="doc-badge on">话术 ' + ((d.steps || []).length) + ' 步</span>' : "";
+                  var scopeB = ' <span class="doc-badge off">' + (SCOPE_LABEL[d.scope] || "通用") + "</span>";
                   return '<div class="card set-row" style="margin:0 0 6px;padding:8px 10px">' +
-                    "<span>" + badge + " " + esc(d.name) + ' <span class="set-note">' + Math.round(d.size / 1024) + "KB</span></span>" +
+                    "<span>" + badge + typeB + scopeB + " " + esc(d.name) + ' <span class="set-note">' + Math.round(d.size / 1024) + "KB</span></span>" +
                     '<div class="set-actions" style="margin-top:6px">' +
                     '<button class="set-btn-inline ghost" data-act="shared-view" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">查看</button>' +
                     '<button class="set-btn-inline danger" data-act="shared-del" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">删除</button>' +
@@ -410,14 +420,72 @@
               DocExtract.extract(f).then(function (content) {
                 content = String(content || "").replace(/\u0000/g, "").trim();
                 if (content.length < 20) { App.toast("没提取到有效文字：PDF 可能是扫描图片（需转文字版）；Word 请确认是 .docx"); return; }
-                if (!confirm("将上传《" + f.name + "》为团队公共资料（提取到约 " + content.length + " 字）：之后所有人的 AI 生成都会引用它（前 3000 字）。\n\n预览前 120 字：\n…" + content.slice(0, 120).replace(/\n/g, " ") + "…\n\n确认？")) return;
-                Sync.sharedUpload(f.name, content).then(function () {
-                  App.toast("已上传公共资料「" + f.name + "」，全员 AI 立即生效");
-                  loadShared();
-                }).catch(function (err) { App.toast("上传失败：" + err.message); });
-              }).catch(function (e) { App.toast(e.message || "文件提取失败"); });
-            });
-            loadShared();
+                 var sc = (root.querySelector("#sharedScope") || {}).value || "all";
+                 if (!confirm("将上传《" + f.name + "》为团队公共资料（" + (SCOPE_LABEL[sc] || "通用") + "；提取到约 " + content.length + " 字）：之后所有人的 AI 生成都会引用它（前 6000 字）。\n\n预览前 120 字：\n…" + content.slice(0, 120).replace(/\n/g, " ") + "…\n\n确认？")) return;
+                 Sync.sharedUpload(f.name, content, null, sc).then(function () {
+                   App.toast("已上传公共资料「" + f.name + "」，全员 AI 立即生效");
+                   loadShared();
+                 }).catch(function (err) { App.toast("上传失败：" + err.message); });
+               }).catch(function (e) { App.toast(e.message || "文件提取失败"); });
+             });
+             /* ===== 话术剧本（2026-10-15）：上传 → 自动拆步 → 可编辑确认 → 保存 ===== */
+             var scriptFile = root.querySelector("#scriptFile");
+             var scriptDraft = root.querySelector("#scriptDraft");
+             function renderScriptDraft(baseName, steps) {
+               scriptDraft.innerHTML =
+                 '<div class="card" style="margin-top:10px;padding:10px 12px">' +
+                 "<b style='font-size:13px'>📜 确认剧本步骤（标题/文字都可以改）</b>" +
+                 '<div class="set-note" style="margin:4px 0 8px">按「一…五」自动拆出 ' + steps.length + " 步。保存后业务员在客户页可一步步发给客户。</div>" +
+                 '<label class="set-lbl">剧本名称</label>' +
+                 '<input class="set-inp" id="scriptName" type="text" maxlength="60" value="' + esc(baseName) + '"/>' +
+                 '<label class="set-lbl">产品线（客户页按此匹配显示）</label>' +
+                 '<select class="set-inp" id="scriptScope"><option value="suitcase">电动行李箱</option><option value="pet">宠物产品</option><option value="all">通用（所有客户）</option></select>' +
+                 '<div id="scriptSteps" style="margin-top:8px">' + steps.map(function (s, i) {
+                   return '<div class="script-draft-step" style="margin-bottom:8px">' +
+                     '<div style="display:flex;gap:6px;align-items:center">' +
+                     "<b style='flex:none;font-size:12px'>" + (i + 1) + ".</b>" +
+                     '<input class="set-inp sd-title" type="text" maxlength="40" value="' + esc(s.title) + '" style="flex:1"/>' +
+                     "</div>" +
+                     '<textarea class="set-inp sd-text" rows="4" style="margin-top:6px;font-family:inherit;line-height:1.6">' + esc(s.text) + "</textarea>" +
+                     "</div>";
+                 }).join("") + "</div>" +
+                 '<div class="set-actions" style="display:flex;gap:8px"><button class="set-btn" data-act="save-script" style="flex:1">保存剧本（全员可用）</button><button class="set-btn-inline ghost" data-act="cancel-script">取消</button></div>' +
+                 "</div>";
+               scriptDraft.querySelector('[data-act="cancel-script"]').addEventListener("click", function () { scriptDraft.innerHTML = ""; });
+               scriptDraft.querySelector('[data-act="save-script"]').addEventListener("click", function () {
+                 var nm = scriptDraft.querySelector("#scriptName").value.trim();
+                 var sc = scriptDraft.querySelector("#scriptScope").value;
+                 var ss = [];
+                 scriptDraft.querySelectorAll(".script-draft-step").forEach(function (el, i) {
+                   var t = el.querySelector(".sd-title").value.trim() || ("第 " + (i + 1) + " 步");
+                   var x = el.querySelector(".sd-text").value.trim();
+                   if (x) ss.push({ title: t, text: x });
+                 });
+                 if (!nm || !ss.length) { App.toast("名称和步骤都要有内容"); return; }
+                 var full = ss.map(function (s) { return s.title + "\n" + s.text; }).join("\n\n");
+                 Sync.sharedUpload(nm, full, ss, sc).then(function () {
+                   App.toast("剧本「" + nm + "」已保存（" + ss.length + " 步 · " + (SCOPE_LABEL[sc] || "通用") + "），业务员客户页立即可用");
+                   scriptDraft.innerHTML = "";
+                   loadShared();
+                 }).catch(function (err) { App.toast("保存失败：" + err.message); });
+               });
+             }
+             if (scriptFile) {
+               root.querySelector('[data-act="shared-upload-script"]').addEventListener("click", function () { scriptFile.click(); });
+               scriptFile.addEventListener("change", function () {
+                 var f = scriptFile.files && scriptFile.files[0];
+                 scriptFile.value = "";
+                 if (!f) return;
+                 if (f.size > 3 * 1024 * 1024) { App.toast("文件超过 3MB"); return; }
+                 App.toast("正在提取「" + f.name + "」并自动拆步…");
+                 DocExtract.extract(f).then(function (content) {
+                   content = String(content || "").replace(/\u0000/g, "").trim();
+                   if (content.length < 20) { App.toast("没提取到有效文字：Word 请确认是 .docx"); return; }
+                   renderScriptDraft(String(f.name).replace(/\.[^.]+$/, ""), DocExtract.splitScript(content));
+                 }).catch(function (e) { App.toast(e.message || "文件提取失败"); });
+               });
+             }
+             loadShared();
           }
         }
       root.querySelector('[data-act="cloud-pull"]').addEventListener("click", function () {
