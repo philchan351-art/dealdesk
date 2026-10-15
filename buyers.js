@@ -41,7 +41,7 @@
           return '<div class="bcard card' + (b.unread ? " unread" : "") + '" data-id="' + b.id + '">' +
             U.avatar(b) +
             '<div class="bmid">' +
-            '<div class="bmid-top"><b>' + escHtml(b.name) + "</b>" + oc + '<span class="intent intent-' + g + '" data-bid="' + escHtml(b.id) + '" title="点一下看最近一次升降依据"><b>' + g + "</b>" + b.intent + intentArrow(b) + "</span></div>" +
+             '<div class="bmid-top"><b>' + escHtml(b.name) + "</b>" + (b.country ? ' <span class="b-country">' + escHtml(b.country) + "</span>" : "") + oc + '<span class="intent intent-' + g + '" data-bid="' + escHtml(b.id) + '" title="点一下看最近一次升降依据"><b>' + g + "</b>" + b.intent + intentArrow(b) + "</span></div>" +
             '<div class="bmid-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + (b.tags && b.tags.length ? " · " + escHtml(b.tags[0]) : "") + "</div>" +
             '<div class="bmid-meta"><span class="stage-tag">' + Mock.STAGES[b.stage] + '</span><span class="wa-badge">WhatsApp</span><span>' + escHtml(b.lastActive) + '</span></div>' +
             "</div>" +

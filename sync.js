@@ -143,6 +143,25 @@
         method: "POST", headers: headers(), body: JSON.stringify({ name: name, role: role })
       }).then(function (r) { return wrap(r); });
     },
+    /* ===== 2026-10-15 成员管理增强：增加 / 改名 / 删除（仅管理员）===== */
+    adminAdd: function (name, password, role) {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/user/add"), {
+        method: "POST", headers: headers(), body: JSON.stringify({ name: name, password: password, role: role })
+      }).then(function (r) { return wrap(r); });
+    },
+    adminRename: function (from, to) {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/user/rename"), {
+        method: "POST", headers: headers(), body: JSON.stringify({ from: from, to: to })
+      }).then(function (r) { return wrap(r); });
+    },
+    adminDelete: function (name) {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/user/delete"), {
+        method: "POST", headers: headers(), body: JSON.stringify({ name: name })
+      }).then(function (r) { return wrap(r); });
+    },
     /* ===== 团队公共资料（2026-10-14）：管理员维护；/shared 全体登录用户可读（AI 注入用）===== */
     sharedDocs: function () {
       if (!this.enabled()) return Promise.resolve({ docs: [] });

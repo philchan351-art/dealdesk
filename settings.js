@@ -75,10 +75,18 @@
           '<div class="set-actions"><button class="set-btn-inline danger" data-act="logout">切换账号 / 退出登录</button></div>' +
           '<div class="set-note">退出后本机数据清空并回到登录页；你的客户数据安全存在云端，重新登录即可恢复。每个账号只看自己的客户</div>' +
           "</div>" +
-           (isAdmin ? '<div class="card card-pad">' +
-           '<div class="set-title">团队成员（管理员）</div>' +
-           '<div id="adminList"><div class="set-note">加载中…</div></div>' +
-           '<div class="set-note">重置密码：对方旧密码立即作废。停用：立即不能登录/同步（数据保留）。设为管理员：对方也能管理成员和公共资料。</div>' +
+            (isAdmin ? '<div class="card card-pad">' +
+            '<div class="set-title">团队成员（管理员）</div>' +
+            '<div class="card" style="margin:0 0 8px;padding:8px 10px;background:var(--surface-2)">' +
+            '<div class="set-note" style="margin:0 0 6px">增加新成员（免团队口令）：对方用 姓名+初始密码 登录</div>' +
+            '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+            '<input class="set-inp" id="addName" type="text" maxlength="20" placeholder="姓名" style="flex:1;min-width:80px"/>' +
+            '<input class="set-inp" id="addPass" type="text" maxlength="20" placeholder="初始密码（字母+数字）" style="flex:1.5;min-width:120px"/>' +
+            '<select class="set-inp" id="addRole" style="flex:none;width:84px"><option value="rep">业务员</option><option value="admin">管理员</option></select>' +
+            '<button class="set-btn" data-act="admin-add" style="flex:none">增加</button>' +
+            "</div></div>" +
+            '<div id="adminList"><div class="set-note">加载中…</div></div>' +
+            '<div class="set-note">重置密码：对方旧密码立即作废。改名：登录账号改名，密码与客户数据全部保留（对方需重新登录）。停用：立即不能登录/同步（数据保留）。删除：账号删除，客户数据归档 30 天（可找管理员恢复），只是不能登录请用「停用」。设为管理员：对方也能管理成员和公共资料。</div>' +
             '<div class="set-title" style="margin-top:14px">团队公共资料</div>' +
             '<div id="sharedList"><div class="set-note">加载中…</div></div>' +
             '<div class="set-actions" style="margin-top:8px;display:flex;gap:8px">' +
@@ -318,11 +326,13 @@
                return '<div class="card set-row" style="margin:0 0 6px;padding:8px 10px">' +
                  '<span class="set-k">' + esc(u.name) + (self ? "（我）" : "") + (u.role === "admin" ? " · 管理员" : "") + (u.disabled ? ' · <b style="color:#e5484d">已停用</b>' : "") + "</span>" +
                  "<b>" + u.buyers + " 客户</b>" +
-                  (self ? "" : '<div class="set-actions" style="margin-top:6px;flex-wrap:wrap">' +
-                    '<button class="set-btn-inline ghost" data-act="admin-reset" data-name="' + esc(u.name) + '">重置密码</button>' +
-                    '<button class="set-btn-inline ' + (u.disabled ? "" : "danger") + '" data-act="admin-disable" data-name="' + esc(u.name) + '" data-en="' + (u.disabled ? "1" : "0") + '">' + (u.disabled ? "启用" : "停用") + "</button>" +
-                    '<button class="set-btn-inline ghost" data-act="admin-role" data-name="' + esc(u.name) + '" data-role="' + (u.role === "admin" ? "rep" : "admin") + '">' + (u.role === "admin" ? "取消管理员" : "设为管理员") + "</button>" +
-                    "</div>") +
+                   (self ? "" : '<div class="set-actions" style="margin-top:6px;flex-wrap:wrap">' +
+                     '<button class="set-btn-inline ghost" data-act="admin-reset" data-name="' + esc(u.name) + '">重置密码</button>' +
+                     '<button class="set-btn-inline ghost" data-act="admin-rename" data-name="' + esc(u.name) + '">改名</button>' +
+                     '<button class="set-btn-inline ' + (u.disabled ? "" : "danger") + '" data-act="admin-disable" data-name="' + esc(u.name) + '" data-en="' + (u.disabled ? "1" : "0") + '">' + (u.disabled ? "启用" : "停用") + "</button>" +
+                     '<button class="set-btn-inline danger" data-act="admin-del" data-name="' + esc(u.name) + '" data-buyers="' + (u.buyers || 0) + '">删除</button>' +
+                     '<button class="set-btn-inline ghost" data-act="admin-role" data-name="' + esc(u.name) + '" data-role="' + (u.role === "admin" ? "rep" : "admin") + '">' + (u.role === "admin" ? "取消管理员" : "设为管理员") + "</button>" +
+                     "</div>") +
                   "</div>";
              }).join("");
            }).catch(function (e) {
@@ -353,18 +363,53 @@
                 App.toast(en ? "已启用「" + nm + "」" : "已停用「" + nm + "」");
                 loadAdmin();
               }).catch(function (err) { App.toast("操作失败：" + err.message); });
-            } else if (t.getAttribute("data-act") === "admin-role") {
-              var toAdmin = t.getAttribute("data-role") === "admin";
-              var msg2 = toAdmin ? "确定让「" + nm + "」成为管理员？他将能管理成员和团队公共资料。"
-                : "确定取消「" + nm + "」的管理员权限？他仍可正常使用账号，只是看不到管理功能。";
-              if (!confirm(msg2)) return;
-              Sync.adminSetRole(nm, toAdmin ? "admin" : "rep").then(function () {
-                App.toast(toAdmin ? "「" + nm + "」已是管理员" : "「" + nm + "」已取消管理员");
-                loadAdmin();
-              }).catch(function (err) { App.toast("操作失败：" + err.message); });
-            }
-          });
-          loadAdmin();
+             } else if (t.getAttribute("data-act") === "admin-role") {
+               var toAdmin = t.getAttribute("data-role") === "admin";
+               var msg2 = toAdmin ? "确定让「" + nm + "」成为管理员？他将能管理成员和团队公共资料。"
+                 : "确定取消「" + nm + "」的管理员权限？他仍可正常使用账号，只是看不到管理功能。";
+               if (!confirm(msg2)) return;
+               Sync.adminSetRole(nm, toAdmin ? "admin" : "rep").then(function () {
+                 App.toast(toAdmin ? "「" + nm + "」已是管理员" : "「" + nm + "」已取消管理员");
+                 loadAdmin();
+               }).catch(function (err) { App.toast("操作失败：" + err.message); });
+             } else if (t.getAttribute("data-act") === "admin-rename") {
+               /* 2026-10-15：登录账号改名（密码与全部客户数据保留），对方旧会话失效 */
+               var nn = prompt("把「" + nm + "」的登录账号名改成（1-20 字；密码和全部数据保持不变）：");
+               if (nn == null) return;
+               nn = nn.trim();
+               if (!nn || nn.length > 20) { App.toast("姓名需 1-20 字"); return; }
+               if (nn.toLowerCase() === nm.toLowerCase()) { App.toast("新名字和原来一样"); return; }
+               if (!confirm("确定把「" + nm + "」改名为「" + nn + "」？\n· 密码不变，客户数据全部保留\n· 对方旧登录立即失效，需用新名字重新登录")) return;
+               Sync.adminRename(nm, nn).then(function () {
+                 App.toast("已改名：" + nm + " → " + nn);
+                 loadAdmin();
+               }).catch(function (err) { App.toast("操作失败：" + err.message); });
+             } else if (t.getAttribute("data-act") === "admin-del") {
+               var bc = t.getAttribute("data-buyers") || "0";
+               if (!confirm("删除成员「" + nm + "」？\n· 对方立即不能登录\n· 名下 " + bc + " 个客户的数据归档 30 天（可找管理员恢复），30 天后彻底删除\n· 只是想让他不能登录的话，「停用」更安全")) return;
+               if (!confirm("再次确认：删除「" + nm + "」及其客户数据（30 天归档期）？")) return;
+               Sync.adminDelete(nm).then(function () {
+                 App.toast("已删除「" + nm + "」（数据归档 30 天）");
+                 loadAdmin();
+               }).catch(function (err) { App.toast("操作失败：" + err.message); });
+             }
+           });
+           /* 2026-10-15：管理员直接开号（免团队口令） */
+           var addBtn = root.querySelector('[data-act="admin-add"]');
+           if (addBtn) addBtn.addEventListener("click", function () {
+             var anEl = root.querySelector("#addName"), apEl = root.querySelector("#addPass");
+             var an = (anEl.value || "").trim(), ap = (apEl.value || "").trim();
+             if (!an || an.length > 20) { App.toast("请输入成员姓名（1-20 字）"); return; }
+             if (ap.length < 6 || !/[a-zA-Z]/.test(ap) || !/[0-9]/.test(ap)) { App.toast("密码需至少 6 位且同时包含字母和数字"); return; }
+             var ar = root.querySelector("#addRole").value;
+             if (!confirm("增加成员「" + an + "」（" + (ar === "admin" ? "管理员" : "业务员") + "）？\n对方用 姓名「" + an + "」+ 你设置的初始密码登录。")) return;
+             Sync.adminAdd(an, ap, ar).then(function () {
+               App.toast("已增加「" + an + "」");
+               anEl.value = ""; apEl.value = "";
+               loadAdmin();
+             }).catch(function (err) { App.toast("操作失败：" + err.message); });
+           });
+           loadAdmin();
 
           /* ===== 团队公共资料：管理员上传一次，所有人 AI 生成自动引用 ===== */
           var sharedListEl = root.querySelector("#sharedList");
