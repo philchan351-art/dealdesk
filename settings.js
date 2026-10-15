@@ -8,13 +8,35 @@
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
+  /* 2026-10-15：与 llm.js 同口径——按 updated 取最新 3 份才是 AI 真正引用的，其余是存档 */
+  function activeDocKeys(docs) {
+    return docs.slice().sort(function (a, b) { return String(b.updated || "") > String(a.updated || "") ? 1 : -1; }).slice(0, 3).map(function (d) { return d.key; });
+  }
   function docRows(docs) {
     if (!docs.length) return '<div class="set-note">还没有资料</div>';
+    var active = activeDocKeys(docs);
     return docs.map(function (d) {
       var kb = Math.round((d.size || 0) / 1024);
-      var link = (d.content != null) ? ' · <a data-act="view-doc" data-doc="' + esc(d.key) + '" style="color:var(--brand-deep)">看</a>' : "";
-      return '<div class="set-note">' + esc(d.name || d.key) + "（" + kb + "KB" + link + '）<a data-act="del-doc" data-doc="' + esc(d.key) + '" style="color:#e5484d">删除</a></div>';
+      var badge = active.indexOf(d.key) >= 0 ? '<span class="doc-badge on">AI 生效中</span>' : '<span class="doc-badge off">存档</span>';
+      var link = (d.content != null) ? ' · <a data-act="view-doc" data-doc="' + esc(d.key) + '" style="color:var(--brand-deep)">查看</a>' : "";
+      return '<div class="set-note" style="margin-bottom:4px">' + badge + " " + esc(d.name || d.key) + "（" + kb + "KB" + link + '）<a data-act="del-doc" data-doc="' + esc(d.key) + '" style="color:#e5484d">删除</a></div>';
     }).join("");
+  }
+  /* 资料预览：格式化的文档卡（替代原来的裸文本倾倒，2026-10-15） */
+  function showDocView(box, name, content, active) {
+    if (!box) return;
+    var total = String(content || "").length;
+    var shown = String(content || "").slice(0, 3000);
+    box.innerHTML =
+      '<div class="card doc-view" style="margin:8px 0 0">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px">' +
+      "<b style='font-size:13px'>📄 " + esc(name) + " · " + total + " 字" + (active ? ' <span class="doc-badge on">AI 生效中</span>' : "") + "</b>" +
+      '<button class="set-btn-inline" data-act="close-docview">关闭</button>' +
+      "</div>" +
+      '<div class="doc-view-body">' + esc(shown) + (total > 3000 ? '<div class="set-note" style="margin-top:8px">—— 只显示前 3000 字（AI 也只引用这么多） ——</div>' : "") + "</div>" +
+      "</div>";
+    var c = box.querySelector('[data-act="close-docview"]');
+    if (c) c.addEventListener("click", function () { box.innerHTML = ""; });
   }
 
   window.Screens.settings = {
@@ -59,9 +81,9 @@
            '<div class="set-title" style="margin-top:14px">团队公共资料</div>' +
            '<div id="sharedList"><div class="set-note">加载中…</div></div>' +
            '<div class="set-actions" style="margin-top:8px"><button class="set-btn-inline" data-act="shared-upload">＋ 上传公共资料</button></div>' +
-           '<input type="file" id="sharedFile" accept=".txt,.md,.csv,.json,.html,.htm" style="display:none">' +
-           '<div id="sharedPreview"></div>' +
-           '<div class="set-note">你上传一次，所有人的 AI 生成都会自动引用（与各自的个人资料叠加，互不覆盖）。业务员在界面上看不到公共资料的内容，只有 AI 会用。</div>' +
+            '<input type="file" id="sharedFile" accept=".txt,.md,.csv,.json,.html,.htm,.docx,.pdf" style="display:none">' +
+            '<div id="sharedPreview"></div>' +
+            '<div class="set-note">你上传一次，所有人的 AI 生成都会自动引用：最新 3 份生效（各取前 3000 字），更早的存档。与各自的个人资料叠加，互不覆盖。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。业务员在界面上看不到公共资料的内容，只有 AI 会用。</div>' +
            "</div>" : "") +
          '<div class="card card-pad">' +
          '<div class="set-title">我的称呼</div>' +
@@ -82,9 +104,11 @@
         '<button class="persona-mic" id="micScripts" type="button">🎤 按住说话补充话术</button>' +
         '<label class="set-lbl">参考资料（公司简介 / 价目表 / 认证清单，AI 报价和介绍公司时自动参考）</label>' +
         '<div id="docList">' + docRows(p.docs || []) + "</div>" +
-        '<input type="file" id="docFile" accept=".txt,.md,.csv,.json,.html,.htm" style="display:none"/>' +
-        '<div class="set-actions"><button class="set-btn-inline" data-act="add-doc">＋ 上传资料</button></div>' +
-        '<div class="set-note">单个不超过 3MB，最多 10 份；纯文本类（.txt / .md / .csv / .json）</div>' +
+         '<div id="docViewBox"></div>' +
+         '<input type="file" id="docFile" accept=".txt,.md,.csv,.json,.html,.htm,.docx,.pdf" style="display:none"/>' +
+         '<div class="set-actions"><button class="set-btn-inline" data-act="add-doc">＋ 上传资料</button></div>' +
+         '<div class="set-note">单个不超过 3MB，最多 10 份。支持 Word(.docx) / PDF / 纯文本（.txt / .md / .csv / .json）；旧版 .doc 请先在 Word 里另存为 .docx</div>' +
+         '<div class="set-note">AI 调取规则：每次生成自动带上你最新的 3 份资料（标「AI 生效中」的绿色徽章），各取前 3000 字；「存档」的不调取——想更新内容就删旧传新</div>' +
         '<div class="set-actions"><button class="set-btn-inline" data-act="save-persona">保存并训练 AI</button></div>' +
         '<div class="set-note" id="personaStatus">' + (p.updated ? "已训练 · " + new Date(p.updated).toLocaleString("zh-CN") : "还没训练 · AI 暂用通用风格") + "</div>" +
         '<div class="set-note">每个业务员各填各的，按账号单独保存在云端，互不串味；保存后 AI 翻译、扩充、回复建议都会自动贴近你的思路和语气</div>' +
@@ -179,31 +203,30 @@
        /* 资料上传 */
        var docFile = root.querySelector("#docFile");
        root.querySelector('[data-act="add-doc"]').addEventListener("click", function () { docFile.click(); });
-       docFile.addEventListener("change", function () {
-         var f = docFile.files && docFile.files[0];
-         docFile.value = "";
-         if (!f) return;
-         if (!/\.(txt|md|csv|json|html|htm)$/i.test(f.name)) { App.toast("只支持纯文本类文件（.txt/.md/.csv/.json）"); return; }
-         if (f.size > 3 * 1024 * 1024) { App.toast("资料超过 3MB，请精简后再传"); return; }
-         var pp0 = Store.getPersona();
-         if ((pp0.docs || []).length >= 10) { App.toast("最多 10 份资料，先删旧的"); return; }
-         var rd = new FileReader();
-         rd.onload = function () {
-           var content = String(rd.result || "");
-           App.toast("上传中…");
-           Sync.docUpload(f.name, f.size, content).then(function (j) {
-             var next = (Store.getPersona().docs || []).filter(function (x) { return x.name !== f.name; });
-             next.push({ key: j.key, name: f.name, size: f.size, updated: j.updated || new Date().toISOString(), content: content });
-             Store.setPersonaDocs(next);
-             root.querySelector("#docList").innerHTML = docRows(next);
-             var sum2 = root.querySelector("#personaSummary");
-             if (sum2) sum2.textContent = "已训练 · 资料 " + next.length + " 份";
-             App.toast("已上传「" + f.name + "」，AI 生成时自动参考");
-           }).catch(function (e) { App.toast("上传失败：" + e.message); });
-         };
-         rd.onerror = function () { App.toast("文件读取失败"); };
-         rd.readAsText(f);
-       });
+        docFile.addEventListener("change", function () {
+          var f = docFile.files && docFile.files[0];
+          docFile.value = "";
+          if (!f) return;
+          if (f.size > 3 * 1024 * 1024) { App.toast("资料超过 3MB，请精简后再传"); return; }
+          var pp0 = Store.getPersona();
+          if ((pp0.docs || []).length >= 10) { App.toast("最多 10 份资料，先删旧的"); return; }
+          /* 2026-10-15：先提取文字并给用户看预览，确认后再传——Word/PDF 不再"识别不出来"，上传前就知道 AI 会拿到什么 */
+          App.toast("正在提取「" + f.name + "」的文字…");
+          DocExtract.extract(f).then(function (content) {
+            content = String(content || "").replace(/\u0000/g, "").trim();
+            if (content.length < 20) { App.toast("没提取到有效文字：PDF 可能是扫描图片（需转文字版）；Word 请确认是 .docx"); return; }
+            if (!confirm("《" + f.name + "》提取到约 " + content.length + " 字，将存为你的训练资料。\n\n预览前 120 字：\n…" + content.slice(0, 120).replace(/\n/g, " ") + "…\n\nAI 每次生成会自动引用最新 3 份资料的前 3000 字。确认上传？")) return;
+            Sync.docUpload(f.name, f.size, content).then(function (j) {
+              var next = (Store.getPersona().docs || []).filter(function (x) { return x.name !== f.name; });
+              next.push({ key: j.key, name: f.name, size: f.size, updated: j.updated || new Date().toISOString(), content: content });
+              Store.setPersonaDocs(next);
+              root.querySelector("#docList").innerHTML = docRows(next);
+              var sum2 = root.querySelector("#personaSummary");
+              if (sum2) sum2.textContent = "已训练 · 资料 " + next.length + " 份";
+              App.toast("已上传「" + f.name + "」，AI 生成时自动参考");
+            }).catch(function (e) { App.toast("上传失败：" + e.message); });
+          }).catch(function (e) { App.toast(e.message || "文件提取失败"); });
+        });
        root.querySelector("#docList").addEventListener("click", function (e) {
          var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
          if (!t) return;
@@ -216,16 +239,15 @@
              root.querySelector("#docList").innerHTML = docRows(Store.getPersona().docs);
              App.toast("已删除");
            }).catch(function (err) { App.toast("删除失败：" + err.message); });
-         } else if (act === "view-doc") {
-           var d = null;
-           docs.forEach(function (x) { if (x.key === dk) d = x; });
-           if (d && d.content != null) {
-             var u = URL.createObjectURL(new Blob([d.content], { type: "text/plain;charset=utf-8" }));
-             window.open(u, "_blank");
-           } else {
-             App.toast("这份资料在当前设备没有缓存内容，换原来上传的设备看");
-           }
-         }
+          } else if (act === "view-doc") {
+            var d = null;
+            docs.forEach(function (x) { if (x.key === dk) d = x; });
+            if (d && d.content != null) {
+              showDocView(root.querySelector("#docViewBox"), d.name, d.content, activeDocKeys(docs).indexOf(d.key) >= 0);
+            } else {
+              App.toast("这份资料在当前设备没有缓存内容，换原来上传的设备看");
+            }
+          }
        });
 
       function readInputs() {
@@ -346,9 +368,10 @@
               sharedPreview.innerHTML = "";
               Sync.sharedList().then(function (j) {
                 var docs = j.docs || [];
-                sharedListEl.innerHTML = docs.length ? docs.slice().reverse().map(function (d) {
+                sharedListEl.innerHTML = docs.length ? docs.slice().reverse().map(function (d, idx) {
+                  var badge = idx < 3 ? '<span class="doc-badge on">AI 生效中</span>' : '<span class="doc-badge off">存档</span>';
                   return '<div class="card set-row" style="margin:0 0 6px;padding:8px 10px">' +
-                    "<span>" + esc(d.name) + ' <span class="set-note">' + Math.round(d.size / 1024) + "KB</span></span>" +
+                    "<span>" + badge + " " + esc(d.name) + ' <span class="set-note">' + Math.round(d.size / 1024) + "KB</span></span>" +
                     '<div class="set-actions" style="margin-top:6px">' +
                     '<button class="set-btn-inline ghost" data-act="shared-view" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">查看</button>' +
                     '<button class="set-btn-inline danger" data-act="shared-del" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">删除</button>' +
@@ -362,12 +385,13 @@
               var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
               if (!t) return;
               var k = t.getAttribute("data-key"), nm = t.getAttribute("data-name");
-              if (t.getAttribute("data-act") === "shared-view") {
-                Sync.sharedDocs().then(function (j) {
-                  var d = (j.docs || []).filter(function (x) { return x.key === k; })[0];
-                  if (!d) { App.toast("该资料不在最近 3 份里（AI 只引用最新 3 份）"); return; }
-                  sharedPreview.innerHTML = '<div class="card" style="margin-top:8px;padding:10px"><b>' + esc(nm) + "（前 3000 字）</b><pre class='set-note' style='white-space:pre-wrap;font-family:inherit;margin-top:6px'>" + esc(d.content) + "</pre></div>";
-                }).catch(function (err) { App.toast("读取失败：" + err.message); });
+                if (t.getAttribute("data-act") === "shared-view") {
+                  Sync.sharedDocs().then(function (j) {
+                    var d = (j.docs || []).filter(function (x) { return x.key === k; })[0];
+                    if (!d) { App.toast("该资料不在最近 3 份里（AI 只引用最新 3 份）"); return; }
+                    sharedPreview.innerHTML = "";
+                    showDocView(sharedPreview, d.name, d.content, true);
+                  }).catch(function (err) { App.toast("读取失败：" + err.message); });
               } else if (t.getAttribute("data-act") === "shared-del") {
                 if (!confirm("确定删除公共资料「" + nm + "」？所有人的 AI 将不再引用它。")) return;
                 Sync.sharedDelete(k).then(function () {
@@ -382,17 +406,16 @@
               sharedFile.value = "";
               if (!f) return;
               if (f.size > 3 * 1024 * 1024) { App.toast("文件超过 3MB"); return; }
-              var rd = new FileReader();
-              rd.onload = function () {
-                var content = String(rd.result || "");
-                if (!confirm("将上传《" + f.name + "》为团队公共资料：之后所有人的 AI 生成都会引用它。确认？")) return;
+              App.toast("正在提取「" + f.name + "」的文字…");
+              DocExtract.extract(f).then(function (content) {
+                content = String(content || "").replace(/\u0000/g, "").trim();
+                if (content.length < 20) { App.toast("没提取到有效文字：PDF 可能是扫描图片（需转文字版）；Word 请确认是 .docx"); return; }
+                if (!confirm("将上传《" + f.name + "》为团队公共资料（提取到约 " + content.length + " 字）：之后所有人的 AI 生成都会引用它（前 3000 字）。\n\n预览前 120 字：\n…" + content.slice(0, 120).replace(/\n/g, " ") + "…\n\n确认？")) return;
                 Sync.sharedUpload(f.name, content).then(function () {
                   App.toast("已上传公共资料「" + f.name + "」，全员 AI 立即生效");
                   loadShared();
                 }).catch(function (err) { App.toast("上传失败：" + err.message); });
-              };
-              rd.onerror = function () { App.toast("读取文件失败"); };
-              rd.readAsText(f);
+              }).catch(function (e) { App.toast(e.message || "文件提取失败"); });
             });
             loadShared();
           }
