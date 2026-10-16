@@ -340,3 +340,12 @@
 }
 .wmuted summary::-webkit-details-marker{display:none}
 .wempty{text-align:center;color:var(--ink-faint);font-size:13px;padding:48px 0}
+
+/* 麦克风"被禁止"恢复面板（2026-10-16）：常驻到测试通过，替代 6.5s toast */
+.mic-denied{position:absolute;left:12px;right:12px;bottom:64px;z-index:70;background:#fff;border:1.5px solid rgba(200,60,50,.5);border-radius:16px;padding:14px 14px 12px;box-shadow:0 10px 30px rgba(0,0,0,.18);font-size:12.5px;color:var(--ink)}
+.md-head{font-size:13.5px;font-weight:800;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.md-x{border:none;background:none;font-size:14px;color:var(--ink-faint);padding:4px}
+.md-sub{color:var(--ink-soft);margin-bottom:8px;line-height:1.5}
+.md-steps{margin:0 0 10px;padding-left:18px;line-height:1.9}
+.md-retry{width:100%;padding:10px;border:none;border-radius:12px;background:var(--brand);color:#fff;font-size:13px;font-weight:800}
+.md-retry:active{opacity:.85}
