@@ -66,7 +66,7 @@
         var au = au0;
         return '<div class="topbar">' +
          '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
-         '<div class="tb-title"><h1>设置</h1><div class="tb-sub">数据 · 备份 · 智能引擎</div></div>' +
+          '<div class="tb-title"><h1>设置</h1><div class="tb-sub">账号 · 团队 · 数据</div></div>' +
          "</div>" +
          '<div class="set-stack">' +
          '<div class="card card-pad">' +
@@ -76,7 +76,7 @@
           '<div class="set-note">退出后本机数据清空并回到登录页；你的客户数据安全存在云端，重新登录即可恢复。每个账号只看自己的客户</div>' +
           "</div>" +
             (isAdmin ? '<div class="card card-pad">' +
-            '<div class="set-title">团队成员（管理员）</div>' +
+             '<div class="set-title">团队成员</div>' +
             '<div class="card" style="margin:0 0 8px;padding:8px 10px;background:var(--surface-2)">' +
             '<div class="set-note" style="margin:0 0 6px">增加新成员（免团队口令）：对方用 姓名+初始密码 登录</div>' +
             '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
@@ -86,8 +86,10 @@
             '<button class="set-btn" data-act="admin-add" style="flex:none">增加</button>' +
             "</div></div>" +
             '<div id="adminList"><div class="set-note">加载中…</div></div>' +
-            '<div class="set-note">重置密码：对方旧密码立即作废。改名：登录账号改名，密码与客户数据全部保留（对方需重新登录）。停用：立即不能登录/同步（数据保留）。删除：账号删除，客户数据归档 30 天（可找管理员恢复），只是不能登录请用「停用」。设为管理员：对方也能管理成员和公共资料。</div>' +
-            '<div class="set-title" style="margin-top:14px">团队公共资料</div>' +
+             '<div class="set-note">重置密码：对方旧密码立即作废。改名：登录账号改名，密码与客户数据全部保留（对方需重新登录）。停用：立即不能登录/同步（数据保留）。删除：账号删除，客户数据归档 30 天（可找管理员恢复），只是不能登录请用「停用」。设为管理员：对方也能管理成员和资料。</div>' +
+             "</div>" +
+             '<div class="card card-pad">' +
+             '<div class="set-title">团队资料 & 剧本</div>' +
             '<div id="sharedList"><div class="set-note">加载中…</div></div>' +
             '<div class="set-actions" style="margin-top:8px;display:flex;gap:8px">' +
             '<button class="set-btn" data-act="shared-upload-script" style="flex:1">📜 上传话术剧本</button>' +
@@ -99,12 +101,8 @@
              '<label class="set-lbl" style="margin-top:8px">普通资料的产品线</label>' +
              '<select class="set-inp" id="sharedScope"><option value="all">通用（所有客户）</option><option value="suitcase">电动行李箱</option><option value="pet">宠物产品</option></select>' +
               '<div id="sharedPreview"></div>' +
-              '<div class="set-note">📜 话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：AI 引用最新 3 份（各前 6000 字），内容业务员不可见。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。</div>' +
-              '<div class="set-title" style="margin-top:14px">数据恢复（管理员应急）</div>' +
-              '<div class="set-note">怀疑数据出错（客户/成员丢了）时，恢复到某天的每日快照或异常备份；恢复前系统会自动再备份一次当前状态，恢复后该时间点之后的变更会丢失，建议全员重新登录</div>' +
-              '<div class="set-actions" style="margin-top:6px"><button class="set-btn-inline ghost" data-act="recovery-load">查看可恢复点</button></div>' +
-              '<div id="recoveryBox"></div>' +
-            "</div>" : "") +
+               '<div class="set-note">📜 话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：AI 引用最新 3 份（各前 6000 字），内容业务员不可见。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。</div>' +
+             "</div>" : "") +
          '<div class="card card-pad">' +
          '<div class="set-title">我的称呼</div>' +
         '<label class="set-lbl">你的名字（首页问候用 · 只存本机）</label>' +
@@ -134,31 +132,42 @@
         '<div class="set-note">每个业务员各填各的，按账号单独保存在云端，互不串味；保存后 AI 翻译、扩充、回复建议都会自动贴近你的思路和语气</div>' +
         "</div>" +
         "</div>" +
-        '<div class="card card-pad">' +
-        '<div class="set-title">智能引擎（LLM）<span class="llm-dot ' + (on ? "on" : "") + '"></span></div>' +
-        '<label class="set-lbl">Base URL</label>' +
-        '<input class="set-inp" id="llmBase" type="url" value="' + esc(llm.baseUrl || DEFAULT_BASE) + '"/>' +
-        '<label class="set-lbl">API Key</label>' +
-        '<input class="set-inp" id="llmKey" type="password" placeholder="sk-ws-…（从百炼控制台下载 CSV 里的 apiKey）" value="' + esc(llm.key || "") + '"/>' +
-        '<label class="set-lbl">模型</label>' +
-        '<select class="set-inp" id="llmModel">' + modelOpts + "</select>" +
-        '<div class="set-actions"><button class="set-btn-inline" data-act="save-llm">保存配置</button><button class="set-btn-inline ghost" data-act="test-llm">测试连接</button></div>' +
-        '<div class="set-note" id="llmStatus">' + (on ? "已配置 · 记一条将自动翻译 / 提取字段 / 更新意向分" : "未配置 · 当前为手动模式") + "</div>" +
-        '<div class="set-note">Key 只保存在这台设备的浏览器本地（localStorage），不会上传、不会进代码库；随时可在上方重新填写或清空。配置云同步后，本卡 Key 可留空（走云端代理）</div>' +
-        "</div>" +
-        '<div class="card card-pad">' +
-        '<div class="set-title">云同步（团队多设备）<span class="llm-dot ' + (cloudOn ? "on" : "") + '"></span></div>' +
-        '<label class="set-lbl">云服务地址（FC 触发器 URL）</label>' +
-        '<input class="set-inp" id="cloudUrl" type="url" placeholder="https://….fcapp.run" value="' + esc(cl.proxyUrl || autoUrl) + '"/>' +
-        '<div class="set-actions"><button class="set-btn-inline" data-act="save-cloud">保存</button><button class="set-btn-inline ghost" data-act="cloud-pull">拉取最新</button><button class="set-btn-inline ghost" data-act="cloud-push">上云推送</button></div>' +
-        '<div class="set-note" id="cloudStatus">' + (cloudOn ? "已连接 · 变更 2.5 秒自动上云，开 App 自动拉取" : "未连接 · 当前为单机模式（先登录账号）") + "</div>" +
-        "<div class=\"set-note\">登录状态 30 天有效；身份由服务端会话判定，任何设备登录都只看本人客户</div>" +
-        "</div>" +
-        '<div class="card set-row"><span class="set-k">买家档案</span><b>' + s.buyers + "</b></div>" +
-        '<div class="card set-row"><span class="set-k">已记录消息</span><b>' + s.messages + "</b></div>" +
-        '<div class="card set-row"><span class="set-k">最近保存</span><b class="set-time">' + saved + "</b></div>" +
-        '<div class="card card-pad">' +
-        '<div class="set-title">数据备份</div>' +
+         /* 2026-10-15 v61 重排：数据同步（常用：拉取最新）在前，地址/推送收进"高级设置"折叠 */
+         '<div class="card card-pad">' +
+         '<div class="set-title">数据同步（团队多设备）<span class="llm-dot ' + (cloudOn ? "on" : "") + '"></span></div>' +
+         '<div class="set-note" id="cloudStatus" style="margin:2px 0">' + (cloudOn ? "已连接 · 变更 2.5 秒自动上云，开 App 自动拉取" : "未连接 · 当前为单机模式（先登录账号）") + '</div>' +
+         '<div class="set-note" style="margin:0 0 8px">买家档案 <b>' + s.buyers + '</b> · 已记录消息 <b>' + s.messages + '</b> · 最近保存 <b>' + saved + '</b></div>' +
+         '<div class="set-actions"><button class="set-btn-inline ghost" data-act="cloud-pull">拉取最新</button><button class="set-btn-inline ghost" data-act="adv-toggle" data-target="cloudAdvBody">高级设置</button></div>' +
+         '<div id="cloudAdvBody" style="display:none;margin-top:10px">' +
+         '<label class="set-lbl">云服务地址（FC 触发器 URL）</label>' +
+         '<input class="set-inp" id="cloudUrl" type="url" placeholder="https://….fcapp.run" value="' + esc(cl.proxyUrl || autoUrl) + '"/>' +
+         '<div class="set-actions"><button class="set-btn-inline" data-act="save-cloud">保存</button><button class="set-btn-inline ghost" data-act="cloud-push">上云推送</button></div>' +
+         '<div class="set-note">登录状态 30 天有效；身份由服务端会话判定，任何设备登录都只看本人客户</div>' +
+         "</div>" +
+         "</div>" +
+         '<div class="card card-pad">' +
+         '<div class="set-title">智能引擎（LLM）<span class="llm-dot ' + (on ? "on" : "") + '"></span></div>' +
+         '<div class="set-note" id="llmStatus" style="margin:2px 0 8px">' + (on ? "已配置 · 模型 " + (llm.model || "qwen-plus") + " · 记一条将自动翻译 / 提取字段 / 更新意向分" : "未配置 · 当前为手动模式") + '</div>' +
+         '<div class="set-actions"><button class="set-btn-inline ghost" data-act="test-llm">测试连接</button><button class="set-btn-inline ghost" data-act="adv-toggle" data-target="llmAdvBody">高级设置</button></div>' +
+         '<div id="llmAdvBody" style="display:none;margin-top:10px">' +
+         '<label class="set-lbl">Base URL</label>' +
+         '<input class="set-inp" id="llmBase" type="url" value="' + esc(llm.baseUrl || DEFAULT_BASE) + '"/>' +
+         '<label class="set-lbl">API Key</label>' +
+         '<input class="set-inp" id="llmKey" type="password" placeholder="sk-ws-…（从百炼控制台下载 CSV 里的 apiKey）" value="' + esc(llm.key || "") + '"/>' +
+         '<label class="set-lbl">模型</label>' +
+         '<select class="set-inp" id="llmModel">' + modelOpts + "</select>" +
+         '<div class="set-actions"><button class="set-btn-inline" data-act="save-llm">保存配置</button></div>' +
+         '<div class="set-note">Key 只保存在这台设备的浏览器本地（localStorage），不会上传、不会进代码库；随时可在上方重新填写或清空。配置云同步后，本卡 Key 可留空（走云端代理）</div>' +
+         "</div>" +
+         "</div>" +
+         (isAdmin ? '<div class="card card-pad">' +
+         '<div class="set-title">数据恢复（管理员应急）</div>' +
+         '<div class="set-note">怀疑数据出错（客户/成员丢了）时，恢复到某天的每日快照或异常备份；恢复前系统会自动再备份一次当前状态，恢复后该时间点之后的变更会丢失，建议全员重新登录</div>' +
+         '<div class="set-actions" style="margin-top:6px"><button class="set-btn-inline ghost" data-act="recovery-load">查看可恢复点</button></div>' +
+         '<div id="recoveryBox"></div>' +
+         "</div>" : "") +
+         '<div class="card card-pad">' +
+         '<div class="set-title">数据备份</div>' +
         '<button class="set-btn" data-act="csv">导出备份（CSV）</button>' +
         '<button class="set-btn" data-act="imp">导入备份（CSV）</button>' +
         '<input type="file" id="impFile" accept=".csv,text/csv" hidden/>' +
@@ -208,11 +217,23 @@
          App.toast("已保存，AI 生成会自动贴近你的风格");
        });
 
-       /* 话术卡片默认折叠（内容不显露），点标题展开 */
-       root.querySelector('[data-act="toggle-persona"]').addEventListener("click", function () {
-         var body = root.querySelector("#personaBody");
-         body.style.display = body.style.display === "none" ? "block" : "none";
-       });
+        /* 话术卡片默认折叠（内容不显露），点标题展开 */
+        root.querySelector('[data-act="toggle-persona"]').addEventListener("click", function () {
+          var body = root.querySelector("#personaBody");
+          body.style.display = body.style.display === "none" ? "block" : "none";
+        });
+
+        /* 高级设置折叠（数据同步/智能引擎）：配一次的内容不占首屏 */
+        var advBtns = root.querySelectorAll('[data-act="adv-toggle"]');
+        for (var ai = 0; ai < advBtns.length; ai++) (function (btn) {
+          btn.addEventListener("click", function () {
+            var body = root.querySelector("#" + btn.getAttribute("data-target"));
+            if (!body) return;
+            var open = body.style.display !== "none";
+            body.style.display = open ? "none" : "block";
+            btn.textContent = open ? "高级设置" : "收起";
+          });
+        })(advBtns[ai]);
 
        /* 语音输入：按住说话 → 识别文字追加进对应框 */
        if (window.Voice) {
