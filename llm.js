@@ -26,18 +26,10 @@
     return s;
   }
 
-  /* 团队公共资料（2026-10-14）：管理员上传一次，所有成员的 AI 生成自动引用。
-     5 分钟内存缓存，避免每次生成都多一次网络请求；失败时退回上次缓存不阻塞生成。 */
-  var _sharedCache = { at: 0, docs: [] };
-  function getSharedDocs() {
-    var now = Date.now();
-    if (now - _sharedCache.at < 5 * 60 * 1000) return Promise.resolve(_sharedCache.docs);
-    if (!window.Sync || !Sync.enabled()) return Promise.resolve(_sharedCache.docs);
-    return Sync.sharedDocs().then(function (j) {
-      _sharedCache = { at: Date.now(), docs: (j && j.docs) || [] };
-      return _sharedCache.docs;
-    }).catch(function () { return _sharedCache.docs; });
-  }
+  /* 团队公共资料注入（2026-10-15 P0 起由 FC 服务端完成）：
+     资料正文对业务员保密（/shared 只回元数据），AI 生成时由 /llm 服务端直接注入
+     最新 3 份团队资料（各 6000 字）+ 最新 3 份本人训练资料（各 3000 字）。
+     前端不再拉取正文，因此这里不再有 _sharedCache/getSharedDocs。 */
 
   /* 团队话术剧本（2026-10-15）：业务员在客户页一步步发给客户的固定剧本。
      注入 AI 上下文的目的：AI 报价/介绍时与剧本口径一致，并知道哪些步已经发过（不重复整段发）。
@@ -77,27 +69,24 @@
     });
   }
 
-  /* 训练资料：团队公共资料（管理员）+ 本人个人资料（各最新 3 份、各截 3000 字）叠加并入系统提示 */
+  /* 训练资料注入（2026-10-15 P0 改版）：
+     · 云代理模式：资料全部由 FC 服务端注入（/llm 内 buildDocsBlock），前端不拉正文、不拼提示词
+     · 本地直连模式（个人 Key）：只能附"本人"训练资料（自己的数据，无保密问题）；
+       团队资料不在此模式可用（正文保密规则） */
   function withDocs(system) {
+    var c = cfg();
+    if (c && c.proxyUrl) return Promise.resolve(system);
     var p = Store.getPersona ? Store.getPersona() : null;
     var docs = (p && p.docs) || [];
     docs = docs.slice().sort(function (a, b) { return String(b.updated || "") > String(a.updated || "") ? 1 : -1; }).slice(0, 3);
     var hasPersonal = docs.length && window.Sync && Sync.enabled();
-    var jobs = [getSharedDocs()];
-    if (hasPersonal) {
-      jobs.push(Promise.all(docs.map(function (d) {
-        return (d && d.content != null ? Promise.resolve(d.content) : Sync.docFetch(d.key))
-          .then(function (v) { return String((v && v.content) || "").slice(0, 3000); })
-          .catch(function () { return ""; });
-      })));
-    }
-    return Promise.all(jobs).then(function (res) {
-      var shared = res[0] || [];
-      var personal = hasPersonal ? (res[1] || []) : [];
+    if (!hasPersonal) return Promise.resolve(system);
+    return Promise.all(docs.map(function (d) {
+      return (d && d.content != null ? Promise.resolve(d.content) : Sync.docFetch(d.key))
+        .then(function (v) { return String((v && v.content) || "").slice(0, 3000); })
+        .catch(function () { return ""; });
+    })).then(function (personal) {
       var out = "";
-      for (var i = 0; i < shared.length; i++) {
-        if (shared[i] && shared[i].content) out += "\n【团队资料·" + (shared[i].name || "文件") + "】\n" + shared[i].content;
-      }
       for (var j2 = 0; j2 < docs.length; j2++) {
         if (personal[j2]) out += "\n【资料·" + (docs[j2].name || "文件") + "】\n" + personal[j2];
       }

@@ -98,9 +98,13 @@
              '<div id="scriptDraft"></div>' +
              '<label class="set-lbl" style="margin-top:8px">普通资料的产品线</label>' +
              '<select class="set-inp" id="sharedScope"><option value="all">通用（所有客户）</option><option value="suitcase">电动行李箱</option><option value="pet">宠物产品</option></select>' +
-             '<div id="sharedPreview"></div>' +
-             '<div class="set-note">📜 话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：AI 引用最新 3 份（各前 6000 字），内容业务员不可见。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。</div>' +
-           "</div>" : "") +
+              '<div id="sharedPreview"></div>' +
+              '<div class="set-note">📜 话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：AI 引用最新 3 份（各前 6000 字），内容业务员不可见。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。</div>' +
+              '<div class="set-title" style="margin-top:14px">数据恢复（管理员应急）</div>' +
+              '<div class="set-note">怀疑数据出错（客户/成员丢了）时，恢复到某天的每日快照或异常备份；恢复前系统会自动再备份一次当前状态，恢复后该时间点之后的变更会丢失，建议全员重新登录</div>' +
+              '<div class="set-actions" style="margin-top:6px"><button class="set-btn-inline ghost" data-act="recovery-load">查看可恢复点</button></div>' +
+              '<div id="recoveryBox"></div>' +
+            "</div>" : "") +
          '<div class="card card-pad">' +
          '<div class="set-title">我的称呼</div>' +
         '<label class="set-lbl">你的名字（首页问候用 · 只存本机）</label>' +
@@ -441,11 +445,12 @@
               if (!t) return;
               var k = t.getAttribute("data-key"), nm = t.getAttribute("data-name");
                 if (t.getAttribute("data-act") === "shared-view") {
-                  Sync.sharedDocs().then(function (j) {
+                  /* 2026-10-15 P0（H4）：/shared 对所有人只回元数据；管理员查看正文走 sharedRaw（?raw=1） */
+                  Sync.sharedRaw().then(function (j) {
                     var d = (j.docs || []).filter(function (x) { return x.key === k; })[0];
-                    if (!d) { App.toast("该资料不在最近 3 份里（AI 只引用最新 3 份）"); return; }
+                    if (!d) { App.toast("资料不存在"); return; }
                     sharedPreview.innerHTML = "";
-                    showDocView(sharedPreview, d.name, d.content, true);
+                    showDocView(sharedPreview, d.name, d.content || "（该资料无正文）", true);
                   }).catch(function (err) { App.toast("读取失败：" + err.message); });
               } else if (t.getAttribute("data-act") === "shared-del") {
                 if (!confirm("确定删除公共资料「" + nm + "」？所有人的 AI 将不再引用它。")) return;
@@ -530,10 +535,52 @@
                  }).catch(function (e) { App.toast(e.message || "文件提取失败"); });
                });
              }
-             loadShared();
-          }
-        }
-      root.querySelector('[data-act="cloud-pull"]').addEventListener("click", function () {
+              loadShared();
+              /* ===== 数据恢复（2026-10-15 P0，S1 配套）：列出异常备份+每日快照，二次确认后恢复 ===== */
+              var recoveryBox = root.querySelector("#recoveryBox");
+              var recoveryBtn = root.querySelector('[data-act="recovery-load"]');
+              if (recoveryBox && recoveryBtn) {
+                recoveryBtn.addEventListener("click", function () {
+                  recoveryBox.innerHTML = '<div class="set-note">加载中…</div>';
+                  Sync.adminRecovery().then(function (j) {
+                    var rows = [];
+                    (j.backups || []).forEach(function (b) {
+                      rows.push({ obj: b.obj, label: "异常备份 · " + new Date(Number(b.at) || 0).toLocaleString("zh-CN"), bytes: b.bytes || 0 });
+                    });
+                    (j.snapshots || []).forEach(function (s) {
+                      rows.push({ obj: s.obj, label: "每日快照 · " + s.day, bytes: s.bytes || 0 });
+                    });
+                    if (!rows.length) {
+                      recoveryBox.innerHTML = '<div class="set-note" style="margin-top:6px">暂无可用备份点（每日快照在当天第一次数据写入前自动生成，保留 30 天）</div>';
+                      return;
+                    }
+                    recoveryBox._rows = rows;
+                    recoveryBox.innerHTML = '<div style="margin-top:6px">' + rows.map(function (r, i) {
+                      return '<div class="card set-row" style="margin:0 0 6px;padding:8px 10px">' +
+                        "<span class='set-k'>" + esc(r.label) + " <span class='set-note'>" + Math.round(r.bytes / 1024) + "KB</span></span>" +
+                        '<div class="set-actions" style="margin-top:6px"><button class="set-btn-inline danger" data-act="recovery-restore" data-i="' + i + '">恢复到此点</button></div>' +
+                        "</div>";
+                    }).join("") + "</div>";
+                  }).catch(function (e) {
+                    recoveryBox.innerHTML = '<div class="set-note" style="color:#e5484d;margin-top:6px">' + esc(e.message) + "</div>";
+                  });
+                });
+                recoveryBox.addEventListener("click", function (e) {
+                  var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
+                  if (!t || t.getAttribute("data-act") !== "recovery-restore") return;
+                  var r = (recoveryBox._rows || [])[Number(t.getAttribute("data-i"))];
+                  if (!r) return;
+                  if (!confirm("恢复到「" + r.label + "」？\n· 恢复前会自动再备份一次当前状态\n· 该时间点之后的所有变更（新客户、消息、成员变动）都会丢失\n· 恢复后建议全员重新登录")) return;
+                  if (!confirm("再次确认：确定恢复到该时间点？")) return;
+                  Sync.adminRestore(r.obj).then(function (j) {
+                    App.toast("已恢复（账号 " + (j.users || 0) + " 个），正在重新加载…");
+                    location.reload();
+                  }).catch(function (err) { App.toast("恢复失败：" + err.message); });
+                });
+              }
+           }
+         }
+       root.querySelector('[data-act="cloud-pull"]').addEventListener("click", function () {
         Store.saveSettings(readCloud());
         cloudStatus("拉取中…");
         Sync.pull().then(function (server) {

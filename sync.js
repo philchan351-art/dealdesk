@@ -162,10 +162,27 @@
         method: "POST", headers: headers(), body: JSON.stringify({ name: name })
       }).then(function (r) { return wrap(r); });
     },
-    /* ===== 团队公共资料（2026-10-14）：管理员维护；/shared 全体登录用户可读（AI 注入用）===== */
+    /* ===== 2026-10-15 P0（S1）：数据恢复（管理员）：异常备份 + 每日快照，受控恢复 ===== */
+    adminRecovery: function () {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/recovery"), { headers: headers() }).then(function (r) { return wrap(r); });
+    },
+    adminRestore: function (obj) {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/recovery/restore"), {
+        method: "POST", headers: headers(), body: JSON.stringify({ obj: obj })
+      }).then(function (r) { return wrap(r); });
+    },
+    /* ===== 团队公共资料（2026-10-14）：管理员维护 =====
+       2026-10-15 P0（H4）：/shared 只回元数据（正文保密）；AI 注入改由 /llm 服务端完成；
+       管理员"查看"走 sharedRaw（?raw=1，仅管理员有内容） */
     sharedDocs: function () {
       if (!this.enabled()) return Promise.resolve({ docs: [] });
       return fetch(url("/shared"), { headers: headers() }).then(function (r) { return wrap(r); });
+    },
+    sharedRaw: function () {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/shared?raw=1"), { headers: headers() }).then(function (r) { return wrap(r); });
     },
     sharedList: function () {
       if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
