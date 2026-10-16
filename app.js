@@ -145,6 +145,17 @@
     var p = phoneEl();
     if (p) p.classList.remove("auth-on");
     if (freshLogin && Store.wipeLocal) Store.wipeLocal();
+    /* 语音预热：进入应用后的第一次触摸（用户手势）内申请一次麦克风——
+       iOS Safari 的麦克风权限只在一个浏览器会话内有效，每次重开都要重新授权；
+       在开机空闲期弹一次，避免业务员按住说话时才弹、手忙脚乱点了"拒绝"后被锁死 */
+    if (!startApp._micWarm) {
+      startApp._micWarm = true;
+      var micWarm = function () {
+        document.removeEventListener("pointerdown", micWarm, true);
+        if (window.Voice && Voice.warmup) Voice.warmup();
+      };
+      document.addEventListener("pointerdown", micWarm, true);
+    }
     if (!location.hash || location.hash === "#/") history.replaceState(null, "", "#/home");
     nav();
     if (window.Sync && Sync.enabled()) {
@@ -181,14 +192,14 @@
       if (location.hash === "#" + target) { nav(); return; }
       location.hash = target;
     },
-    toast: function (msg) {
+    toast: function (msg, ms) {
       var phone = $(".phone");
       var t = phone.querySelector(".toast");
       if (!t) { t = document.createElement("div"); t.className = "toast"; phone.appendChild(t); }
       t.textContent = msg;
       t.classList.add("show");
       clearTimeout(t._h);
-      t._h = setTimeout(function () { t.classList.remove("show"); }, 1900);
+      t._h = setTimeout(function () { t.classList.remove("show"); }, ms || 1900);
     }
   };
 

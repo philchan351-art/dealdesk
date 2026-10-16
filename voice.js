@@ -4,6 +4,39 @@
   var MediaRec = window.MediaRecorder || window.webkitMediaRecorder;
   var MIME_PREF = ["audio/mp4", "audio/mp4;codecs=mp4a.40.2", "audio/aac", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
   var actx = null;
+  /* 会话级麦克风：一次授权整段会话复用，减少重复 getUserMedia（部分移动端浏览器反复申请会触发权限弹窗/拒绝） */
+  var sharedStream = null, streamReq = null;
+  function getStream() {
+    if (sharedStream) {
+      var live = false;
+      try { live = sharedStream.getTracks().some(function (t) { return t.readyState === "live"; }); } catch (e) {}
+      if (!live) sharedStream = null;
+    }
+    if (!sharedStream) {
+      if (streamReq) return streamReq;
+      streamReq = navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
+        sharedStream = s;
+        return s;
+      }).catch(function (e) { streamReq = null; throw e; });
+    }
+    return sharedStream ? Promise.resolve(sharedStream) : streamReq;
+  }
+  /* 预热：登录后进入应用的第一次触摸（用户手势）调用，把权限弹窗提前到开机空闲期，只弹一次 */
+  function warmup() {
+    try { getStream().then(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); sharedStream = null; }).catch(function () {}); } catch (e) {}
+  }
+  /* 权限状态（Chrome/Edge 可查；其余浏览器返回 unknown，走原有流程） */
+  function micState() {
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        return navigator.permissions.query({ name: "microphone" }).then(function (st) { return st.state; }).catch(function () { return "unknown"; });
+      }
+    } catch (e) {}
+    return Promise.resolve("unknown");
+  }
+  function deniedGuide() {
+    App.toast("麦克风被浏览器禁止了，允许后回来再按住说话：iPhone 去 设置→Safari→最下方网站→麦克风→允许；安卓点地址栏🔒→网站设置→麦克风→允许；在微信里打开的请点右上角→用浏览器打开", 6500);
+  }
   function beep(freq, dur) {
     try {
       var AC = window.AudioContext || window.webkitAudioContext;
@@ -69,8 +102,10 @@
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { App.toast("当前环境不支持麦克风（试试 Safari/Chrome）"); return; }
       busy = true;
       pendingStop = false;
-      beep(880, 0.12);
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      micState().then(function (st) {
+        if (st === "denied") { busy = false; deniedGuide(); return; }
+        beep(880, 0.12);
+        getStream().then(function (stream) {
         var mime = "";
         for (var i = 0; i < MIME_PREF.length; i++) {
           if (MediaRec.isTypeSupported && MediaRec.isTypeSupported(MIME_PREF[i])) { mime = MIME_PREF[i]; break; }
@@ -141,8 +176,9 @@
         setCls(true, "rec"); setLabel("松手结束");
       }).catch(function (err) {
         busy = false; setCls(false); setLabel(DEFAULT);
-        if (/NotAllowed|Permission|Security/i.test(String(err.message || err.name))) App.toast("麦克风被禁用：点浏览器地址栏左侧图标允许麦克风，再按住说话");
+        if (/NotAllowed|Permission|Security/i.test(String(err.message || err.name))) deniedGuide();
         else App.toast("打不开麦克风：" + err.message);
+      });
       });
     });
     ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) {
@@ -152,5 +188,5 @@
       setBusy: function (on) { busy = !!on; setCls(on, "busy"); setLabel(on ? busyText : DEFAULT); }
     };
   }
-  window.Voice = { attach: attach };
+  window.Voice = { attach: attach, warmup: warmup };
 })();
