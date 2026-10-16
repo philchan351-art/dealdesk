@@ -197,6 +197,13 @@
         method: "POST", headers: headers(), body: JSON.stringify(p)
       }).then(function (r) { return wrap(r); });
     },
+    /* 2026-10-16 置顶：核心资料（参数速查表/底线手册）永远排在线资料包最前；服务端随即重新打包 */
+    sharedPin: function (doc, pin) {
+      if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
+      return fetch(url("/admin/shared/pin"), {
+        method: "POST", headers: headers(), body: JSON.stringify({ doc: doc, pin: !!pin })
+      }).then(function (r) { return wrap(r); });
+    },
     sharedAll: function () {
       /* 业务员可读：剧本含完整步骤；普通资料只回名称（内容保密规则不变） */
       if (!this.enabled()) return Promise.resolve({ docs: [] });

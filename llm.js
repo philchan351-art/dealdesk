@@ -119,6 +119,8 @@
       var pheaders = { "Content-Type": "application/json" };
       var _ddau = window.Auth && Auth.get();
       if (_ddau && _ddau.session) pheaders["x-dealdesk-session"] = _ddau.session;
+      /* 2026-10-16：把当前客户的产品线传给服务端，团队资料按线注入（行李箱客户不吃宠物资料） */
+      if (opt.scope) pheaders["x-dealdesk-scope"] = opt.scope;
       var useStream = !!opt.onChunk;
       if (useStream) payload.stream = true;
       function streamParse(resp) {
@@ -221,17 +223,17 @@
       if (!c || !(c.key || c.proxyUrl)) return Promise.reject(new Error("请先填写 API Key 或云代理地址"));
       return chat("你是测试助手。", "Reply with the single word OK.", { max_tokens: 8, model: c.model });
     },
-    translate: function (text, buyer) {
+      translate: function (text, buyer) {
       return fullSystem(buyer).then(function (sys) {
-        return chat(sys, Prompts.translate + "\n\n消息：" + text, { max_tokens: 300, temp: 0.2 });
+        return chat(sys, Prompts.translate + "\n\n消息：" + text, { max_tokens: 300, temp: 0.2, scope: buyer.scope });
       }).then(function (t) {
         var o = parseJSON(t);
         return (o && o.zh) || null;
       });
     },
-    extract: function (text, buyer) {
+      extract: function (text, buyer) {
       return fullSystem(buyer).then(function (sys) {
-        return chat(sys, Prompts.extract + "\n\n消息：" + text, { max_tokens: 400, temp: 0.2 });
+        return chat(sys, Prompts.extract + "\n\n消息：" + text, { max_tokens: 400, temp: 0.2, scope: buyer.scope });
       }).then(function (t) {
         var o = parseJSON(t);
         return (o && o.fields) || [];
@@ -264,7 +266,7 @@
          /* temp 0.25：编造认证/年份类红线比多样性更要紧，压低随机性；
             max_tokens 1300→900（2026-10-14 提速）：3 条≤50词+诊断实际用不到 1300，砍掉无效尾段 */
           return fullSystem(buyer).then(function (sys) {
-            return chat(sys, promptText, { max_tokens: 900, temp: 0.25, onChunk: onChunk });
+            return chat(sys, promptText, { max_tokens: 900, temp: 0.25, onChunk: onChunk, scope: buyer.scope });
           }).then(parse);
        }
       return call(Prompts.suggest(buyer)).then(function (r) {
@@ -281,10 +283,10 @@
       var needForeign = lang !== "中文";
       var user = Prompts.localize(buyer) + "\n\n中文原文：" + text;
       return fullSystem(buyer).then(function (sys) {
-        return chat(sys, user, { max_tokens: 400, temp: 0.3 })
+        return chat(sys, user, { max_tokens: 400, temp: 0.3, scope: buyer.scope })
           .then(function (t) {
             if (needForeign && /[一-龥]/.test(String(t || ""))) {
-              return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】上一次输出含中文，错误。正文必须为纯" + lang + "，不得出现任何中文。\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2 });
+              return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】上一次输出含中文，错误。正文必须为纯" + lang + "，不得出现任何中文。\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2, scope: buyer.scope });
             }
             return t;
           });
@@ -296,12 +298,12 @@
       var needForeign = lang !== "中文";
       var base = Prompts.expand(buyer) + "\n\n卖家写的意图：" + text;
       return fullSystem(buyer).then(function (sys) {
-        return chat(sys, base, { max_tokens: 500, temp: 0.4 })
+        return chat(sys, base, { max_tokens: 500, temp: 0.4, scope: buyer.scope })
           .then(function (t) {
             var o = parseJSON(t);
             if (!o || !o.text) throw new Error("扩充结果无法解析");
             if (needForeign && /[一-龥]/.test(String(o.text))) {
-              return chat(sys, base + "\n\n【纠正】上一次 text 字段含中文，错误。text 必须为纯" + lang + "，只有 zh 允许中文。", { max_tokens: 500, temp: 0.2 })
+              return chat(sys, base + "\n\n【纠正】上一次 text 字段含中文，错误。text 必须为纯" + lang + "，只有 zh 允许中文。", { max_tokens: 500, temp: 0.2, scope: buyer.scope })
               .then(function (t2) {
                 var o2 = parseJSON(t2);
                 if (!o2 || !o2.text) throw new Error("扩充结果无法解析");

@@ -101,7 +101,7 @@
              '<label class="set-lbl" style="margin-top:8px">普通资料的产品线</label>' +
              '<select class="set-inp" id="sharedScope"><option value="all">通用（所有客户）</option><option value="suitcase">电动行李箱</option><option value="pet">宠物产品</option></select>' +
               '<div id="sharedPreview"></div>' +
-               '<div class="set-note">📜 话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：AI 引用最新 3 份（各前 6000 字），内容业务员不可见。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。</div>' +
+               '<div class="set-note">📜 话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：按产品线打包给 AI（行李箱客户只吃行李箱+通用），每线最多 10 份、单份前 12,000 字、整线总预算 36,000 字，内容业务员不可见。「📌 置顶」的资料永远排在最前、优先进包——参数速查表、底线手册建议置顶。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。</div>' +
              "</div>" : "") +
          '<div class="card card-pad">' +
          '<div class="set-title" style="font-size:13px">我的称呼</div>' +
@@ -441,16 +441,22 @@
               sharedPreview.innerHTML = "";
               Sync.sharedList().then(function (j) {
                 var docs = j.docs || [];
-                sharedListEl.innerHTML = docs.length ? docs.slice().reverse().map(function (d, idx) {
-                  var badge = idx < 3 ? '<span class="doc-badge on">AI 生效中</span>' : '<span class="doc-badge off">存档</span>';
-                  var typeB = d.type === "script" ? ' <span class="doc-badge on">话术 ' + ((d.steps || []).length) + ' 步</span>' : "";
-                  var scopeB = ' <span class="doc-badge off">' + (SCOPE_LABEL[d.scope] || "通用") + "</span>";
-                  return '<div class="card set-row" style="margin:0 0 6px;padding:8px 10px">' +
-                    "<span>" + badge + typeB + scopeB + " " + esc(d.name) + ' <span class="set-note">' + Math.round(d.size / 1024) + "KB</span></span>" +
-                    '<div class="set-actions" style="margin-top:6px">' +
-                    '<button class="set-btn-inline ghost" data-act="shared-view" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">查看</button>' +
-                    '<button class="set-btn-inline danger" data-act="shared-del" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">删除</button>' +
-                    "</div></div>";
+                var rev = docs.slice().reverse(); /* 新→旧 */
+                sharedListEl.innerHTML = rev.length ? rev.map(function (d, idx) {
+                  /* 2026-10-16 扩容：上限按产品线分桶（行李箱/宠物/通用各 10 份），徽章按本桶内新旧排序判定 */
+                  var bucketPos = 0;
+                  for (var p = 0; p < idx; p++) if ((rev[p].scope || "all") === (d.scope || "all")) bucketPos++;
+                   var badge = bucketPos < 10 ? '<span class="doc-badge on">AI 生效中</span>' : '<span class="doc-badge off">存档</span>';
+                   var pinB = d.pin ? ' <span class="doc-badge on">置顶</span>' : "";
+                   var typeB = d.type === "script" ? ' <span class="doc-badge on">话术 ' + ((d.steps || []).length) + ' 步</span>' : "";
+                   var scopeB = ' <span class="doc-badge off">' + (SCOPE_LABEL[d.scope] || "通用") + "</span>";
+                   return '<div class="card set-row" style="margin:0 0 6px;padding:8px 10px">' +
+                     "<span>" + pinB + badge + typeB + scopeB + " " + esc(d.name) + ' <span class="set-note">' + Math.round(d.size / 1024) + "KB</span></span>" +
+                     '<div class="set-actions" style="margin-top:6px">' +
+                     '<button class="set-btn-inline ghost" data-act="shared-pin" data-key="' + esc(d.key) + '" data-pin="' + (d.pin ? "1" : "0") + '">' + (d.pin ? "取消置顶" : "📌 置顶") + "</button>" +
+                     '<button class="set-btn-inline ghost" data-act="shared-view" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">查看</button>' +
+                     '<button class="set-btn-inline danger" data-act="shared-del" data-key="' + esc(d.key) + '" data-name="' + esc(d.name) + '">删除</button>' +
+                     "</div></div>";
                 }).join("") : '<div class="set-note">还没有公共资料。上传后所有人的 AI 都会引用（公司简介/付款方式/通用认证等放这里最合适）</div>';
               }).catch(function (e) {
                 sharedListEl.innerHTML = '<div class="set-note" style="color:#e5484d">' + esc(e.message) + "</div>";
@@ -468,13 +474,19 @@
                     sharedPreview.innerHTML = "";
                     showDocView(sharedPreview, d.name, d.content || "（该资料无正文）", true);
                   }).catch(function (err) { App.toast("读取失败：" + err.message); });
-              } else if (t.getAttribute("data-act") === "shared-del") {
-                if (!confirm("确定删除公共资料「" + nm + "」？所有人的 AI 将不再引用它。")) return;
-                Sync.sharedDelete(k).then(function () {
-                  App.toast("已删除「" + nm + "」");
-                  loadShared();
-                }).catch(function (err) { App.toast("删除失败：" + err.message); });
-              }
+               } else if (t.getAttribute("data-act") === "shared-pin") {
+                 var isPinned = t.getAttribute("data-pin") === "1";
+                 Sync.sharedPin(k, !isPinned).then(function () {
+                   App.toast(isPinned ? "已取消置顶「" + nm + "」" : "已置顶「" + nm + "」：AI 生成时永远优先带上它");
+                   loadShared();
+                 }).catch(function (err) { App.toast("操作失败：" + err.message); });
+               } else if (t.getAttribute("data-act") === "shared-del") {
+                 if (!confirm("确定删除公共资料「" + nm + "」？所有人的 AI 将不再引用它。")) return;
+                 Sync.sharedDelete(k).then(function () {
+                   App.toast("已删除「" + nm + "」");
+                   loadShared();
+                 }).catch(function (err) { App.toast("删除失败：" + err.message); });
+               }
             });
             root.querySelector('[data-act="shared-upload"]').addEventListener("click", function () { sharedFile.click(); });
             sharedFile.addEventListener("change", function () {
@@ -487,7 +499,7 @@
                 content = String(content || "").replace(/\u0000/g, "").trim();
                 if (content.length < 20) { App.toast("没提取到有效文字：PDF 可能是扫描图片（需转文字版）；Word 请确认是 .docx"); return; }
                  var sc = (root.querySelector("#sharedScope") || {}).value || "all";
-                 if (!confirm("将上传《" + f.name + "》为团队公共资料（" + (SCOPE_LABEL[sc] || "通用") + "；提取到约 " + content.length + " 字）：之后所有人的 AI 生成都会引用它（前 6000 字）。\n\n预览前 120 字：\n…" + content.slice(0, 120).replace(/\n/g, " ") + "…\n\n确认？")) return;
+                  if (!confirm("将上传《" + f.name + "》为团队公共资料（" + (SCOPE_LABEL[sc] || "通用") + "；提取到约 " + content.length + " 字）：之后所有" + (sc === "all" ? "" : (SCOPE_LABEL[sc] || "该") + "客户") + "的 AI 生成都会引用它（前 12,000 字，每产品线最多 10 份）。\n\n预览前 120 字：\n…" + content.slice(0, 120).replace(/\n/g, " ") + "…\n\n确认？")) return;
                  Sync.sharedUpload(f.name, content, null, sc).then(function () {
                    App.toast("已上传公共资料「" + f.name + "」，全员 AI 立即生效");
                    loadShared();
