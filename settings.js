@@ -104,12 +104,12 @@
                '<div class="set-note">📜 话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：AI 引用最新 3 份（各前 6000 字），内容业务员不可见。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。</div>' +
              "</div>" : "") +
          '<div class="card card-pad">' +
-         '<div class="set-title">我的称呼</div>' +
-        '<label class="set-lbl">你的名字（首页问候用 · 只存本机）</label>' +
-        '<input class="set-inp" id="myName" type="text" maxlength="20" placeholder="如 Cherry" value="' + esc(st.name || "Cherry") + '"/>' +
-        '<div class="set-actions"><button class="set-btn-inline" data-act="save-name">保存</button></div>' +
-        '<div class="set-note">每人各填各的，只保存在这台设备，不会同步给别人</div>' +
-        "</div>" +
+         '<div class="set-title" style="font-size:13px">我的称呼</div>' +
+         '<div style="display:flex;gap:8px;align-items:center;margin-top:6px">' +
+         '<input class="set-inp" id="setName" type="text" maxlength="10" placeholder="你的名字（首页问候用 · 只存本机）" style="flex:1;min-width:0" value="' + esc(s.name || "") + '"/>' +
+         '<button class="set-btn-inline" data-act="save-name" style="flex:none">保存</button>' +
+         "</div>" +
+         "</div>" +
         '<div class="card card-pad">' +
         '<div class="set-title" data-act="toggle-persona" style="cursor:pointer">我的思路与话术（训练 AI）<span class="llm-dot ' + (personaOn ? "on" : "") + '" id="personaDot"></span></div>' +
         '<div id="personaSummary" class="set-note" style="margin:6px 0 0">' + (personaOn ? "已训练 · " + (p.updated ? new Date(p.updated).toLocaleString("zh-CN") : "") + (p.docs && p.docs.length ? " · " + p.docs.length + " 份资料" : "") : "还没训练 · 点进来写你的思路和话术，AI 就按你的风格说话") + "</div>" +
@@ -132,32 +132,27 @@
         '<div class="set-note">每个业务员各填各的，按账号单独保存在云端，互不串味；保存后 AI 翻译、扩充、回复建议都会自动贴近你的思路和语气</div>' +
         "</div>" +
         "</div>" +
-         /* 2026-10-15 v61 重排：数据同步（常用：拉取最新）在前，地址/推送收进"高级设置"折叠 */
+         /* 2026-10-15 v62：数据同步 + 智能引擎合并为一卡（两行状态 + 常用按钮），细节全收进"高级设置" */
          '<div class="card card-pad">' +
-         '<div class="set-title">数据同步（团队多设备）<span class="llm-dot ' + (cloudOn ? "on" : "") + '"></span></div>' +
-         '<div class="set-note" id="cloudStatus" style="margin:2px 0">' + (cloudOn ? "已连接 · 变更 2.5 秒自动上云，开 App 自动拉取" : "未连接 · 当前为单机模式（先登录账号）") + '</div>' +
-         '<div class="set-note" style="margin:0 0 8px">买家档案 <b>' + s.buyers + '</b> · 已记录消息 <b>' + s.messages + '</b> · 最近保存 <b>' + saved + '</b></div>' +
-         '<div class="set-actions"><button class="set-btn-inline ghost" data-act="cloud-pull">拉取最新</button><button class="set-btn-inline ghost" data-act="adv-toggle" data-target="cloudAdvBody">高级设置</button></div>' +
-         '<div id="cloudAdvBody" style="display:none;margin-top:10px">' +
+         '<div class="set-title">数据同步 & 智能引擎</div>' +
+         '<div style="display:flex;align-items:center;gap:6px;margin-top:2px"><span class="llm-dot ' + (cloudOn ? "on" : "") + '"></span><span class="set-note" id="cloudStatus" style="flex:1;min-width:0">' + (cloudOn ? "云同步 已连接 · 变更自动上云，开 App 自动拉取" : "云同步 未连接 · 单机模式（先登录账号）") + '</span></div>' +
+         '<div class="set-note" style="margin:2px 0 6px">买家 <b>' + s.buyers + '</b> · 消息 <b>' + s.messages + '</b> · 最近保存 <b>' + saved + '</b></div>' +
+         '<div style="display:flex;align-items:center;gap:6px"><span class="llm-dot ' + (on ? "on" : "") + '"></span><span class="set-note" id="llmStatus" style="flex:1;min-width:0">' + (on ? "AI 已配置 · " + (llm.model || "qwen-plus") : "AI 未配置 · 手动模式") + '</span></div>' +
+         '<div class="set-actions" style="margin-top:8px"><button class="set-btn-inline ghost" data-act="cloud-pull">拉取最新</button><button class="set-btn-inline ghost" data-act="test-llm">测试连接</button><button class="set-btn-inline ghost" data-act="adv-toggle" data-target="syncAdvBody">高级设置</button></div>' +
+         '<div id="syncAdvBody" style="display:none;margin-top:10px">' +
          '<label class="set-lbl">云服务地址（FC 触发器 URL）</label>' +
          '<input class="set-inp" id="cloudUrl" type="url" placeholder="https://….fcapp.run" value="' + esc(cl.proxyUrl || autoUrl) + '"/>' +
          '<div class="set-actions"><button class="set-btn-inline" data-act="save-cloud">保存</button><button class="set-btn-inline ghost" data-act="cloud-push">上云推送</button></div>' +
-         '<div class="set-note">登录状态 30 天有效；身份由服务端会话判定，任何设备登录都只看本人客户</div>' +
-         "</div>" +
-         "</div>" +
-         '<div class="card card-pad">' +
-         '<div class="set-title">智能引擎（LLM）<span class="llm-dot ' + (on ? "on" : "") + '"></span></div>' +
-         '<div class="set-note" id="llmStatus" style="margin:2px 0 8px">' + (on ? "已配置 · 模型 " + (llm.model || "qwen-plus") + " · 记一条将自动翻译 / 提取字段 / 更新意向分" : "未配置 · 当前为手动模式") + '</div>' +
-         '<div class="set-actions"><button class="set-btn-inline ghost" data-act="test-llm">测试连接</button><button class="set-btn-inline ghost" data-act="adv-toggle" data-target="llmAdvBody">高级设置</button></div>' +
-         '<div id="llmAdvBody" style="display:none;margin-top:10px">' +
-         '<label class="set-lbl">Base URL</label>' +
+         '<div class="set-note" style="margin-bottom:10px">登录状态 30 天有效；身份由服务端会话判定，任何设备登录都只看本人客户</div>' +
+         '<div style="border-top:1px dashed #e8dfc8;margin:10px 0"></div>' +
+         '<label class="set-lbl">AI Base URL</label>' +
          '<input class="set-inp" id="llmBase" type="url" value="' + esc(llm.baseUrl || DEFAULT_BASE) + '"/>' +
-         '<label class="set-lbl">API Key</label>' +
+         '<label class="set-lbl">AI Key</label>' +
          '<input class="set-inp" id="llmKey" type="password" placeholder="sk-ws-…（从百炼控制台下载 CSV 里的 apiKey）" value="' + esc(llm.key || "") + '"/>' +
          '<label class="set-lbl">模型</label>' +
          '<select class="set-inp" id="llmModel">' + modelOpts + "</select>" +
-         '<div class="set-actions"><button class="set-btn-inline" data-act="save-llm">保存配置</button></div>' +
-         '<div class="set-note">Key 只保存在这台设备的浏览器本地（localStorage），不会上传、不会进代码库；随时可在上方重新填写或清空。配置云同步后，本卡 Key 可留空（走云端代理）</div>' +
+         '<div class="set-actions"><button class="set-btn-inline" data-act="save-llm">保存 AI 配置</button></div>' +
+         '<div class="set-note">Key 只存这台设备浏览器本地，不上传。配置云同步后 Key 可留空（走云端代理）</div>' +
          "</div>" +
          "</div>" +
          (isAdmin ? '<div class="card card-pad">' +
