@@ -1090,6 +1090,7 @@
             var mime = pickMime();
             beep(880, 0.12); /* 按下提示音：开始录音 */
             navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+              if (window.Voice && Voice.noteGrant) Voice.noteGrant();
               try { rec = new MediaRec(stream, mime ? { mimeType: mime } : undefined); }
               catch (err) { rec = new MediaRec(stream); }
               chunks = [];
@@ -1125,10 +1126,11 @@
               };
                recTimer = setTimeout(function () { try { if (rec && rec.state === "recording") rec.stop(); } catch (e3) {} }, 60000); /* 2026-10-14 反馈修复：业务员一次说 30-60s 长句会被 30s 截断"记录不下来"，放宽到 60s */
                try { rec.start(); if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} } } catch (err) { try { clearTimeout(recTimer); } catch (e4) {} stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音启动失败：" + err.message); }
-            }).catch(function (e) {
-              busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL);
-              App.toast("麦克风被禁用：点浏览器地址栏左侧图标允许麦克风，再按住说话");
-            });
+             }).catch(function (e) {
+               busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL);
+               if (window.Voice && Voice.showDeniedPanel) Voice.showDeniedPanel();
+               else App.toast("麦克风被禁用：点浏览器地址栏左侧图标允许麦克风，再按住说话");
+             });
           });
           micBtn.addEventListener("pointerup", function (e) { e.preventDefault(); stopMic(); });
           micBtn.addEventListener("pointercancel", function () { stopMic(); });

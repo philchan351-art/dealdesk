@@ -146,8 +146,10 @@
     if (p) p.classList.remove("auth-on");
     if (freshLogin && Store.wipeLocal) Store.wipeLocal();
     /* 语音预热：进入应用后的第一次触摸（用户手势）内申请一次麦克风——
-       iOS Safari 的麦克风权限只在一个浏览器会话内有效，每次重开都要重新授权；
-       在开机空闲期弹一次，避免业务员按住说话时才弹、手忙脚乱点了"拒绝"后被锁死 */
+       在进系统的空闲期弹一次，避免业务员按住说话时才弹、手忙脚乱点了"拒绝"后被锁死。
+       2026-10-17 修正：iOS 麦克风权限是"网站级"持久设置（设置→Safari→网站设置→麦克风），
+       之前"只在一个浏览器会话内有效"的结论有误——反复弹窗的真实原因是
+       ① 无痕模式（永不记忆授权）② 站点未设为"总是允许"。已授权站点再取流不会弹窗。 */
     if (!startApp._micWarm) {
       startApp._micWarm = true;
       var micWarm = function () {

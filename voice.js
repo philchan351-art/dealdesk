@@ -42,8 +42,22 @@
   /* ---- 麦克风权限状态 & "被禁止"常驻恢复面板（2026-10-16）----
      toast 6.5 秒就消失，业务员根本没看完就没了；面板常驻，
      去设置里改完回来点"测试"，形成闭环 */
-  var deniedPanel = null;
-  function micState() {
+   var deniedPanel = null;
+   /* 2026-10-17「每次都要重新 Allow」根因修复：iOS 麦克风权限是网站级持久设置
+      （设置→Safari→网站设置→麦克风）。反复弹窗 = ① 无痕模式（永不记忆）② 站点没设"总是允许"。
+      首次授权成功后每天提醒一次去系统设置设"总是允许"，从根上消灭反复弹窗 */
+   function noteGrant() {
+     try {
+       var today = new Date().toDateString();
+       if (localStorage.getItem("dd_mic_perm_hint") !== today) {
+         localStorage.setItem("dd_mic_perm_hint", today);
+         setTimeout(function () {
+           App.toast("麦克风已记住。若以后还反复弹 Allow：别用无痕模式（地址栏有紫色 Private），并去 设置→Safari→网站设置→麦克风 把本站设为「总是允许」", 14000);
+         }, 1500);
+       }
+     } catch (e) {}
+   }
+   function micState() {
     try {
       if (navigator.permissions && navigator.permissions.query) {
         return navigator.permissions.query({ name: "microphone" }).then(function (st) { return st.state; }).catch(function () { return "unknown"; });
@@ -63,12 +77,13 @@
     el.innerHTML =
       '<div class="md-head">🎤 麦克风被禁用 <button class="md-x" type="button">✕</button></div>' +
       '<div class="md-sub">这是浏览器层的设置，不是软件坏了。iPhone 四步解决：</div>' +
-      '<ol class="md-steps">' +
-      '<li>手机桌面打开 <b>「设置」</b>（灰色齿轮）</li>' +
-      '<li>一直滑到最底部，点 <b>「Safari 浏览器」</b></li>' +
-      '<li>再往下滑到「网站」区，点 <b>「麦克风」</b></li>' +
-      '<li>把 <b>DealDesk</b> 那行拨成 <b>允许</b></li>' +
-      '</ol>' +
+       '<ol class="md-steps">' +
+       '<li>手机桌面打开 <b>「设置」</b>（灰色齿轮）</li>' +
+       '<li>一直滑到最底部，点 <b>「Safari 浏览器」</b></li>' +
+       '<li>再往下滑到「网站」区，点 <b>「麦克风」</b></li>' +
+       '<li>把 <b>DealDesk</b> 那行拨成 <b>允许</b>（= 总是允许，以后永不再弹）</li>' +
+       '</ol>' +
+       '<div class="md-sub">若<b>每次</b>都要重新点 Allow：先确认没开无痕模式（地址栏有紫色 Private 标志）——无痕模式永不记忆任何授权。</div>' +
       '<button class="md-retry" type="button">✅ 我设置好了，点我测试</button>';
     phone.appendChild(el);
     deniedPanel = el;
@@ -76,6 +91,7 @@
     el.querySelector(".md-retry").addEventListener("click", function () {
       navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
         s.getTracks().forEach(function (t) { t.stop(); });
+        noteGrant();
         hideDeniedPanel();
         App.toast("麦克风已恢复，按住说话即可");
       }).catch(function () {
@@ -89,6 +105,7 @@
   function warmup() {
     try {
       navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
+        noteGrant();
         s.getTracks().forEach(function (t) { t.stop(); });
       }).catch(function (err) {
         if (/NotAllowed|Permission|Security/i.test(String((err && err.message) || (err && err.name)))) showDeniedPanel();
@@ -134,6 +151,7 @@
         if (st === "denied") { busy = false; showDeniedPanel(); return; }
         beep(880, 0.12);
         navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+          noteGrant();
           var mime = "";
           for (var i = 0; i < MIME_PREF.length; i++) {
             if (MediaRec.isTypeSupported && MediaRec.isTypeSupported(MIME_PREF[i])) { mime = MIME_PREF[i]; break; }
@@ -216,5 +234,5 @@
       setBusy: function (on) { busy = !!on; setCls(on, "busy"); setLabel(on ? busyText : DEFAULT); }
     };
   }
-  window.Voice = { attach: attach, warmup: warmup, showDeniedPanel: showDeniedPanel };
+  window.Voice = { attach: attach, warmup: warmup, showDeniedPanel: showDeniedPanel, noteGrant: noteGrant };
 })();
