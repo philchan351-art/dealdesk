@@ -100,18 +100,8 @@
     });
   }
 
-  /* 预热：进系统后第一次触摸（用户手势）时申请一次权限，弹窗只出现一次且在最平静的时刻；
-     万一这一刻被点了"拒绝"，立刻弹恢复面板教学，不让业务员自己瞎找 */
-  function warmup() {
-    try {
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
-        noteGrant();
-        s.getTracks().forEach(function (t) { t.stop(); });
-      }).catch(function (err) {
-        if (/NotAllowed|Permission|Security/i.test(String((err && err.message) || (err && err.name)))) showDeniedPanel();
-      });
-    } catch (e) {}
-  }
+  /* 2026-10-17：移除 warmup（首次触摸自动申请麦克风）——Phil 反馈"重新进入软件一定会弹、还会自动打开录音，这是bug"。
+     麦克风只在按下「按住说话」时申请；被点 Cancel 时走常驻恢复面板兜底 */
 
   /* attach(btnEl, targetEl, opts)：
      targetEl 是 <input> 或 <textarea>；识别出的文字默认追加到 target
@@ -120,7 +110,7 @@
     opts = opts || {};
     var DEFAULT = opts.placeholder || "🎤 按住说话";
     var busyText = opts.busyText || "识别中…";
-    var rec = null, busy = false, pendingStop = false;
+    var rec = null, busy = false, pendingStop = false, graceStop = false;
     function setLabel(t) { if (btn) btn.textContent = t; }
     function setCls(on, which) {
       if (!btn) return;
@@ -131,8 +121,10 @@
       if (rec && rec.stream) { try { rec.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
     }
     function stopMic() {
+      /* 录音还没真正开始就松手（典型：首次按住时系统权限弹窗打断手势）→ 标记为"被中断"，
+         空录音的提示要说明原因，免得用户以为软件坏了 */
       if (rec && rec.state === "recording") { try { rec.stop(); } catch (e) {} }
-      else pendingStop = true;
+      else { graceStop = true; pendingStop = true; }
     }
     if (!btn) return { setBusy: function () {} };
     btn.type = "button";
@@ -147,6 +139,7 @@
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { App.toast("当前环境不支持麦克风（试试 Safari/Chrome）"); return; }
       busy = true;
       pendingStop = false;
+      graceStop = false;
       micState().then(function (st) {
         if (st === "denied") { busy = false; showDeniedPanel(); return; }
         beep(880, 0.12);
@@ -172,7 +165,7 @@
             beep(520, 0.12);
             if (!blob.size) {
               busy = false; setCls(false); setLabel(DEFAULT);
-              App.toast("没录到声音，再按住说一次");
+              App.toast(graceStop ? "系统权限弹窗打断了这次录音，再按住说一次（这次已授权，不会再弹）" : "没录到声音，再按住说一次");
               return;
             }
             busy = false; setCls(true, "busy"); setLabel(busyText);
@@ -234,5 +227,5 @@
       setBusy: function (on) { busy = !!on; setCls(on, "busy"); setLabel(on ? busyText : DEFAULT); }
     };
   }
-  window.Voice = { attach: attach, warmup: warmup, showDeniedPanel: showDeniedPanel, noteGrant: noteGrant };
+  window.Voice = { attach: attach, showDeniedPanel: showDeniedPanel, noteGrant: noteGrant };
 })();

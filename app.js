@@ -65,7 +65,7 @@
       '<div class="set-note">地址已预填。团队口令只在「新账号」时填一次，登录不需要</div>' +
       "</details>" +
       "</div>" +
-      '<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:12px">第一次用？<a href="manual.html?v=52" style="color:var(--brand-deep);text-decoration:underline">先看 2 分钟使用手册</a>，看完就能上手</div>' +
+      '<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:12px">第一次用？<a href="manual.html?v=53" style="color:var(--brand-deep);text-decoration:underline">先看 2 分钟使用手册</a>，看完就能上手</div>' +
       "</div>";
   }
 
@@ -145,19 +145,11 @@
     var p = phoneEl();
     if (p) p.classList.remove("auth-on");
     if (freshLogin && Store.wipeLocal) Store.wipeLocal();
-    /* 语音预热：进入应用后的第一次触摸（用户手势）内申请一次麦克风——
-       在进系统的空闲期弹一次，避免业务员按住说话时才弹、手忙脚乱点了"拒绝"后被锁死。
-       2026-10-17 修正：iOS 麦克风权限是"网站级"持久设置（设置→Safari→网站设置→麦克风），
-       之前"只在一个浏览器会话内有效"的结论有误——反复弹窗的真实原因是
-       ① 无痕模式（永不记忆授权）② 站点未设为"总是允许"。已授权站点再取流不会弹窗。 */
-    if (!startApp._micWarm) {
-      startApp._micWarm = true;
-      var micWarm = function () {
-        document.removeEventListener("pointerdown", micWarm, true);
-        if (window.Voice && Voice.warmup) Voice.warmup();
-      };
-      document.addEventListener("pointerdown", micWarm, true);
-    }
+    /* 2026-10-17（Phil 反馈："我重新进入软件，一定会出现这个；然后会自动打开录音，这个就是bug了"）：
+       移除"首次触摸自动预热麦克风"——进应用后第一次点按任何位置都会自动申请麦克风权限并真实开启录音，
+       属于用户未预期的惊吓。现在麦克风只在真正按住「🎤 按住说话」时才申请；
+       万一第一次按住时弹的系统框被点了 Cancel，由常驻恢复面板（Voice.showDeniedPanel）兜底教学，
+       不会锁死。 */
     if (!location.hash || location.hash === "#/") history.replaceState(null, "", "#/home");
     nav();
     if (window.Sync && Sync.enabled()) {
