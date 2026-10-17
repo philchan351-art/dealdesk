@@ -326,6 +326,19 @@
   background:var(--brand,#EFB530);color:#3d2e05;font-size:13.5px;font-weight:800;cursor:pointer;
 }
 .sp-sendone:active{background:var(--brand-deep);color:#fff}
+/* 2026-10-17 产品照片库（Phil）：与新客话术同样式——点选 + 唯一发送按钮 */
+.ph-gtitle{font-size:11px;font-weight:800;color:var(--ink-faint);margin:10px 0 5px;letter-spacing:.4px}
+.ph-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.ph-chip{border:1px solid var(--line);border-radius:11px;background:var(--surface);padding:4px;min-width:0;cursor:pointer}
+.ph-chip img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;display:block;background:var(--surface-2)}
+.ph-lb{display:block;font-size:10.5px;font-weight:600;color:var(--ink-soft);text-align:center;padding:4px 2px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph-chip:active{background:var(--surface-2)}
+.ph-chip.sel{border-color:var(--brand-deep);box-shadow:inset 0 0 0 1.5px var(--brand);background:rgba(185,117,22,.08)}
+.ph-sendone{
+  width:100%;margin-top:10px;padding:11px;border:none;border-radius:12px;
+  background:var(--brand,#EFB530);color:#3d2e05;font-size:13.5px;font-weight:800;cursor:pointer;
+}
+.ph-sendone:active{background:var(--brand-deep);color:#fff}
 
 /* 进场交错动画（作用于列表 / 卡片组） */
 .stagger>*{animation:fadeUp .45s both}

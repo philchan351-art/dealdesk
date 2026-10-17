@@ -1,0 +1,30 @@
+{
+  "suitcase": {
+    "name": "产品照片 · Titan X",
+    "base": "photos/titanx/",
+    "groups": [
+      {
+        "title": "整体照",
+        "photos": [
+          { "file": "1.jpg", "label": "整体 1" },
+          { "file": "2.jpg", "label": "整体 2" }
+        ]
+      },
+      {
+        "title": "局部照",
+        "photos": [
+          { "file": "3.jpg", "label": "细节 1" },
+          { "file": "4.jpg", "label": "细节 2" },
+          { "file": "5.jpg", "label": "灯 1" },
+          { "file": "6.jpg", "label": "灯 2" },
+          { "file": "7.jpg", "label": "拉链" },
+          { "file": "8.jpg", "label": "杯托" },
+          { "file": "9.jpg", "label": "轮子 1" },
+          { "file": "10.jpg", "label": "轮子 2" },
+          { "file": "11.jpg", "label": "箱体 1" },
+          { "file": "12.jpg", "label": "箱体 2" }
+        ]
+      }
+    ]
+  }
+}

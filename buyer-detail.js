@@ -255,6 +255,7 @@
             return hasDocs ? "" : '<div class="card" style="margin:10px 16px 0;background:#FFF7E8;border:1px solid #FFD591"><b>⚠ 还没喂产品资料</b><div style="font-size:12px;color:#8a6d1a;margin-top:4px">没有资料，AI 回复客户时会"编"参数（续航/认证/价格都可能是假的）。到「设置 → AI 训练资料」上传你的产品目录/公司简介，AI 就只按你资料里写的说。</div></div>';
           })() +
            '<div id="scriptCard"></div>' +
+           '<div id="photoCard"></div>' +
            '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
          '<div class="set-note" style="padding:0 16px 8px;font-size:11px">预填 ≠ 已发：发送后点「✓ 已发」计入记录；没发或改过的点「✕ 没发」删除。</div>' +
         '<div class="wa-chat">' +
@@ -837,9 +838,74 @@
                   App.refresh();
                 });
             }
-           renderCard();
-         }).catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
-       })();
+            renderCard();
+          }).catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
+        })();
+
+        /* ===== 2026-10-17 产品照片库（Phil）：业务员随时发产品图给客户 =====
+           照片是 Pages 静态资源（photos.json 清单 + photos/titanx/*.jpg，已压到 1600px），
+           样式与新客话术一致：点选照片 → 底部唯一「发到 WhatsApp」按钮。
+           发送走 iOS 分享面板（navigator.share 带文件，可直接选客户）；
+           不支持分享时降级：全屏展示 + 长按保存，去 WhatsApp 会话里附图发送。 */
+        (function loadPhotoCard() {
+          var box = root.querySelector("#photoCard");
+          if (!box || b.outcome || b.scope === "pet") return;
+          fetch("photos.json?v=1").then(function (r) { return r.json(); }).then(function (man) {
+            var data = man && man.suitcase;
+            if (!data || !data.groups || !data.groups.length) { box.innerHTML = ""; return; }
+            var flat = [];
+            var sel = 0;
+            function renderCard() {
+              var html = '<div class="card ctx-card" style="margin:12px 16px 0">' +
+                '<div class="ctx-head"><span class="ctx-title">📷 ' + escHtml(data.name || "产品照片") + '</span>' +
+                '<span class="ctx-hint">点选照片 → 下方发送</span></div><div class="sp-body">';
+              data.groups.forEach(function (g) {
+                html += '<div class="ph-gtitle">' + escHtml(g.title) + '</div><div class="ph-grid">';
+                (g.photos || []).forEach(function (p) {
+                  var n = flat.length;
+                  flat.push({ label: p.label, file: (data.base || "photos/") + p.file });
+                  html += '<button type="button" class="ph-chip' + (n === sel ? " sel" : "") + '" data-n="' + n + '">' +
+                    '<img src="' + flat[n].file + '?v=1" loading="lazy" alt=""/>' +
+                    '<span class="ph-lb">' + escHtml(p.label) + "</span></button>";
+                });
+                html += "</div>";
+              });
+              html += '<button type="button" class="ph-sendone" data-act="ph-send">📤 发到 WhatsApp · ' +
+                escHtml(flat[sel] ? flat[sel].label : "") + "</button></div></div>";
+              box.innerHTML = html;
+              box.querySelectorAll(".ph-chip").forEach(function (ch) {
+                ch.addEventListener("click", function () { sel = +ch.getAttribute("data-n"); renderCard(); });
+              });
+              box.querySelector('[data-act="ph-send"]').addEventListener("click", function () {
+                var it = flat[sel];
+                if (!it) return;
+                var url = it.file + "?v=1";
+                fetch(url).then(function (r) { return r.blob(); }).then(function (bl) {
+                  var f = new File([bl], "TitanX-" + it.label + ".jpg", { type: "image/jpeg" });
+                  function fb() {
+                    var phone = document.querySelector(".phone") || document.body;
+                    if (phone.querySelector(".img-view")) return;
+                    var el = document.createElement("div");
+                    el.className = "img-view";
+                    el.innerHTML = '<img src="' + url + '" alt=""/><div class="iv-hint">长按图片保存 → 打开 WhatsApp 与该客户的对话附图发送 · 点任意处关闭</div>';
+                    el.addEventListener("click", function () { el.remove(); });
+                    phone.appendChild(el);
+                  }
+                  if (navigator.canShare && navigator.canShare({ files: [f] })) {
+                    navigator.share({ files: [f], title: it.label }).then(function () {
+                      /* 进了分享面板即视为"交出去"，沿用话术的 ✓/✕ 确认口径 */
+                      b.messages.push({ from: "me", text: "📷 已发照片：" + it.label, time: "刚刚", status: "handed" });
+                      AIevt(b, "photo", { label: it.label });
+                      if (window.Store) Store.commit();
+                      App.refresh();
+                    }).catch(function (e) { if (String((e && e.name) || e) !== "AbortError") fb(); });
+                  } else fb();
+                }).catch(fb);
+              });
+            }
+            renderCard();
+          }).catch(function () { box.innerHTML = ""; });
+        })();
 
        /* ① 写大概意图 → AI 按意图扩充（或逐句直译）→ 对话区展示对照 → 再手动跳 WhatsApp */
        var mtMode = "expand"; // expand=按意图扩充 / direct=逐句直译
