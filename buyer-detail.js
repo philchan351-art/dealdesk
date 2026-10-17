@@ -492,6 +492,23 @@
         if (chat && chat.scrollIntoView) chat.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
 
+      /* 2026-10-17：打开买家即定位客户最新消息（此前默认停在记录顶部，每次都要手动下滑） */
+      function jumpToLatest() {
+        var wa = root.querySelector(".wa-msgs");
+        if (!wa) return;
+        wa.scrollTop = wa.scrollHeight;
+        var chat = root.querySelector(".wa-chat");
+        if (chat && chat.scrollIntoView) chat.scrollIntoView({ behavior: "auto", block: "nearest" });
+      }
+      requestAnimationFrame(function () { requestAnimationFrame(jumpToLatest); });
+      /* 记录里的图片加载完后容器高度变化，需重新定位到最新 */
+      Array.prototype.forEach.call(root.querySelectorAll(".wa-msgs img"), function (im) {
+        if (!im.complete) {
+          im.addEventListener("load", jumpToLatest, { once: true });
+          im.addEventListener("error", jumpToLatest, { once: true });
+        }
+      });
+
       var input = root.querySelector("#msgInput");
       var msgs = root.querySelector("#waMsgs");
 
