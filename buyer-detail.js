@@ -132,9 +132,16 @@
   function bubble(m, idx) {
     /* P0 XSS：客户消息/译文/标签/时间全部来自外部数据，必须转义（存储型注入的主入口） */
     var zh = m.zh ? '<div class="zh-line">' + escHtml(m.zh) + "</div>" : "";
-    var txt = escHtml(m.text);
+    var txt = m.text ? escHtml(m.text) : "";
     var tag = m.tag ? '<div class="imp-tag">' + escHtml(m.tag) + "</div>" : "";
     var time = escHtml(m.time || "");
+    /* 附图（2026-10-17）：base64 字母表无引号，属性内拼接安全；格式白名单防脏数据 */
+    var imgsHtml = (m.imgs || []).map(function (im) {
+      if (!im || !im.d) return "";
+      var fmt = String(im.f || "jpeg").replace(/[^a-z0-9]/gi, "") || "jpeg";
+      return '<img class="msg-img" src="data:image/' + fmt + ';base64,' + im.d + '" loading="lazy" alt="图片"/>';
+    }).join("");
+    if (imgsHtml) imgsHtml = '<div class="msg-imgs">' + imgsHtml + "</div>";
     if (m.from === "me") {
       var isH = m.status === "handed";
       var handed = isH
@@ -144,10 +151,10 @@
         : "";
        var meta = time + " " + (isH ? '<span class="h-wait">待确认</span>' : "✓✓") +
          ' <span class="m-del" data-act="m-del" data-idx="' + idx + '" title="删除这条记录">✕</span>';
-       return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + txt + zh + handed + tag + "</div>" +
+       return '<div class="msg msg-me" data-idx="' + idx + '"><div class="bubble">' + txt + imgsHtml + zh + handed + tag + "</div>" +
          '<div class="msg-meta">' + meta + "</div></div>";
     }
-    return '<div class="msg msg-buyer"><div class="bubble">' + txt + zh + tag + "</div>" +
+    return '<div class="msg msg-buyer"><div class="bubble">' + txt + imgsHtml + zh + tag + "</div>" +
       '<div class="msg-meta">' + time + "</div></div>";
   }
 
@@ -278,9 +285,12 @@
         importHtml +
         '<div class="wa-msgs zh-on" id="waMsgs">' + msgHtml + "</div>" +
         optHtml +
-        '<div class="wa-logrow"><input id="logBuyer" placeholder="记一句（客户说的 / 你发的，如：已报价 EXW 222）"/>' +
+        '<div class="wa-logrow"><button class="log-img-btn" data-act="log-img" type="button" title="附图（最多 3 张）">📷</button>' +
+        '<input id="logBuyer" placeholder="记一句 / 发图（客户说的·你发的，如：已报价 EXW 222）"/>' +
         '<button class="log-btn" data-act="log-buyer">记客户</button>' +
         '<button class="log-btn log-btn-me" data-act="log-me">记我发</button></div>' +
+        '<input type="file" id="logImgs" accept="image/*" multiple style="display:none"/>' +
+        '<div id="logImgPrev" class="log-img-prev" style="display:none"></div>' +
         "</div>" +
          "</div>" +
          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">回复客户 · 两种方式任选</div>' +
@@ -436,26 +446,80 @@
            App.refresh();
          }).catch(function () {});
        }
+       /* 记一条附图（2026-10-17）：FB 表单截图 / 产品图 / 聊天截图直接记进对话，图随消息一起存、云端同步 */
+       var logImgs = []; /* 待记录压缩图 [{d: base64, f: "jpeg"}]，单条最多 3 张 */
+       var logImgPrev = root.querySelector("#logImgPrev");
+       function logPrevRender() {
+         if (!logImgPrev) return;
+         if (!logImgs.length) { logImgPrev.style.display = "none"; logImgPrev.innerHTML = ""; return; }
+         logImgPrev.style.display = "";
+         logImgPrev.innerHTML = logImgs.map(function (im, i) {
+           return '<div class="log-prev-it"><img src="data:image/' + im.f + ';base64,' + im.d + '" alt=""/>' +
+             '<button class="log-prev-x" data-li="' + i + '" type="button" title="移除这张">✕</button></div>';
+         }).join("");
+         logImgPrev.querySelectorAll(".log-prev-x").forEach(function (x) {
+           x.addEventListener("click", function () { logImgs.splice(+x.getAttribute("data-li"), 1); logPrevRender(); });
+         });
+       }
+       function logImgsBytes() {
+         var s = 0;
+         logImgs.forEach(function (x) { s += x.d.length; });
+         return s;
+       }
+       function buyerImgsBytes() {
+         var s = 0;
+         b.messages.forEach(function (m) { (m.imgs || []).forEach(function (im) { s += im.d.length; }); });
+         return s;
+       }
+       function addLogImgs(files) {
+         var fs = Array.prototype.slice.call(files || []);
+         if (!fs.length) return;
+         if (logImgs.length + fs.length > 3) { App.toast("一条最多 3 张，超出的请分条记"); fs = fs.slice(0, Math.max(0, 3 - logImgs.length)); }
+         fs.forEach(function (f) {
+           if (f.size > 20 * 1048576) { App.toast("「" + f.name + "」太大（单张 ≤20MB）"); return; }
+           compressImage(f, function (b64) {
+             if (!b64) { App.toast("图片读取失败"); return; }
+             if (b64.length > 8 * 1024 * 1024) { App.toast("「" + f.name + "」压缩后仍太大，请裁剪后重选"); return; }
+             /* 防云端 data.json 膨胀：单个客户图片总量（含历史记录）≤8MB base64 */
+             if (buyerImgsBytes() + logImgsBytes() + b64.length > 8 * 1024 * 1024) {
+               App.toast("该客户已存图片较多（上限 8MB），可删掉旧记录里的图再传"); return;
+             }
+             logImgs.push({ d: b64, f: "jpeg" });
+             logPrevRender();
+           }, 1280, 0.78);
+         });
+       }
+       var logImgIn = root.querySelector("#logImgs");
+       var logImgBtn = root.querySelector('[data-act="log-img"]');
+       if (logImgBtn && logImgIn) {
+         logImgBtn.addEventListener("click", function () { logImgIn.click(); });
+         logImgIn.addEventListener("change", function (e) { addLogImgs(e.target.files); e.target.value = ""; });
+       }
         function doLogBuyer() {
           var t = logIn && logIn.value.trim();
-          if (!t) { App.toast("先写客户说的内容"); return; }
-          b.messages.push({ from: "buyer", text: t, time: "刚刚" });
+          if (!t && !logImgs.length) { App.toast("先写客户说的内容，或点 📷 附图"); return; }
+          var msg = { from: "buyer", text: t, time: "刚刚" };
+          if (logImgs.length) msg.imgs = logImgs.slice();
+          b.messages.push(msg);
           AIevt(b, "reply", { via: "quicklog", text: t });
           if (window.Store) Store.commit();
+          logImgs = []; logPrevRender();
           App.refresh();
-          autoZh(t);
-          judgeIntent(t);
+          if (t) { autoZh(t); judgeIntent(t); }
         }
        /* 2026-10-14 现场反馈：业务员在 WhatsApp 自己报了价，但记录里只有客户那句"多少钱"，
           看板就一直显示"他在等你的回复/待报价"。记我发 = 手动补记我方消息，最新一条变我方 → 状态立即翻成"你已回" */
        function doLogMe() {
           var t = logIn && logIn.value.trim();
-          if (!t) { App.toast("先写你发给客户的内容（如：已报价 EXW 222 / FOB 236）"); return; }
-          b.messages.push({ from: "me", text: t, time: "刚刚" });
+          if (!t && !logImgs.length) { App.toast("先写你发的内容，或点 📷 附图"); return; }
+          var msg = { from: "me", text: t, time: "刚刚" };
+          if (logImgs.length) msg.imgs = logImgs.slice();
+          b.messages.push(msg);
           AIevt(b, "reply", { via: "quicklog-me", text: t });
           if (window.Store) Store.commit();
+          logImgs = []; logPrevRender();
           App.refresh();
-       }
+        }
        var logMeBtn = root.querySelector('[data-act="log-me"]');
        if (logBtn) logBtn.addEventListener("click", doLogBuyer);
        if (logMeBtn) logMeBtn.addEventListener("click", doLogMe);
@@ -509,8 +573,23 @@
         }
       });
 
-      var input = root.querySelector("#msgInput");
-      var msgs = root.querySelector("#waMsgs");
+       var input = root.querySelector("#msgInput");
+       var msgs = root.querySelector("#waMsgs");
+
+       /* 记录里的图片点开放大（2026-10-17），点任意处关闭 */
+       var imgView = null;
+       function closeImgView() { if (imgView) { imgView.remove(); imgView = null; } }
+       if (msgs) msgs.addEventListener("click", function (e) {
+         var im = e.target && e.target.closest ? e.target.closest(".msg-img") : null;
+         if (!im) return;
+         closeImgView();
+         var el = document.createElement("div");
+         el.className = "img-view";
+         el.innerHTML = '<img src="' + im.src + '" alt=""/><div class="iv-hint">点任意处关闭</div>';
+         el.addEventListener("click", closeImgView);
+         (document.querySelector(".phone") || root).appendChild(el);
+         imgView = el;
+       });
 
        function push(msg) {
         b.messages.push(msg);
@@ -538,19 +617,21 @@
         fr.onerror = function () { cb(""); };
         fr.readAsDataURL(file);
       }
-      /* 图片本地压缩：最长边 ≤1600px、JPEG ~82%。上传体积和视觉模型推理时间大幅下降，聊天截图 OCR 清晰度不受影响；加载/编码失败自动回退原始 base64 */
-      function compressImage(file, cb) {
-        var url = URL.createObjectURL(file);
-        var img = new Image();
-        function fall() { try { URL.revokeObjectURL(url); } catch (e) {} b64Of(file, function (b) { cb(b, (file.type || "").split("/")[1] || "jpg"); }); }
-        img.onload = function () {
-          try {
-            var MAX = 1600, w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
-            var scale = Math.min(1, MAX / Math.max(w, h));
-            var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
-            var cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
-            cv.getContext("2d").drawImage(img, 0, 0, cw, ch);
-            var out = cv.toDataURL("image/jpeg", 0.82).split(",")[1] || "";
+       /* 图片本地压缩：默认最长边 ≤1600px、JPEG ~82%（导入 OCR 场景）；记一条附图传 1280/0.78 进一步控体积。
+          上传体积和视觉模型推理时间大幅下降，聊天截图 OCR 清晰度不受影响；加载/编码失败自动回退原始 base64 */
+       function compressImage(file, cb, maxDim, q) {
+         maxDim = maxDim || 1600; q = q || 0.82;
+         var url = URL.createObjectURL(file);
+         var img = new Image();
+         function fall() { try { URL.revokeObjectURL(url); } catch (e) {} b64Of(file, function (b) { cb(b, (file.type || "").split("/")[1] || "jpg"); }); }
+         img.onload = function () {
+           try {
+             var MAX = maxDim, w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+             var scale = Math.min(1, MAX / Math.max(w, h));
+             var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+             var cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
+             cv.getContext("2d").drawImage(img, 0, 0, cw, ch);
+             var out = cv.toDataURL("image/jpeg", q).split(",")[1] || "";
             URL.revokeObjectURL(url);
             if (out) { cb(out, "jpg"); return; }
           } catch (e) { /* 编码失败，落到原始 base64 */ }
