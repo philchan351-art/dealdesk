@@ -493,7 +493,8 @@
        var logMeBtn = root.querySelector('[data-act="log-me"]');
        if (logBtn) logBtn.addEventListener("click", doLogBuyer);
        if (logMeBtn) logMeBtn.addEventListener("click", doLogMe);
-       if (logIn) logIn.addEventListener("keydown", function (e) { if (e.key === "Enter") doLogBuyer(); });
+       /* 2026-10-17：记一句改多行框后——Enter 提交（保持快记习惯），Shift+Enter 换行（写完整信息） */
+      if (logIn) logIn.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doLogBuyer(); } });
 
        /* 页面加载时：给最近缺中文对照的外语消息自动补翻译（客户和我发的都算，最多 6 条，不刷屏） */
        b.messages.filter(function (m) { return !m.zh && m.text && !/[一-龥]/.test(m.text); }).slice(-6)
