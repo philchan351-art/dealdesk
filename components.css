@@ -368,6 +368,9 @@
 .fbp-status.ok{color:var(--a)}
 .fbp-status.err{color:var(--hot)}
 .fbp-filled{border-color:var(--brand-deep);background:rgba(18,138,95,.07)}
+/* 表单截图识别行（2026-10-17） */
+.fbp-imgrow{display:flex;align-items:center;gap:8px;margin-top:8px}
+.fbp-img-note{font-size:10.5px;color:var(--ink-faint);line-height:1.4}
 .sl-text:focus{border-color:var(--brand-deep);background:#fff}
 .sl-zh{
   width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;

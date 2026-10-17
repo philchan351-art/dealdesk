@@ -161,6 +161,85 @@
     return { f: f, ctx: mergeCtx(f, ex), via: via };
   }
 
+  /* 截图压缩（2026-10-17 表单图片识别）：≤1600px JPEG 0.82，控制 /import 请求体积；编码失败回退原始 base64 */
+  function imgToB64(file, cb) {
+    function raw() {
+      var fr = new FileReader();
+      fr.onload = function () { cb(String(fr.result || "").split(",")[1] || "", (file.type || "image/jpeg").split("/")[1] || "jpg"); };
+      fr.onerror = function () { cb("", ""); };
+      fr.readAsDataURL(file);
+    }
+    try {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var MAX = 1600, w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+          var scale = Math.min(1, MAX / Math.max(w, h));
+          var cv = document.createElement("canvas");
+          cv.width = Math.max(1, Math.round(w * scale)); cv.height = Math.max(1, Math.round(h * scale));
+          cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+          var out = cv.toDataURL("image/jpeg", 0.82).split(",")[1] || "";
+          URL.revokeObjectURL(url);
+          cb(out, "jpg");
+        } catch (e) { try { URL.revokeObjectURL(url); } catch (e2) {} raw(); }
+      };
+      img.onerror = function () { try { URL.revokeObjectURL(url); } catch (e) {} raw(); };
+      img.src = url;
+    } catch (e) { raw(); }
+  }
+
+  /* 表单截图识别：/import 视觉模型 → fields/convo 归一成 "标签: 值" 行 → 走既有 ruleParse，
+     与粘贴文字共用同一套字段映射/国家归一/要点沉淀（2026-10-17，零 FC 改动） */
+  function parseFormImage(file, bd, btn) {
+    var fbpSt = bd.querySelector('[data-act="fbp-status"]');
+    function st(cls, msg) {
+      if (fbpSt) { fbpSt.className = "fbp-status " + cls; fbpSt.textContent = msg; }
+      if (btn) btn.disabled = false;
+    }
+    st("", "📷 图片识别中…（表单截图约 5–15 秒）");
+    var stt = (window.Store && Store.getSettings) ? (Store.getSettings() || {}) : {};
+    var c = stt.llm || {}, cl = stt.cloud || {};
+    var proxy = c.proxyUrl || cl.proxyUrl;
+    if (!proxy) { st("err", "未配置云同步/云代理，图片识别暂不可用（粘贴文字仍可用）"); return; }
+    var au = window.Auth && Auth.get();
+    if (!au || !au.session) { st("err", "请先登录后再使用图片识别"); return; }
+    if (file.size > 15 * 1048576) { st("err", "图片太大（单张 ≤15MB），请截图小一点"); return; }
+    imgToB64(file, function (b64, fmt) {
+      if (!b64) { st("err", "图片读取失败，请换一张或改用粘贴文字"); return; }
+      if (b64.length > 4 * 1048576) { st("err", "图片压缩后仍超限，请重新截图（单屏一张最好）"); return; }
+      fetch(String(proxy).replace(/\/+$/, "") + "/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session },
+        body: JSON.stringify({ kind: "image", data: b64, format: fmt || "jpg", name: file.name })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j.error) throw new Error(j.error);
+        var lines = [];
+        (j.fields || []).forEach(function (x) { if (x && x.v) lines.push((x.k || "字段") + ": " + x.v); });
+        (j.convo || []).forEach(function (x) { if (x && x.text) lines.push(x.text); });
+        var text = lines.join("\n");
+        var r2 = ruleParse(text);
+        var hasHit = r2.f.name || r2.f.wa || r2.f.email || r2.f.company || r2.f.country || r2.f.product;
+        if (!hasHit && j.summary) {
+          /* 模型有时把表单内容写进摘要：摘要拼回规则再试一次 */
+          var r3 = ruleParse(j.summary + "\n" + text);
+          if (r3.f.name || r3.f.wa || r3.f.email || r3.f.company || r3.f.country) r2 = r3;
+        }
+        if (!(r2.f.name || r2.f.wa || r2.f.email || r2.f.company || r2.f.country || r2.f.product)) {
+          throw new Error("图片里没识别出客户字段（请确认为表单截图，或改用粘贴文字）");
+        }
+        pendingCtx = r2.ctx || [];
+        var filled = fillFields(r2.f, bd);
+        st(filled.length ? "ok" : "err",
+          (filled.length ? "✅ 图片识别：已填入 " + filled.length + " 个字段" : "⚠️ 图片识别：字段没对上，请检查截图") +
+          (pendingCtx.length ? "，" + pendingCtx.length + " 条要点将存入档案（" + pendingCtx.map(function (cc) { return cc.k; }).join("、") + "）" : "") +
+          (filled.length ? " —— 请核对后保存" : "，也可改用粘贴文字"));
+      }).catch(function (e) {
+        st("err", "⚠️ 图片识别失败：" + String(e.message || e).slice(0, 60) + "（可改用粘贴文字）");
+      });
+    });
+  }
+
   function parseForm(text) {
     text = String(text || "").trim().slice(0, 6000);
     if (!text) return Promise.reject(new Error("先粘贴表单内容"));
@@ -217,9 +296,11 @@
       (isEdit ? "" : '<div class="fbp">' +
         '<div class="fbp-head"><span>📋 粘贴 FB 表单 · 自动识别填入</span><button class="fbp-x" data-act="fbp-x" type="button">收起</button></div>' +
         '<div class="fbp-body">' +
-        '<textarea class="sl-text" id="fbpText" rows="4" placeholder="把表单整段贴进来（字段/问题 + 答案均可，如 Full name: … / Country: … / WhatsApp number: …）"></textarea>' +
-        '<button class="fbp-go" data-act="fbp-go" type="button">✨ 识别并自动填入</button>' +
-        '<div class="fbp-status" data-act="fbp-status"></div>' +
+         '<textarea class="sl-text" id="fbpText" rows="4" placeholder="把表单整段贴进来（字段/问题 + 答案均可，如 Full name: … / Country: … / WhatsApp number: …）"></textarea>' +
+         '<div class="fbp-imgrow"><button class="set-btn-inline" data-act="fbp-img" type="button">📷 上传表单截图识别</button><span class="fbp-img-note">没有文字时，截图也行（约 5–15 秒）</span></div>' +
+         '<input type="file" id="fbpImg" accept="image/*" style="display:none"/>' +
+         '<button class="fbp-go" data-act="fbp-go" type="button">✨ 识别并自动填入</button>' +
+         '<div class="fbp-status" data-act="fbp-status"></div>' +
         "</div>" +
         "</div>") +
       field("nbName", "姓名", "如 Carla Mendes", true, null, isEdit ? editB.name : "") +
@@ -293,6 +374,22 @@
         fbpBody.hidden = !fbpBody.hidden;
         fbpX.textContent = fbpBody.hidden ? "展开" : "收起";
       });
+      /* 表单截图识别（2026-10-17）：选图即开始，期间按钮置灰防重复 */
+      var fbpImgBtn = bd.querySelector('[data-act="fbp-img"]');
+      var fbpImgIn = bd.querySelector("#fbpImg");
+      if (fbpImgBtn && fbpImgIn) {
+        fbpImgBtn.addEventListener("click", function () {
+          if (fbpImgBtn.disabled) return;
+          fbpImgBtn.disabled = true;
+          fbpImgIn.click();
+        });
+        fbpImgIn.addEventListener("change", function (e) {
+          var f = e.target.files && e.target.files[0];
+          e.target.value = "";
+          if (!f) { fbpImgBtn.disabled = false; return; }
+          parseFormImage(f, bd, fbpImgBtn);
+        });
+      }
       fbpGo.addEventListener("click", function () {
         var ta = document.getElementById("fbpText");
         if (!ta || (ta.value || "").trim().length < 4) {
