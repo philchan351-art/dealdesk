@@ -767,54 +767,76 @@
                }
                return Math.min(p, d.steps.length);
              }
-            function renderCard() {
-              var total = 0, sent = 0;
-              scripts.forEach(function (d) {
-                total += d.steps.length;
-                sent += progOf(d);
-              });
-             var isNew = (b.messages || []).length < 2;
-             var html = '<div class="card ctx-card" style="margin:12px 16px 0">' +
-               '<div class="ctx-head"><span class="ctx-title">📜 新客话术（' + sent + "/" + total + '）</span>' +
-               '<span class="ctx-hint">' + (scripts.length > 1 ? scripts.length + " 套 · " : "") + "按顺序一步步发</span></div>" +
-               (isNew ? '<div class="sp-hint">💡 新客户首谈：按下面顺序一步步发（一段、客户回一段）。署名会自动换成你的名字；客户过段时间再问参数，直接重发对应那一步。</div>' : "") +
-               '<div class="sp-body">';
-               scripts.forEach(function (d, si) {
-                 var snt = progOf(d);
-                if (scripts.length > 1) html += '<div class="sp-setname">' + escHtml(d.name || "话术 " + (si + 1)) + "</div>";
-                /* 2026-10-17 精简（Phil 要求）：每步只留序号+名称+「发到 WhatsApp」一个按钮，
-                   正文不预览、不设「查看全文」——粘贴进 WhatsApp 自然能看到 */
-                d.steps.forEach(function (st, i) {
-                  var done = i < snt;
-                  html += '<div class="sp-step' + (done ? " done" : "") + '">' +
-                    '<span class="sp-no">' + (done ? "✓" : (i + 1)) + '</span>' +
-                    '<span class="sp-name"><b>' + escHtml(st.title || ("第 " + (i + 1) + " 步")) + '</b></span>' +
-                    '<button class="sp-send' + (done ? " re" : "") + '" data-si="' + si + '" data-i="' + i + '">' + (done ? "重发" : "发到 WhatsApp") + "</button>" +
-                    "</div>";
+            /* 2026-10-17 布局（Phil）：每步一行+每步一个发送按钮太占地方 →
+               步骤改成横排芯片（每行 3 个，6 步两排刚好），点选一段，底部只有一个「发到 WhatsApp」按钮。
+               默认选中第一个未发步骤；发完刷新后自动停在下一段 */
+            var sel = null; /* {si: 剧本下标, i: 步骤下标} */
+             function renderCard() {
+               var total = 0, sent = 0;
+               scripts.forEach(function (d) {
+                 total += d.steps.length;
+                 sent += progOf(d);
+               });
+              var isNew = (b.messages || []).length < 2;
+              if (!sel) {
+                for (var a = 0; a < scripts.length && !sel; a++) {
+                  var s0 = progOf(scripts[a]);
+                  if (s0 < scripts[a].steps.length) sel = { si: a, i: s0 };
+                }
+              }
+              var selSt = sel ? scripts[sel.si] && scripts[sel.si].steps[sel.i] : null;
+              var html = '<div class="card ctx-card" style="margin:12px 16px 0">' +
+                '<div class="ctx-head"><span class="ctx-title">📜 新客话术（' + sent + "/" + total + '）</span>' +
+                '<span class="ctx-hint">' + (scripts.length > 1 ? scripts.length + " 套 · " : "") + "点选一段 → 下方发送</span></div>" +
+                (isNew ? '<div class="sp-hint">💡 新客户首谈：按编号顺序一段段发（客户回一段你再发下一段）。署名自动换成你的名字；客户以后问参数，选中对应那步再发即可。</div>' : "") +
+                '<div class="sp-body">';
+                scripts.forEach(function (d, si) {
+                  var snt = progOf(d);
+                 if (scripts.length > 1) html += '<div class="sp-setname">' + escHtml(d.name || "话术 " + (si + 1)) + "</div>";
+                  html += '<div class="sp-grid">';
+                  d.steps.forEach(function (st, i) {
+                    var done = i < snt;
+                    var isSel = sel && sel.si === si && sel.i === i;
+                    /* 芯片里只放短名：剥掉标题里的中文序号前缀（「三 未报价收尾」→「未报价收尾」），序号用左侧徽章 */
+                    var nm = String(st.title || ("第 " + (i + 1) + " 步")).replace(/^[一二三四五六七八九十]+\s*/, "");
+                    html += '<button type="button" class="sp-chip' + (done ? " done" : "") + (isSel ? " sel" : "") + '" data-si="' + si + '" data-i="' + i + '">' +
+                      '<span class="sp-no">' + (i + 1) + '</span>' +
+                      '<span class="sp-name">' + escHtml(nm) + '</span>' +
+                      (done ? '<span class="sp-ck">✓</span>' : "") +
+                      "</button>";
+                  });
+                  html += "</div>";
+                });
+                html += '<button type="button" class="sp-sendone" data-act="sp-send">' +
+                  (selSt ? "📤 发到 WhatsApp · 第 " + (sel.i + 1) + " 段" : "📤 发到 WhatsApp") +
+                  "</button></div></div>";
+               box.innerHTML = html;
+               box.querySelectorAll(".sp-chip").forEach(function (ch) {
+                ch.addEventListener("click", function () {
+                  sel = { si: +ch.getAttribute("data-si"), i: +ch.getAttribute("data-i") };
+                  renderCard();
                 });
               });
-              html += "</div></div>";
-              box.innerHTML = html;
-              box.querySelectorAll(".sp-send").forEach(function (btn) {
-               btn.addEventListener("click", function () {
-                 var si = +btn.getAttribute("data-si"), i = +btn.getAttribute("data-i");
-                 var d = scripts[si], st = d && d.steps[i];
-                 if (!st) return;
-                 if (!b.wa) { App.toast("这个客户还没有 WhatsApp 号码，先用上方「编辑」补录再发"); return; }
-                 var text = (window.DocExtract && DocExtract.fillVars) ? DocExtract.fillVars(st.text, cf, myName) : String(st.text || "");
-                 var su = waLink(b.wa, text);
-                 if (!su) { App.toast("号码格式不对，打不开 WhatsApp，请检查档案里的号码"); return; }
-                 b.messages.push({ from: "me", text: text, time: "刚刚", status: "handed" });
-                 AIevt(b, "script", { doc: d.key, step: i, title: st.title || "" });
-                 b.scriptProg = b.scriptProg || {};
-                 b.scriptProg[d.key] = Math.max(Number(b.scriptProg[d.key] || 0), i + 1);
-                 if (window.Store) Store.commit();
-                 window.open(su, "_blank");
-                 App.toast("已打开第 " + (i + 1) + " 步 · 还没发送！发完回来点「✓ 已发」");
-                 App.refresh();
-               });
-             });
-           }
+              var sendBtn = box.querySelector('[data-act="sp-send"]');
+              if (sendBtn) sendBtn.addEventListener("click", function () {
+                  if (!sel) return;
+                  var si = sel.si, i = sel.i;
+                  var d = scripts[si], st = d && d.steps[i];
+                  if (!st) return;
+                  if (!b.wa) { App.toast("这个客户还没有 WhatsApp 号码，先用上方「编辑」补录再发"); return; }
+                  var text = (window.DocExtract && DocExtract.fillVars) ? DocExtract.fillVars(st.text, cf, myName) : String(st.text || "");
+                  var su = waLink(b.wa, text);
+                  if (!su) { App.toast("号码格式不对，打不开 WhatsApp，请检查档案里的号码"); return; }
+                  b.messages.push({ from: "me", text: text, time: "刚刚", status: "handed" });
+                  AIevt(b, "script", { doc: d.key, step: i, title: st.title || "" });
+                  b.scriptProg = b.scriptProg || {};
+                  b.scriptProg[d.key] = Math.max(Number(b.scriptProg[d.key] || 0), i + 1);
+                  if (window.Store) Store.commit();
+                  window.open(su, "_blank");
+                  App.toast("已打开第 " + (i + 1) + " 步 · 还没发送！发完回来点「✓ 已发」");
+                  App.refresh();
+                });
+            }
            renderCard();
          }).catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
        })();

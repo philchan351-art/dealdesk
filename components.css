@@ -307,6 +307,25 @@
 .sp-send{flex:none;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid var(--brand,#EFB530);background:var(--brand,#EFB530);color:#3d2e05;cursor:pointer}
 .sp-send:active{background:var(--brand-deep);color:#fff}
 .sp-send.re{background:var(--surface-2);border-color:var(--line);color:var(--ink)}
+/* 2026-10-17 布局（Phil）：横排芯片（每行 3 个，6 步两排）+ 底部唯一发送按钮 */
+.sp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.sp-chip{
+  display:flex;align-items:center;gap:6px;min-width:0;
+  border:1px solid var(--line);border-radius:11px;background:var(--surface);
+  padding:8px 8px;font-size:11.5px;color:var(--ink);text-align:left;cursor:pointer;
+}
+.sp-chip:active{background:var(--surface-2)}
+.sp-chip .sp-no{flex:0 0 18px;height:18px;font-size:10px}
+.sp-chip .sp-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;font-weight:600}
+.sp-chip.done{border-color:rgba(18,138,95,.35);background:rgba(18,138,95,.05)}
+.sp-chip.done .sp-no{background:rgba(18,138,95,.12);border-color:rgba(18,138,95,.35);color:#0E6B49}
+.sp-chip.sel{border-color:var(--brand-deep);box-shadow:inset 0 0 0 1.5px var(--brand);background:rgba(185,117,22,.08)}
+.sp-ck{flex:none;font-size:11px;font-weight:800;color:#0E6B49}
+.sp-sendone{
+  width:100%;margin-top:9px;padding:11px;border:none;border-radius:12px;
+  background:var(--brand,#EFB530);color:#3d2e05;font-size:13.5px;font-weight:800;cursor:pointer;
+}
+.sp-sendone:active{background:var(--brand-deep);color:#fff}
 
 /* 进场交错动画（作用于列表 / 卡片组） */
 .stagger>*{animation:fadeUp .45s both}
