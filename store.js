@@ -207,7 +207,8 @@
         daysInStage: 0,
         wa: info.wa || "",
         scope: ["suitcase", "pet", "all"].indexOf(info.scope) >= 0 ? info.scope : "",
-        context: info.product ? [{ k: "需求", v: info.product }] : [],
+        /* extraContext：FB 表单识别出的扩展要点（邮箱/首单计划/业务类型…），最多 6 条 */
+      context: [].concat(info.product ? [{ k: "需求", v: info.product }] : []).concat((info.extraContext || []).filter(function (x) { return x && x.k && String(x.v || "").trim(); }).slice(0, 6)),
         profile: cp,
         messages: [],
         updatedAt: new Date().toISOString()

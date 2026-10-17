@@ -214,6 +214,7 @@
 
   window.LLM = {
     MODELS: MODELS,
+    chat: chat, /* 2026-10-17 导出：供 FB 表单识别等轻量结构化任务复用 */
     configured: function () {
       var c = cfg();
       return !!(c && ((c.key && c.baseUrl) || c.proxyUrl));

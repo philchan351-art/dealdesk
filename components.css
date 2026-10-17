@@ -354,9 +354,20 @@
 .sl-b-name{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sl-b-sub{font-size:10px;color:var(--ink-faint)}
 .sl-text{
-  width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;
-  font-size:13px;resize:none;outline:none;background:var(--surface-2);margin-bottom:8px;
+  width:100%;resize:vertical;min-height:84px;border:1px solid var(--line);border-radius:12px;
+  padding:10px;font-size:13px;background:var(--surface);color:var(--ink);margin-bottom:8px;line-height:1.5;
 }
+
+/* FB 表单粘贴识别（2026-10-17） */
+.fbp{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;margin:0 0 14px;background:var(--surface-2)}
+.fbp-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:800;color:var(--ink-soft);margin-bottom:6px}
+.fbp-x{border:none;background:none;font-size:11px;color:var(--ink-faint);padding:2px 4px}
+.fbp-go{width:100%;padding:10px;border:none;border-radius:10px;background:var(--brand-fill);color:var(--brand-ink);font-size:12.5px;font-weight:800}
+.fbp-go:disabled{opacity:.55}
+.fbp-status{font-size:11px;line-height:1.5;margin-top:6px;color:var(--ink-faint);min-height:14px}
+.fbp-status.ok{color:var(--a)}
+.fbp-status.err{color:var(--hot)}
+.fbp-filled{border-color:var(--brand-deep);background:rgba(18,138,95,.07)}
 .sl-text:focus{border-color:var(--brand-deep);background:#fff}
 .sl-zh{
   width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;
