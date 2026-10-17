@@ -752,21 +752,33 @@
            var au0 = window.Auth && Auth.get();
            var myName = st0.name || (au0 && au0.name) || "";
            var cf = String(b.name || "").trim().split(/\s+/)[0] || "";
-           function renderCard() {
-             var prog = b.scriptProg || {};
-             var total = 0, sent = 0;
-             scripts.forEach(function (d) {
-               total += d.steps.length;
-               sent += Math.min(Number(prog[d.key] || 0), d.steps.length);
-             });
+            /* 2026-10-17 话术换版（五步→六步，插入「三 报价前收尾」）：旧 key 进度带进新 key，
+               cap=2 —— 插入点在第 3 步，旧的第 3 步起都是没发过的新内容，✓ 只保留到新第 2 步 */
+            var PROG_MIGRATION = { "f47eb318-mvazd29i": { to: "98ba0e2f-mvc6rf66", cap: 2 } };
+            function progOf(d) {
+              var prog = b.scriptProg || {};
+              var p = Number(prog[d.key] || 0);
+              if (!p) {
+                for (var ok in PROG_MIGRATION) {
+                  if (PROG_MIGRATION[ok].to === d.key) { p = Math.min(Number(prog[ok] || 0), PROG_MIGRATION[ok].cap); break; }
+                }
+              }
+              return Math.min(p, d.steps.length);
+            }
+            function renderCard() {
+              var total = 0, sent = 0;
+              scripts.forEach(function (d) {
+                total += d.steps.length;
+                sent += progOf(d);
+              });
              var isNew = (b.messages || []).length < 2;
              var html = '<div class="card ctx-card" style="margin:12px 16px 0">' +
                '<div class="ctx-head"><span class="ctx-title">📜 新客话术（' + sent + "/" + total + '）</span>' +
                '<span class="ctx-hint">' + (scripts.length > 1 ? scripts.length + " 套 · " : "") + "按顺序一步步发</span></div>" +
                (isNew ? '<div class="sp-hint">💡 新客户首谈：按下面顺序一步步发（一段、客户回一段）。署名会自动换成你的名字；客户过段时间再问参数，直接重发对应那一步。</div>' : "") +
                '<div class="sp-body">';
-              scripts.forEach(function (d, si) {
-                var snt = Math.min(Number(prog[d.key] || 0), d.steps.length);
+               scripts.forEach(function (d, si) {
+                 var snt = progOf(d);
                 if (scripts.length > 1) html += '<div class="sp-setname">' + escHtml(d.name || "话术 " + (si + 1)) + "</div>";
                 /* 2026-10-17 精简（Phil 要求）：每步只留序号+名称+「发到 WhatsApp」一个按钮，
                    正文不预览、不设「查看全文」——粘贴进 WhatsApp 自然能看到 */

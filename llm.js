@@ -44,18 +44,31 @@
       return _scriptCache.docs;
     }).catch(function () { return _scriptCache.docs; });
   }
+  /* 2026-10-17 话术换版（五步→六步，插入「三 报价前收尾」）：docKey 变了，把旧 key 进度带到新 key。
+     插入点在第 3 步，旧进度第 3 步起与新内容不对应 → cap=2（只认「一 开场/二 产品卖点」已发）。
+     业务员在新版再发任一步后，新 key 进度接管，旧 key 数据自然失效。 */
+  var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "98ba0e2f-mvc6rf66", cap: 2 } };
+  function scriptProgOf(buyer, d) {
+    var prog = buyer.scriptProg || {};
+    var p = Number(prog[d.key] || 0);
+    if (!p) {
+      for (var ok in SCRIPT_KEY_MIGRATION) {
+        if (SCRIPT_KEY_MIGRATION[ok].to === d.key) { p = Math.min(Number(prog[ok] || 0), SCRIPT_KEY_MIGRATION[ok].cap); break; }
+      }
+    }
+    return Math.min(p, d.steps.length);
+  }
   function scriptLine(buyer) {
     return getSharedScripts().then(function (docs) {
       var line = ["suitcase", "pet", "all"].indexOf(buyer.scope) >= 0 ? buyer.scope : "all";
       /* 通用客户（或未设产品线）→ 全部剧本；指定产品线 → 该产品线 + 通用 */
       var hits = docs.filter(function (d) { return line === "all" || d.scope === "all" || d.scope === line; });
       if (!hits.length) return "";
-      var prog = buyer.scriptProg || {};
       var parts = [];
       for (var i = 0; i < hits.length; i++) {
         var d = hits[i];
         if (!d.steps || !d.steps.length) continue;
-        var sent = Math.min(Number(prog[d.key] || 0), d.steps.length);
+        var sent = scriptProgOf(buyer, d);
         var s = "\n【团队话术剧本·" + (d.name || "剧本") + "（已发 " + sent + "/" + d.steps.length + " 步）】\n";
         for (var k = 0; k < d.steps.length; k++) {
           s += (k + 1) + ". " + (d.steps[k].title || "") + (k < sent ? "（已发）" : "") + "：\n" + String(d.steps[k].text || "") + "\n";
