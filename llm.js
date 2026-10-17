@@ -44,16 +44,17 @@
       return _scriptCache.docs;
     }).catch(function () { return _scriptCache.docs; });
   }
-  /* 2026-10-17 话术换版（五步→六步，插入「三 报价前收尾」）：docKey 变了，把旧 key 进度带到新 key。
+  /* 2026-10-17 话术换版（五步→六步，插入「三 未报价收尾」）：docKey 变了，把旧 key 进度带到新 key。
      插入点在第 3 步，旧进度第 3 步起与新内容不对应 → cap=2（只认「一 开场/二 产品卖点」已发）。
+     当天二次修正换版（标题改回「未报价收尾」、正文恢复原文弯引号）→ key 98ba0e2f 也视为旧 key，多个旧 key 取 max。
      业务员在新版再发任一步后，新 key 进度接管，旧 key 数据自然失效。 */
-  var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "98ba0e2f-mvc6rf66", cap: 2 } };
+  var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "31eedc36-mvc6xdi7", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "31eedc36-mvc6xdi7", cap: 2 } };
   function scriptProgOf(buyer, d) {
     var prog = buyer.scriptProg || {};
     var p = Number(prog[d.key] || 0);
     if (!p) {
       for (var ok in SCRIPT_KEY_MIGRATION) {
-        if (SCRIPT_KEY_MIGRATION[ok].to === d.key) { p = Math.min(Number(prog[ok] || 0), SCRIPT_KEY_MIGRATION[ok].cap); break; }
+        if (SCRIPT_KEY_MIGRATION[ok].to === d.key) p = Math.max(p, Math.min(Number(prog[ok] || 0), SCRIPT_KEY_MIGRATION[ok].cap));
       }
     }
     return Math.min(p, d.steps.length);

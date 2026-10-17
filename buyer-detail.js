@@ -752,19 +752,21 @@
            var au0 = window.Auth && Auth.get();
            var myName = st0.name || (au0 && au0.name) || "";
            var cf = String(b.name || "").trim().split(/\s+/)[0] || "";
-            /* 2026-10-17 话术换版（五步→六步，插入「三 报价前收尾」）：旧 key 进度带进新 key，
-               cap=2 —— 插入点在第 3 步，旧的第 3 步起都是没发过的新内容，✓ 只保留到新第 2 步 */
-            var PROG_MIGRATION = { "f47eb318-mvazd29i": { to: "98ba0e2f-mvc6rf66", cap: 2 } };
-            function progOf(d) {
-              var prog = b.scriptProg || {};
-              var p = Number(prog[d.key] || 0);
-              if (!p) {
-                for (var ok in PROG_MIGRATION) {
-                  if (PROG_MIGRATION[ok].to === d.key) { p = Math.min(Number(prog[ok] || 0), PROG_MIGRATION[ok].cap); break; }
-                }
-              }
-              return Math.min(p, d.steps.length);
-            }
+             /* 2026-10-17 话术换版（五步→六步，插入「三 未报价收尾」）：旧 key 进度带进新 key，
+                cap=2 —— 插入点在第 3 步，旧的第 3 步起都是没发过的新内容，✓ 只保留到新第 2 步。
+                当天二次修正换版（标题改回 Phil 指定「未报价收尾」、正文恢复原文弯引号）→ key 98ba0e2f 也视为旧 key，
+                多个旧 key 取 max（不 break），业务员在新版再发任一步后新 key 进度接管 */
+             var PROG_MIGRATION = { "f47eb318-mvazd29i": { to: "31eedc36-mvc6xdi7", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "31eedc36-mvc6xdi7", cap: 2 } };
+             function progOf(d) {
+               var prog = b.scriptProg || {};
+               var p = Number(prog[d.key] || 0);
+               if (!p) {
+                 for (var ok in PROG_MIGRATION) {
+                   if (PROG_MIGRATION[ok].to === d.key) p = Math.max(p, Math.min(Number(prog[ok] || 0), PROG_MIGRATION[ok].cap));
+                 }
+               }
+               return Math.min(p, d.steps.length);
+             }
             function renderCard() {
               var total = 0, sent = 0;
               scripts.forEach(function (d) {
