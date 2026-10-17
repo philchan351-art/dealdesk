@@ -111,24 +111,6 @@
       "</div>";
   }
 
-  /* P2：价格底线卡（选填）——AI 谈判的安全边界 */
-  function limitCard(b) {
-    var L = b.limit || {};
-    function item(id, label, val, unit) {
-      return '<div class="limit-item"><span>' + escHtml(label) + "</span>" +
-        '<div class="limit-in"><input id="lim_' + id + '" type="number" inputmode="decimal" step="any" min="0" value="' + escHtml(val != null ? val : "") + '" placeholder="—"/><i>' + escHtml(unit) + "</i></div></div>";
-    }
-    return '<div class="card limit-card" style="margin:0 16px 10px;padding:11px 13px">' +
-      '<div class="limit-head"><b>价格底线</b><span>选填 · AI 谈判不越过这条线</span></div>' +
-      '<div class="limit-grid">' +
-      item("price", "最低单价", L.price, "$") +
-      item("moq", "最小 MOQ", L.moq, "件") +
-      item("terms", "最长账期", L.terms, "天") +
-      item("lead", "最短交期", L.lead, "天") +
-      "</div>" +
-      '<div class="set-note" style="margin-top:8px">不填 = AI 不主动谈价格、只问需求。建议一旦触及底线会标红「需本人确认」，绝不替你承诺。</div></div>';
-  }
-
   function bubble(m, idx) {
     /* P0 XSS：客户消息/译文/标签/时间全部来自外部数据，必须转义（存储型注入的主入口） */
     var zh = m.zh ? '<div class="zh-line">' + escHtml(m.zh) + "</div>" : "";
@@ -286,7 +268,7 @@
         '<div class="wa-msgs zh-on" id="waMsgs">' + msgHtml + "</div>" +
         optHtml +
         '<div class="wa-logrow"><button class="log-img-btn" data-act="log-img" type="button" title="附图（最多 3 张）">📷</button>' +
-        '<input id="logBuyer" placeholder="记一句 / 发图（客户说的·你发的，如：已报价 EXW 222）"/>' +
+        '<textarea id="logBuyer" rows="3" placeholder="记一句 / 发图（客户说的·你发的，可多行写完整，如：已报价 EXW 222）"></textarea>' +
         '<button class="log-btn" data-act="log-buyer">记客户</button>' +
         '<button class="log-btn log-btn-me" data-act="log-me">记我发</button></div>' +
         '<input type="file" id="logImgs" accept="image/*" multiple style="display:none"/>' +
@@ -294,9 +276,8 @@
         "</div>" +
          "</div>" +
          '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">回复客户 · 两种方式任选</div>' +
-          langCard(b) +
-          limitCard(b) +
-          '<div class="mode-card mode-a" style="margin:0 16px 10px">' +
+           langCard(b) +
+           '<div class="mode-card mode-a" style="margin:0 16px 10px">' +
           '<div class="mode-head"><span class="mode-badge a">①</span>' +
           '<div class="mode-tt"><b>自己写中文 · AI 帮你写完整</b><span>写大概意图 → AI 按意图扩充成完整消息 → 你检查满意再发</span></div></div>' +
           '<div class="mt-row"><button class="mt-btn active" data-mt="expand">按意图扩充（推荐）</button><button class="mt-btn" data-mt="direct">逐句直译</button></div>' +
@@ -376,19 +357,8 @@
            App.toast(langSel.value ? "已设为" + langSel.value + " · AI 将按此语言生成/翻译" : "已恢复按国家自动选择");
         });
 
-        /* P2：价格底线卡——改动即保存，下次生成/翻译立刻生效 */
-        ["price", "moq", "terms", "lead"].forEach(function (id) {
-          var el = root.querySelector("#lim_" + id);
-          if (!el) return;
-          el.addEventListener("change", function () {
-            b.limit = b.limit || {};
-            var v = parseFloat(el.value);
-            if (v > 0) b.limit[id] = v; else delete b.limit[id];
-            if (!b.limit.price && !b.limit.moq && !b.limit.terms && !b.limit.lead) b.limit = null;
-            if (window.Store) Store.commit();
-            App.toast(b.limit ? "价格底线已保存 · AI 谈判不会越过这条线" : "已清空底线 · AI 不会主动谈价格");
-          });
-        });
+      /* 2026-10-17：价格底线卡按 Phil 要求整体移除（暂时用不到）。
+         提示词层「铁律C」保留——历史客户若已存过底线值，AI 仍会遵守，作为安全网。 */
 
       /* 编辑档案：复用新增弹层，预填当前值（2026-10-14 现场需求：姓名/号码等信息可改） */
       var editProf = root.querySelector('[data-act="edit-prof"]');
@@ -794,36 +764,23 @@
                '<span class="ctx-hint">' + (scripts.length > 1 ? scripts.length + " 套 · " : "") + "按顺序一步步发</span></div>" +
                (isNew ? '<div class="sp-hint">💡 新客户首谈：按下面顺序一步步发（一段、客户回一段）。署名会自动换成你的名字；客户过段时间再问参数，直接重发对应那一步。</div>' : "") +
                '<div class="sp-body">';
-             scripts.forEach(function (d, si) {
-               var snt = Math.min(Number(prog[d.key] || 0), d.steps.length);
-               if (scripts.length > 1) html += '<div class="sp-setname">' + escHtml(d.name || "话术 " + (si + 1)) + "</div>";
-               d.steps.forEach(function (st, i) {
-                 var done = i < snt;
-                 var txt = String(st.text || "");
-                 var preview = txt.replace(/\s+/g, " ").slice(0, 44);
-                 html += '<div class="sp-step' + (done ? " done" : "") + '">' +
-                   '<div class="sp-tt"><span class="sp-no">' + (done ? "✓" : (i + 1)) + '</span>' +
-                   '<div class="sp-txt"><b>' + escHtml(st.title || ("第 " + (i + 1) + " 步")) + '</b>' +
-                   '<span class="sp-prev">' + escHtml(preview) + (txt.length > 44 ? "…" : "") + "</span></div></div>" +
-                   '<div class="sp-btns">' +
-                   '<button class="sp-view" data-si="' + si + '" data-i="' + i + '">查看全文</button>' +
-                   '<button class="sp-send' + (done ? " re" : "") + '" data-si="' + si + '" data-i="' + i + '">' + (done ? "重发" : "发到 WhatsApp") + "</button></div>" +
-                   '<pre class="sp-full" id="spf_s' + si + "p" + i + '" style="display:none">' + escHtml(txt) + "</pre>" +
-                   "</div>";
-               });
-             });
-             html += "</div></div>";
-             box.innerHTML = html;
-             box.querySelectorAll(".sp-view").forEach(function (btn) {
-               btn.addEventListener("click", function () {
-                 var pre = box.querySelector("#spf_s" + btn.getAttribute("data-si") + "p" + btn.getAttribute("data-i"));
-                 if (!pre) return;
-                 var open = pre.style.display !== "none";
-                 pre.style.display = open ? "none" : "block";
-                 btn.textContent = open ? "查看全文" : "收起";
-               });
-             });
-             box.querySelectorAll(".sp-send").forEach(function (btn) {
+              scripts.forEach(function (d, si) {
+                var snt = Math.min(Number(prog[d.key] || 0), d.steps.length);
+                if (scripts.length > 1) html += '<div class="sp-setname">' + escHtml(d.name || "话术 " + (si + 1)) + "</div>";
+                /* 2026-10-17 精简（Phil 要求）：每步只留序号+名称+「发到 WhatsApp」一个按钮，
+                   正文不预览、不设「查看全文」——粘贴进 WhatsApp 自然能看到 */
+                d.steps.forEach(function (st, i) {
+                  var done = i < snt;
+                  html += '<div class="sp-step' + (done ? " done" : "") + '">' +
+                    '<span class="sp-no">' + (done ? "✓" : (i + 1)) + '</span>' +
+                    '<span class="sp-name"><b>' + escHtml(st.title || ("第 " + (i + 1) + " 步")) + '</b></span>' +
+                    '<button class="sp-send' + (done ? " re" : "") + '" data-si="' + si + '" data-i="' + i + '">' + (done ? "重发" : "发到 WhatsApp") + "</button>" +
+                    "</div>";
+                });
+              });
+              html += "</div></div>";
+              box.innerHTML = html;
+              box.querySelectorAll(".sp-send").forEach(function (btn) {
                btn.addEventListener("click", function () {
                  var si = +btn.getAttribute("data-si"), i = +btn.getAttribute("data-i");
                  var d = scripts[si], st = d && d.steps[i];

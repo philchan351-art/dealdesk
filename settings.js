@@ -188,7 +188,7 @@
         });
 
         var manualBtn = root.querySelector('[data-act="open-manual"]');
-        if (manualBtn) manualBtn.addEventListener("click", function () { window.open("manual.html", "_blank"); });
+        if (manualBtn) manualBtn.addEventListener("click", function () { window.open("manual.html?v=52", "_blank"); });
 
        root.querySelector('[data-act="save-name"]').addEventListener("click", function () {
          var stName = Store.getSettings() || {};

@@ -65,7 +65,7 @@
       '<div class="set-note">地址已预填。团队口令只在「新账号」时填一次，登录不需要</div>' +
       "</details>" +
       "</div>" +
-      '<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:12px">第一次用？<a href="manual.html" style="color:var(--brand-deep);text-decoration:underline">先看 2 分钟使用手册</a>，看完就能上手</div>' +
+      '<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:12px">第一次用？<a href="manual.html?v=52" style="color:var(--brand-deep);text-decoration:underline">先看 2 分钟使用手册</a>，看完就能上手</div>' +
       "</div>";
   }
 
