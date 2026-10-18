@@ -894,9 +894,10 @@
                   '<span class="ph-lb">' + escHtml(it.label) + "</span></button>";
               });
               html += "</div>" +
+                '<div class="ph-note">主按钮发<b>原生照片</b>（客户直接看到图）：弹出分享面板后在 WhatsApp 里点一下本客户即发；不想选人可用下方链接方式</div>' +
                 '<button type="button" class="ph-sendone" data-act="ph-send">' +
-                (cnt ? "📤 发给本客户 · " + cnt + " 张" : "📤 发给本客户（先点照片选中，可多选）") + "</button>" +
-                '<button type="button" class="ph-share" data-act="ph-share">分享原图（选客户/其他 App）</button></div></div>';
+                (cnt ? "📷 发给本客户 · " + cnt + " 张（原生照片）" : "📷 发给本客户（先点照片选中，可多选）") + "</button>" +
+                '<button type="button" class="ph-share" data-act="ph-share">发图片链接（免选客户）</button></div></div>';
               box.innerHTML = html;
               box.querySelectorAll(".ph-chip").forEach(function (ch) {
                 ch.addEventListener("click", function () {
@@ -910,18 +911,10 @@
                 if (e.target.checked) flat.forEach(function (it, n) { sel[n] = true; });
                 renderCard();
               });
+              /* 2026-10-18 v3（Phil："你发过去的是链接，全部改成照片，客户能直接看到照片"）：
+                 主按钮=原生照片（iOS 分享面板，选 WhatsApp 后点一下本客户）；
+                 次按钮=图片链接预填（免选客户，但客户看到的是链接） */
               box.querySelector('[data-act="ph-send"]').addEventListener("click", function () {
-                var items = selItems();
-                if (!items.length) { App.toast("先点照片选中（或点右上角「全选」）"); return; }
-                if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先点右上角「✎ 编辑」补全"); return; }
-                var msg = items.length === 1
-                  ? "📷 " + items[0].label + "\n" + absUrl(items[0])
-                  : "📷 产品照片 ×" + items.length + "\n" + items.map(function (it, i) { return (i + 1) + ". " + it.label + " " + absUrl(it); }).join("\n");
-                if (openWa(msg, "发了照片×" + items.length + "：" + items.map(function (it) { return it.label; }).join("、"))) {
-                  AIevt(b, "photo", { n: items.length, via: "wa-link" });
-                }
-              });
-              box.querySelector('[data-act="ph-share"]').addEventListener("click", function () {
                 var items = selItems();
                 if (!items.length) { App.toast("先点照片选中（或点右上角「全选」）"); return; }
                 Promise.all(items.map(function (it) {
@@ -931,13 +924,24 @@
                 })).then(function (files) {
                   if (navigator.canShare && navigator.canShare({ files: files })) {
                     navigator.share({ files: files, title: items.length === 1 ? items[0].label : "产品照片 ×" + items.length }).then(function () {
-                      b.messages.push({ from: "me", text: "📷 已发照片×" + items.length, time: "刚刚", status: "handed" });
+                      b.messages.push({ from: "me", text: "📷 已发照片×" + items.length + "（原生）", time: "刚刚", status: "handed" });
                       AIevt(b, "photo", { n: items.length, via: "share" });
                       if (window.Store) Store.commit();
                       App.refresh();
-                    }).catch(function (e) { if (String((e && e.name) || e) !== "AbortError") App.toast("分享面板没打开，可改用「发给本客户」"); });
-                  } else App.toast("这台设备不支持分享，请点「发给本客户」");
-                }).catch(function () { App.toast("照片没加载出来，请点「发给本客户」"); });
+                    }).catch(function (e) { if (String((e && e.name) || e) !== "AbortError") App.toast("分享面板没打开，可改用「发图片链接」"); });
+                  } else App.toast("这台设备不支持照片分享，请点「发图片链接」");
+                }).catch(function () { App.toast("照片没加载出来，请点「发图片链接」"); });
+              });
+              box.querySelector('[data-act="ph-share"]').addEventListener("click", function () {
+                var items = selItems();
+                if (!items.length) { App.toast("先点照片选中（或点右上角「全选」）"); return; }
+                if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先点右上角「✎ 编辑」补全"); return; }
+                var msg = items.length === 1
+                  ? "📷 " + items[0].label + "\n" + absUrl(items[0])
+                  : "📷 产品照片 ×" + items.length + "\n" + items.map(function (it, i) { return (i + 1) + ". " + it.label + " " + absUrl(it); }).join("\n");
+                if (openWa(msg, "发了照片链接×" + items.length + "：" + items.map(function (it) { return it.label; }).join("、"))) {
+                  AIevt(b, "photo", { n: items.length, via: "wa-link" });
+                }
               });
             }
             renderCard();

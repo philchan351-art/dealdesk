@@ -340,6 +340,8 @@
 .ph-chip.sel .ph-lb{color:var(--brand-deep);font-weight:800}
 .ph-all{display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;white-space:nowrap}
 .ph-all input{width:15px;height:15px;accent-color:var(--brand-deep);margin:0}
+.ph-note{font-size:10px;color:var(--ink-faint);line-height:1.5;margin:8px 0 6px}
+.ph-note b{color:var(--ink-soft)}
 .ph-sendone{
   width:100%;margin-top:10px;padding:11px;border:none;border-radius:12px;
   background:var(--brand,#EFB530);color:#3d2e05;font-size:13.5px;font-weight:800;cursor:pointer;
