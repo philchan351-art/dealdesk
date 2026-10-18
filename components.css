@@ -330,11 +330,16 @@
 /* 2026-10-18（Phil）：照片库缩略图一排 4 张省空间，3:4 竖图不裁头脚 */
 .ph-gtitle{font-size:11px;font-weight:800;color:var(--ink-faint);margin:10px 0 5px;letter-spacing:.4px}
 .ph-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.ph-chip{border:1px solid var(--line);border-radius:9px;background:var(--surface);padding:3px;min-width:0;cursor:pointer}
+.ph-chip{position:relative;border:1px solid var(--line);border-radius:9px;background:var(--surface);padding:3px;min-width:0;cursor:pointer}
 .ph-chip img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:6px;display:block;background:var(--surface-2)}
 .ph-lb{display:block;font-size:9.5px;font-weight:600;color:var(--ink-soft);text-align:center;padding:3px 1px 1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ph-chip:active{background:var(--surface-2)}
-.ph-chip.sel{border-color:var(--brand-deep);box-shadow:inset 0 0 0 1.5px var(--brand);background:rgba(185,117,22,.08)}
+/* 2026-10-18（Phil）：选中要有"一眼就看到"的框——深棕粗描边+外发光+右上角✓角标+标签变色 */
+.ph-chip.sel{border:2px solid var(--brand-deep);box-shadow:0 0 0 2px var(--brand);background:rgba(185,117,22,.14)}
+.ph-chip.sel::after{content:"✓";position:absolute;top:6px;right:6px;width:17px;height:17px;border-radius:50%;background:var(--brand-deep);color:#fff;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.ph-chip.sel .ph-lb{color:var(--brand-deep);font-weight:800}
+.ph-all{display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;white-space:nowrap}
+.ph-all input{width:15px;height:15px;accent-color:var(--brand-deep);margin:0}
 .ph-sendone{
   width:100%;margin-top:10px;padding:11px;border:none;border-radius:12px;
   background:var(--brand,#EFB530);color:#3d2e05;font-size:13.5px;font-weight:800;cursor:pointer;

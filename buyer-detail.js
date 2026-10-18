@@ -861,45 +861,69 @@
               });
             });
             if (!flat.length) { box.innerHTML = ""; return; }
-            var sel = 0;
+            /* 2026-10-18 v2（Phil）：多选 + 右上角「全选」+ 醒目圈框——
+               sel 为索引集合，点照片切换选中，全选框一次框定全部，可一次发给本客户 */
+            var sel = {};
+            function selItems() {
+              var out = [];
+              flat.forEach(function (it, n) { if (sel[n]) out.push(it); });
+              return out;
+            }
             function absUrl(it) { return pageBase + it.file; }
             function renderCard() {
+              var cnt = selItems().length;
+              var allOn = cnt === flat.length && cnt > 0;
               var html = '<div class="card ctx-card" style="margin:12px 16px 0">' +
                 '<div class="ctx-head"><span class="ctx-title">📷 ' + escHtml(data.name || "产品照片") + '</span>' +
-                '<span class="ctx-hint">点选照片 → 直接发给本客户</span></div><div class="sp-body">';
+                '<label class="ph-all"><input type="checkbox" data-act="ph-all"' + (allOn ? " checked" : "") + "/> 全选</label></div>" +
+                '<div class="sp-body">';
               if (data.groups.length > 1) html += '<div class="ph-gtitle">' + escHtml(data.groups[0].title) + '</div>';
               html += '<div class="ph-grid">';
               flat.forEach(function (it, n) {
-                html += '<button type="button" class="ph-chip' + (n === sel ? " sel" : "") + '" data-n="' + n + '">' +
+                html += '<button type="button" class="ph-chip' + (sel[n] ? " sel" : "") + '" data-n="' + n + '">' +
                   '<img src="' + it.file + '?v=2" loading="lazy" alt=""/>' +
                   '<span class="ph-lb">' + escHtml(it.label) + "</span></button>";
               });
               html += "</div>" +
-                '<button type="button" class="ph-sendone" data-act="ph-send">📤 发给本客户 · ' +
-                escHtml(flat[sel] ? flat[sel].label : "") + "</button>" +
+                '<button type="button" class="ph-sendone" data-act="ph-send">' +
+                (cnt ? "📤 发给本客户 · " + cnt + " 张" : "📤 发给本客户（先点照片选中，可多选）") + "</button>" +
                 '<button type="button" class="ph-share" data-act="ph-share">分享原图（选客户/其他 App）</button></div></div>';
               box.innerHTML = html;
               box.querySelectorAll(".ph-chip").forEach(function (ch) {
-                ch.addEventListener("click", function () { sel = +ch.getAttribute("data-n"); renderCard(); });
+                ch.addEventListener("click", function () {
+                  var n = +ch.getAttribute("data-n");
+                  if (sel[n]) delete sel[n]; else sel[n] = true;
+                  renderCard();
+                });
+              });
+              box.querySelector('[data-act="ph-all"]').addEventListener("change", function (e) {
+                sel = {};
+                if (e.target.checked) flat.forEach(function (it, n) { sel[n] = true; });
+                renderCard();
               });
               box.querySelector('[data-act="ph-send"]').addEventListener("click", function () {
-                var it = flat[sel];
-                if (!it) return;
+                var items = selItems();
+                if (!items.length) { App.toast("先点照片选中（或点右上角「全选」）"); return; }
                 if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先点右上角「✎ 编辑」补全"); return; }
-                var msg = "📷 " + it.label + "\n" + absUrl(it);
-                if (openWa(msg, "发了照片：" + it.label)) {
-                  AIevt(b, "photo", { label: it.label, via: "wa-link" });
+                var msg = items.length === 1
+                  ? "📷 " + items[0].label + "\n" + absUrl(items[0])
+                  : "📷 产品照片 ×" + items.length + "\n" + items.map(function (it, i) { return (i + 1) + ". " + it.label + " " + absUrl(it); }).join("\n");
+                if (openWa(msg, "发了照片×" + items.length + "：" + items.map(function (it) { return it.label; }).join("、"))) {
+                  AIevt(b, "photo", { n: items.length, via: "wa-link" });
                 }
               });
               box.querySelector('[data-act="ph-share"]').addEventListener("click", function () {
-                var it = flat[sel];
-                if (!it) return;
-                fetch(it.file + "?v=2").then(function (r) { return r.blob(); }).then(function (bl) {
-                  var f = new File([bl], "WA-" + it.label + ".jpg", { type: "image/jpeg" });
-                  if (navigator.canShare && navigator.canShare({ files: [f] })) {
-                    navigator.share({ files: [f], title: it.label }).then(function () {
-                      b.messages.push({ from: "me", text: "📷 已发照片：" + it.label, time: "刚刚", status: "handed" });
-                      AIevt(b, "photo", { label: it.label, via: "share" });
+                var items = selItems();
+                if (!items.length) { App.toast("先点照片选中（或点右上角「全选」）"); return; }
+                Promise.all(items.map(function (it) {
+                  return fetch(it.file + "?v=2").then(function (r) { return r.blob(); }).then(function (bl) {
+                    return new File([bl], "WA-" + it.label + ".jpg", { type: "image/jpeg" });
+                  });
+                })).then(function (files) {
+                  if (navigator.canShare && navigator.canShare({ files: files })) {
+                    navigator.share({ files: files, title: items.length === 1 ? items[0].label : "产品照片 ×" + items.length }).then(function () {
+                      b.messages.push({ from: "me", text: "📷 已发照片×" + items.length, time: "刚刚", status: "handed" });
+                      AIevt(b, "photo", { n: items.length, via: "share" });
                       if (window.Store) Store.commit();
                       App.refresh();
                     }).catch(function (e) { if (String((e && e.name) || e) !== "AbortError") App.toast("分享面板没打开，可改用「发给本客户」"); });
