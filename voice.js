@@ -83,9 +83,9 @@
         localStorage.setItem("dd_mic_perm_hint", today);
         setTimeout(function () {
           if (repeat) {
-            App.toast("系统没记住刚才的 Allow——多半是在微信里打开或用了无痕模式（地址栏紫色 Private），两者都不记授权。彻底解法：用 Safari 普通模式打开本站（可点分享按钮「添加到主屏幕」），再 设置→Safari→网站→麦克风→允许", 18000);
+            App.toast("系统没记住刚才的 Allow——多半用了隐私模式（Safari 地址栏紫色 Private / Chrome「私密标签页」，都不记授权），或该浏览器里没把本站设为允许。彻底解法：Chrome 点地址栏左侧 ⓘ→网站设置→麦克风→允许；Safari 去 设置→Safari→网站→麦克风→允许", 20000);
           } else {
-            App.toast("麦克风已记住。若以后还反复弹 Allow：多半是微信/无痕模式（不记授权）——彻底解法：Safari 普通模式打开 + 设置→Safari→网站→麦克风→允许", 16000);
+            App.toast("麦克风已记住。若以后还反复弹 Allow：多半是隐私模式（不记授权）或浏览器里没设允许——Chrome：地址栏左侧 ⓘ→网站设置→麦克风→允许", 16000);
           }
         }, 1500);
       } catch (e) {}
@@ -104,19 +104,26 @@
   function showDeniedPanel() {
     if (deniedPanel) return;
     var phone = document.querySelector(".phone");
-    if (!phone) { App.toast("麦克风被禁止：iPhone 去 设置→Safari→最下方网站→麦克风→允许", 8000); return; }
+    if (!phone) { App.toast("麦克风被禁止：Chrome 点地址栏左侧 ⓘ→网站设置→麦克风→允许；Safari 去 设置→Safari→网站→麦克风→允许", 10000); return; }
     var el = document.createElement("div");
     el.className = "mic-denied";
+    /* 2026-10-18（Phil 主用 Chrome）：Chrome 与 Safari 的网站权限互不相通，按你用的浏览器走对应路径 */
+    var gtStyle = "font-size:12px;font-weight:800;margin:9px 0 3px;color:var(--brand-deep,#9a6a10)";
     el.innerHTML =
       '<div class="md-head">🎤 麦克风被禁用 <button class="md-x" type="button">✕</button></div>' +
-      '<div class="md-sub">这是浏览器层的设置，不是软件坏了。iPhone 四步解决：</div>' +
-       '<ol class="md-steps">' +
-       '<li>手机桌面打开 <b>「设置」</b>（灰色齿轮）</li>' +
-       '<li>一直滑到最底部，点 <b>「Safari 浏览器」</b></li>' +
-       '<li>再往下滑到「网站」区，点 <b>「麦克风」</b></li>' +
-       '<li>把 <b>DealDesk</b> 那行拨成 <b>允许</b>（= 总是允许，以后永不再弹）</li>' +
-       '</ol>' +
-       '<div class="md-sub">若<b>每次</b>都要重新点 Allow：先确认没开无痕模式（地址栏有紫色 Private 标志）——无痕模式永不记忆任何授权。</div>' +
+      '<div class="md-sub">这是浏览器层的设置，不是软件坏了。按你用的浏览器选一路：</div>' +
+      '<div style="' + gtStyle + '">Chrome（你的常用浏览器）</div>' +
+      '<ol class="md-steps">' +
+      '<li>点地址栏<b>左侧的 ⓘ 图标</b>（有的版本显示成字母 a）</li>' +
+      '<li>点 <b>「网站设置」</b>（或「网站权限」）</li>' +
+      '<li>把 <b>麦克风</b> 拨成 <b>允许</b>（= 总是允许，以后永不再弹）</li>' +
+      '</ol>' +
+      '<div style="' + gtStyle + '">Safari</div>' +
+      '<ol class="md-steps">' +
+      '<li>桌面打开 <b>「设置」</b>（灰色齿轮）→ 滑到底点 <b>「Safari 浏览器」</b></li>' +
+      '<li>再滑到「网站」区点 <b>「麦克风」</b>，把 <b>DealDesk</b> 拨成 <b>允许</b></li>' +
+      '</ol>' +
+      '<div class="md-sub">若<b>每次</b>都要重新点 Allow：先确认没开隐私模式——Safari 的无痕（地址栏紫色 Private）和 Chrome 的「私密标签页」都永不记忆授权。</div>' +
       '<button class="md-retry" type="button">✅ 我设置好了，点我测试</button>';
     phone.appendChild(el);
     deniedPanel = el;
