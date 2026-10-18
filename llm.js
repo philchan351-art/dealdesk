@@ -119,8 +119,10 @@
     opt = opt || {};
     var c = cfg();
     if (!c || !(c.key || c.proxyUrl)) return Promise.reject(new Error("LLM 未配置（设置里填 Key 或云代理地址）"));
+    var model0 = opt.model || c.model || "qwen-plus";
+    function one(model) {
     var payload = {
-      model: opt.model || c.model || "qwen-plus",
+      model: model,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user }
@@ -193,6 +195,12 @@
         return (j.choices && j.choices[0] && j.choices[0].message.content) || "";
       });
     });
+    }
+    /* 2026-10-18：快模型（qwen-flash）在当前端点不可用（404/未开通/403）时自动降级主模型，不阻塞业务员 */
+    return one(model0).catch(function (e) {
+      if (opt.fallbackModel && /404|403|not exist|denied|model/i.test(String((e && e.message) || e))) return one(opt.fallbackModel);
+      throw e;
+    });
   }
 
   function parseJSON(text) {
@@ -242,9 +250,11 @@
       return chat("你是测试助手。", "Reply with the single word OK.", { max_tokens: 8, model: c.model });
     },
       translate: function (text, buyer) {
-      /* 2026-10-18（Phil）：「记一条」中文对照要 2 秒内 —— 纯翻译不需要档案/剧本/团队资料上下文，
-         改轻系统提示 + nodocs 跳过服务端注入；翻译质量要求：自然商务中文，数字/品牌/型号/证书名保留原文 */
-      return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 300, temp: 0.2, nodocs: true })
+      /* 2026-10-18（Phil）：「记一条」中文对照要 2 秒内 —— 三重提速：
+         ① 轻系统提示（纯翻译不需要档案/剧本上下文）② nodocs 跳过服务端资料注入
+         ③ qwen-flash 快模型（实测 0.8-1s vs qwen-plus 1.9s，翻译质量实测达标），
+         端点不支持时自动降级 qwen-plus（fallbackModel，chat() 内兜底） */
+      return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 300, temp: 0.2, nodocs: true, model: "qwen-flash", fallbackModel: "qwen-plus" })
         .then(function (t) {
           var o = parseJSON(t);
           return (o && o.zh) || null;
