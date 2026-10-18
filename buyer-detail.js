@@ -20,8 +20,9 @@
 
   /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
   var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
-  var BD_VER = 75; /* 2026-10-18（Phil「依然没翻译」）：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
-  var zhBusy = {}; // 防重入：同一文本正在翻译时不重复发起
+  var BD_VER = 76; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
+  var zhBusy = {};
+  var _chatPos = { id: null, top: 0, atBottom: true }; /* 2026-10-18（Phil「页面自己跳上跳下」）：聊天滚动位置跨重渲染记忆 */ // 防重入：同一文本正在翻译时不重复发起
 
   function diagText(b) {
     var d = b.aiDiag || {};
@@ -541,22 +542,36 @@
         if (chat && chat.scrollIntoView) chat.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
 
-      /* 2026-10-17：打开买家即定位客户最新消息（此前默认停在记录顶部，每次都要手动下滑） */
-      function jumpToLatest() {
-        var wa = root.querySelector(".wa-msgs");
-        if (!wa) return;
-        wa.scrollTop = wa.scrollHeight;
-        var chat = root.querySelector(".wa-chat");
-        if (chat && chat.scrollIntoView) chat.scrollIntoView({ behavior: "auto", block: "nearest" });
-      }
-      requestAnimationFrame(function () { requestAnimationFrame(jumpToLatest); });
-      /* 记录里的图片加载完后容器高度变化，需重新定位到最新 */
-      Array.prototype.forEach.call(root.querySelectorAll(".wa-msgs img"), function (im) {
-        if (!im.complete) {
-          im.addEventListener("load", jumpToLatest, { once: true });
-          im.addEventListener("error", jumpToLatest, { once: true });
-        }
-      });
+       /* 2026-10-18（Phil「我什么都没动，页面自己跳上跳下，很不稳定」）：
+          根因 = 任何后台事件（翻译完成/意向完成/同步）都整页重渲染，旧逻辑每次都无条件跳日志底部
+          → 用户正在读历史消息时，画面被反复拽到底部。新规则（模块级 _chatPos 跨重渲染共享）：
+          · 切到别的买家 / 首次打开页面 → 跳最新消息，并把对话区带入视野
+          · 同一买家的后台重渲染 → 恢复重渲染前的滚动位置；只有本来就在底部才吸底 */
+       var waTrack = root.querySelector(".wa-msgs");
+       if (waTrack) waTrack.addEventListener("scroll", function () {
+         _chatPos.top = waTrack.scrollTop;
+         _chatPos.atBottom = waTrack.scrollTop + waTrack.clientHeight >= waTrack.scrollHeight - 60;
+       }, { passive: true });
+       var _sameBuyer = _chatPos.id === b.id;
+       _chatPos.id = b.id;
+       function placeChat() {
+         var wa = root.querySelector(".wa-msgs");
+         if (!wa) return;
+         if (!_sameBuyer || _chatPos.atBottom) wa.scrollTop = wa.scrollHeight;
+         else wa.scrollTop = Math.min(_chatPos.top, Math.max(0, wa.scrollHeight - wa.clientHeight));
+         if (!_sameBuyer) {
+           var chat = root.querySelector(".wa-chat");
+           if (chat && chat.scrollIntoView) chat.scrollIntoView({ behavior: "auto", block: "nearest" });
+         }
+       }
+       requestAnimationFrame(function () { requestAnimationFrame(placeChat); });
+       /* 记录里的图片加载完后容器高度变化 → 按同一规则重新定位（不再强制跳底） */
+       Array.prototype.forEach.call(root.querySelectorAll(".wa-msgs img"), function (im) {
+         if (!im.complete) {
+           im.addEventListener("load", placeChat, { once: true });
+           im.addEventListener("error", placeChat, { once: true });
+         }
+       });
 
        var input = root.querySelector("#msgInput");
        var msgs = root.querySelector("#waMsgs");
