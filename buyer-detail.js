@@ -169,16 +169,15 @@
       "</div>";
   }
 
+  /* 2026-10-18（Phil）：语言选择收成一个紧凑框，与「回复客户」标题同一行；说明小字全部去掉 */
   function langCard(b) {
     var LANGS = CountryProfiles.langs();
     var opts = '<option value="">自动 · 按国家（' + escHtml(b.country || "未知") + "）</option>" +
       LANGS.map(function (l) { return '<option value="' + l + '"' + (b.msgLang === l ? " selected" : "") + ">" + l + "</option>"; }).join("");
-    return '<div class="card" style="margin-top:12px;padding:11px 13px">' +
-      '<div style="display:flex;align-items:center;gap:10px">' +
-      '<span style="font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap">回复语言</span>' +
-      '<select id="langSel" style="flex:1;font-size:13px;font-weight:600;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 9px;background:var(--surface-2)">' + opts + "</select></div>" +
-      '<div class="set-note" style="margin-top:8px">默认按国家自动；客户实际用别的语言（如人在中国但用英语）就在这里改，AI 生成 / 翻译都按它。</div>' +
-      "</div>";
+    return '<div class="reply-row">' +
+      '<div class="d-sec-title" style="margin:0">回复客户</div>' +
+      '<span class="lang-globe">🌐</span>' +
+      '<select id="langSel" class="lang-mini" title="回复语言（默认按国家自动）">' + opts + "</select></div>";
   }
 
   window.Screens["buyer-detail"] = {
@@ -276,26 +275,23 @@
         '<div id="logImgPrev" class="log-img-prev" style="display:none"></div>' +
         "</div>" +
          "</div>" +
-         '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">回复客户 · 两种方式任选</div>' +
-           langCard(b) +
-           '<div class="mode-card mode-a" style="margin:0 16px 10px">' +
-          '<div class="mode-head"><span class="mode-badge a">①</span>' +
-          '<div class="mode-tt"><b>自己写中文 · AI 帮你写完整</b><span>写大概意图 → AI 按意图扩充成完整消息 → 你检查满意再发</span></div></div>' +
-          '<div class="mt-row"><button class="mt-btn active" data-mt="expand">按意图扩充（推荐）</button><button class="mt-btn" data-mt="direct">逐句直译</button></div>' +
-            '<div class="mode-a-row"><input id="msgInput" placeholder="写大概意图，或按住下面🎤说话"/>' +
-            '<button class="tr-btn" id="mtGo" data-act="send">AI 扩充 →</button></div>' +
-            '<button class="mic-btn" id="micBtn" type="button">🎤 按住说话</button>' +
-          '<div id="pendWrap"></div>' +
-          "</div>" +
-         '<div class="mode-card mode-b" style="margin:0 16px 10px">' +
-         '<div class="mode-head"><span class="mode-badge b">②</span>' +
-         '<div class="mode-tt"><b>AI 代写 · 上下文 + 长期记忆</b><span>AI 结合全部对话历史写 3 条，挑一条发</span></div>' +
-          '<span id="suggLang" class="lang-chip">→ ' + escHtml((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</span>" +
-           (b.aiSuggests ? '<span id="suggSaved" class="lang-chip saved">已存 ' + savedAt(b.aiSuggests.at) + "</span>" : "") +
-           '<button class="regen" data-act="regen" title="基于最新档案与对话重新生成">' + (b.aiSuggests ? "✦ 重新生成" : "✦ 生成 3 条") + "</button></div>" +
-           '<div id="diagLine" class="diag-line">' + (b.aiDiag ? escHtml(diagText(b)) : "谈单诊断：点「✦ 生成 3 条」后，AI 先诊断这单在哪一步、下一步推什么，再给建议") + "</div>" +
-          '<div id="suggWrap">' + suggHtml + "</div>" +
-          "</div>" +
+            /* 2026-10-18（Phil 精简三指令）：语言框并入标题行；方式①意图框变大+写完自动扩充（无按钮）；
+               方式②一行标题「AI 代写 · 语言」+重新生成按钮；谈单诊断行/已存时间/说明小字全删 */
+            langCard(b) +
+            '<div class="mode-card mode-a" style="margin:0 16px 10px">' +
+           '<div class="mode-head"><span class="mode-badge a">①</span>' +
+           '<div class="mode-tt"><b>自己写中文 · AI 自动扩充</b></div></div>' +
+           '<div class="mt-row"><button class="mt-btn active" data-mt="expand">按意图扩充（推荐）</button><button class="mt-btn" data-mt="direct">逐句直译</button></div>' +
+           '<textarea id="msgInput" rows="3" placeholder="写大概意图（写完自动扩充），或按住下面🎤说话"></textarea>' +
+             '<button class="mic-btn" id="micBtn" type="button">🎤 按住说话</button>' +
+             '<div id="pendWrap"></div>' +
+            "</div>" +
+          '<div class="mode-card mode-b" style="margin:0 16px 10px">' +
+          '<div class="mode-head"><span class="mode-badge b">②</span>' +
+           '<span class="mode-b-tt">AI 代写 · <b id="suggLang">' + escHtml((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语") + "</b></span>" +
+            '<button class="regen" data-act="regen">' + (b.aiSuggests ? "✦ 重新生成" : "✦ 生成 3 条") + "</button></div>" +
+           '<div id="suggWrap">' + suggHtml + "</div>" +
+           "</div>" +
          remindHtml(b) +
          profileHtml(b) +
          ctxHtml +
@@ -353,8 +349,8 @@
        if (langSel) langSel.addEventListener("change", function () {
          if (langSel.value) b.msgLang = langSel.value; else delete b.msgLang;
          if (window.Store) Store.commit();
-         var tag = root.querySelector("#suggLang");
-         if (tag) tag.textContent = "→ " + ((window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语");
+          var tag = root.querySelector("#suggLang");
+          if (tag) tag.textContent = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语";
            App.toast(langSel.value ? "已设为" + langSel.value + " · AI 将按此语言生成/翻译" : "已恢复按国家自动选择");
         });
 
@@ -1088,19 +1084,8 @@
            if (window.Store) Store.commit();
            wrap.innerHTML = items.map(function (s) { return suggCard(s, b); }).join("");
           bindSugg(wrap);
-          var dl = root.querySelector("#diagLine");
-          if (dl && b.aiDiag) dl.textContent = diagText(b);
-          var sv = root.querySelector("#suggSaved");
-          if (!sv) {
-            sv = document.createElement("span");
-            sv.id = "suggSaved";
-            sv.className = "lang-chip saved";
-            var mh = root.querySelector(".mode-b .mode-head");
-            var rg0 = mh && mh.querySelector(".regen");
-            if (mh && rg0) mh.insertBefore(sv, rg0);
-          }
-          if (sv) sv.textContent = "已存 " + savedAt(b.aiSuggests.at);
-          if (regen) regen.textContent = "✦ 重新生成";
+           /* 2026-10-18：诊断行与"已存"角标已按 Phil 要求删除（UI 精简），不再回填 */
+           if (regen) regen.textContent = "✦ 重新生成";
           var leaked = lang !== "中文" && items.some(function (s) { return /[一-龥]/.test(s.text || ""); });
           App.toast(leaked ? "注意：AI 仍输出了中文，建议在设置里换成更强模型后重试" : "已生成并保存 · 含谈单诊断");
         }).catch(function (e) {
@@ -1108,8 +1093,18 @@
           App.refresh();
         }).finally(function () { regen.disabled = false; });
       });
-       root.querySelector('[data-act="send"]').addEventListener("click", function () { doTranslate(); });
-       input.addEventListener("keydown", function (e) { if (e.key === "Enter") doTranslate(); });
+       /* 2026-10-18（Phil）：「AI 扩充」按钮删除——写完停笔 2 秒自动扩充/直译。
+          意图框已是多行 textarea：Enter 换行不再触发提交；上一次还在生成中则不打断 */
+       var autoT = null;
+       input.addEventListener("input", function () {
+         if (autoT) clearTimeout(autoT);
+         var t = input.value.trim();
+         if (!t) return;
+         autoT = setTimeout(function () {
+           if (pending && pending.loading) return;
+           if (input.value.trim() === t) doTranslate();
+         }, 2000);
+       });
 
         /* 🎤 按住说话：录音 → 上传云端识别 → 回填文字（iPhone/微信/任意浏览器通用，不依赖浏览器语音引擎） */
         var micBtn = root.querySelector("#micBtn");
