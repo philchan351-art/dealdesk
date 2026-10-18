@@ -20,9 +20,10 @@
 
   /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
   var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
-  var BD_VER = 76; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
+  var BD_VER = 77; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
   var zhBusy = {};
   var _chatPos = { id: null, top: 0, atBottom: true }; /* 2026-10-18（Phil「页面自己跳上跳下」）：聊天滚动位置跨重渲染记忆 */ // 防重入：同一文本正在翻译时不重复发起
+  var _bdGen = 0;      /* 2026-10-18：init 代际号——被新一轮渲染取代后，遗留的 rAF 回调不得再执行（旧渲染的滚动会把新画面拽乱） */
 
   function diagText(b) {
     var d = b.aiDiag || {};
@@ -303,11 +304,12 @@
          "</div>";
      },
 
-    init: function (param, root) {
-      var b = Mock.getBuyer(param);
-      if (!b) return;
+     init: function (param, root) {
+       var b = Mock.getBuyer(param);
+       if (!b) return;
+       var myGen = ++_bdGen; /* 代际号：后续重渲染会使本 init 的遗留 rAF 失效 */
 
-      var back = root.querySelector('[data-act="back"]');
+       var back = root.querySelector('[data-act="back"]');
       if (back) back.addEventListener("click", function () { App.go("buyers"); });
       var fuBtn = root.querySelector('[data-act="fu"]');
       if (fuBtn) fuBtn.addEventListener("click", function () { App.go("followup"); });
@@ -394,29 +396,45 @@
           if (!text || /[一-龥]/.test(text)) return; // 中文不用翻
           if (!window.LLM || !LLM.configured()) return;
           if (zhBusy[text]) return;
-          zhBusy[text] = 1;
           var target = null;
           for (var i0 = b.messages.length - 1; i0 >= 0; i0--) {
             var m0 = b.messages[i0];
             if (m0.text === text && (!m0.zh || m0.zh === "翻译中…" || m0.zhFail)) { target = m0; break; }
           }
-          if (!target) { zhBusy[text] = 0; return; }
+          if (!target) return; /* 锁必须在确认目标之后才加，否则找不到的文本会被永久锁死 */
+          zhBusy[text] = 1;
           target.zh = "翻译中…"; target.zhFail = false;
-          App.refresh(); /* 占位立即可见 */
-          LLM.translate(text, b).then(function (zh) {
+          if (!patchBubble(target)) App.refresh(); /* 占位：只换这一个气泡，不整页重绘 */
+          startZh(target);
+        }
+        /* 2026-10-18（Phil：进客户页"页面不断往上拉+跳动闪烁，十几秒才稳定"）：
+           翻译完成/失败只"外科手术"替换对应那一个气泡（重绘前旧逻辑每次都整页
+           innerHTML 重建，外层 .screen 还被 smooth 滚回顶部——一次进页最多触发
+           6 条补翻译 = 6 次全量重渲染，这就是抖动的全部来源） */
+        function patchBubble(m) {
+          var wa = root.querySelector("#waMsgs");
+          if (!wa) return false;
+          var idx = b.messages.indexOf(m);
+          if (idx < 0) return false;
+          var node = wa.children[idx];
+          if (!node) return false;
+          var div = document.createElement("div");
+          div.innerHTML = bubble(m, idx);
+          try { wa.replaceChild(div.firstChild, node); } catch (e) { return false; }
+          return true;
+        }
+        function startZh(m) {
+          LLM.translate(m.text, b).then(function (zh) {
             zh = String(zh || "").trim();
             if (!zh) throw new Error("返回空译文");
-            var done = false;
-            for (var i = b.messages.length - 1; i >= 0; i--) {
-              var m = b.messages[i];
-              if (m.text === text && (!m.zh || m.zh === "翻译中…")) { m.zh = zh; m.zhFail = false; done = true; break; }
-            }
-            if (done) { if (window.Store) Store.commit(); App.refresh(); }
+            m.zh = zh; m.zhFail = false;
+            if (window.Store) Store.commit();
+            if (!patchBubble(m)) App.refresh();
           }).catch(function (e) {
-            if (target) { target.zh = ""; target.zhFail = true; }
+            m.zh = ""; m.zhFail = true;
             App.toast("自动翻译失败：" + String((e && e.message) || e).slice(0, 40), 3500);
-            App.refresh();
-          }).then(function () { zhBusy[text] = 0; });
+            if (!patchBubble(m)) App.refresh();
+          }).then(function () { zhBusy[m.text] = 0; });
         }
 
        /* P2：意向信号——客户回复后 AI 静默默估升降并留一句依据（列表点徽章查看） */
@@ -510,30 +528,42 @@
        /* 2026-10-17：记一句改多行框后——Enter 提交（保持快记习惯），Shift+Enter 换行（写完整信息） */
       if (logIn) logIn.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doLogBuyer(); } });
 
-        /* 页面加载时：给最近缺中文对照的外语消息自动补翻译（客户和我发的都算，最多 6 条，不刷屏）。
-           「翻译中…」视为缺失（防极端时序下占位被存进云端后卡死）；zhFail 不自动重翻（持续失败会刷屏），靠气泡里点按重试 */
-        b.messages.filter(function (m) { return (!m.zh || m.zh === "翻译中…") && !m.zhFail && m.text && !/[一-龥]/.test(m.text); }).slice(-6)
-         .forEach(function (m) {
-           autoZh(m.text);
-         });
+         /* 页面加载时：给最近缺中文对照的外语消息自动补翻译（客户和我发的都算，最多 6 条，不刷屏）。
+            「翻译中…」视为缺失（防极端时序下占位被存进云端后卡死）；zhFail 不自动重翻（持续失败会刷屏），靠气泡里点按重试
+            2026-10-18（Phil：进客户页抖动闪烁）：占位一次性批量写入（逐气泡替换、零整页重渲染），
+            再并行发起翻译——旧逻辑每条触发一次整页重渲染，进页最多连环重绘 6 次 */
+         if (window.LLM && LLM.configured()) {
+           var missZh = b.messages.filter(function (m) { return (!m.zh || m.zh === "翻译中…") && !m.zhFail && m.text && !/[一-龥]/.test(m.text); }).slice(-6);
+           var toStart = [];
+           missZh.forEach(function (m) {
+             if (zhBusy[m.text]) return;
+             zhBusy[m.text] = 1;
+             m.zh = "翻译中…"; m.zhFail = false;
+             toStart.push(m);
+           });
+           toStart.forEach(function (m) { patchBubble(m); });
+           toStart.forEach(startZh);
+         }
 
-      /* 交接确认：✓ 已发 / ✕ 没发 / 任意我方记录可删 */
-      Array.prototype.forEach.call(root.querySelectorAll('.wa-msgs [data-act="h-y"],.wa-msgs [data-act="h-n"],.wa-msgs [data-act="m-del"]'), function (el) {
-        el.addEventListener("click", function () {
-          var idx = +el.getAttribute("data-idx");
-          if (el.getAttribute("data-act") === "h-y") {
-            if (b.messages[idx]) { b.messages[idx].status = "sent"; AIevt(b, "confirmed", { text: b.messages[idx].text, stage: b.stage }); }
-          } else {
-            /* 埋点：「✕ 没发」＝建议被弃用的负样本，必须先留痕再删；「删除记录」属数据清理，不记 */
-            if (el.getAttribute("data-act") === "h-n" && b.messages[idx]) {
-              AIevt(b, "rejected", { src: "ai", text: b.messages[idx].text, zh: b.messages[idx].zh, stage: b.stage });
-            }
-            b.messages.splice(idx, 1);
-          }
-          if (window.Store) Store.commit();
-          App.refresh();
-        });
-      });
+       /* 交接确认：✓ 已发 / ✕ 没发 / 任意我方记录可删
+          2026-10-18：改事件委托——补翻译现在是气泡级替换 DOM，逐元素绑定会随旧节点丢失 */
+       var waMsgsEl = root.querySelector("#waMsgs");
+       if (waMsgsEl) waMsgsEl.addEventListener("click", function (e) {
+         var el = e.target && e.target.closest ? e.target.closest('[data-act="h-y"],[data-act="h-n"],[data-act="m-del"]') : null;
+         if (!el) return;
+         var idx = +el.getAttribute("data-idx");
+         if (el.getAttribute("data-act") === "h-y") {
+           if (b.messages[idx]) { b.messages[idx].status = "sent"; AIevt(b, "confirmed", { text: b.messages[idx].text, stage: b.stage }); }
+         } else {
+           /* 埋点：「✕ 没发」＝建议被弃用的负样本，必须先留痕再删；「删除记录」属数据清理，不记 */
+           if (el.getAttribute("data-act") === "h-n" && b.messages[idx]) {
+             AIevt(b, "rejected", { src: "ai", text: b.messages[idx].text, zh: b.messages[idx].zh, stage: b.stage });
+           }
+           b.messages.splice(idx, 1);
+         }
+         if (window.Store) Store.commit();
+         App.refresh();
+       });
 
       function scrollDown() {
         var wa = root.querySelector(".wa-msgs");
@@ -552,19 +582,25 @@
          _chatPos.top = waTrack.scrollTop;
          _chatPos.atBottom = waTrack.scrollTop + waTrack.clientHeight >= waTrack.scrollHeight - 60;
        }, { passive: true });
-       var _sameBuyer = _chatPos.id === b.id;
-       _chatPos.id = b.id;
-       function placeChat() {
-         var wa = root.querySelector(".wa-msgs");
-         if (!wa) return;
-         if (!_sameBuyer || _chatPos.atBottom) wa.scrollTop = wa.scrollHeight;
-         else wa.scrollTop = Math.min(_chatPos.top, Math.max(0, wa.scrollHeight - wa.clientHeight));
-         if (!_sameBuyer) {
-           var chat = root.querySelector(".wa-chat");
-           if (chat && chat.scrollIntoView) chat.scrollIntoView({ behavior: "auto", block: "nearest" });
-         }
-       }
-       requestAnimationFrame(function () { requestAnimationFrame(placeChat); });
+        var buyerChanged = (_chatPos.id !== b.id);
+        if (buyerChanged) { _chatPos.top = 0; _chatPos.atBottom = true; }
+        _chatPos.id = b.id;
+        /* 2026-10-18（Phil：进客户页"往上拉+跳动闪烁"）：以 nav() 的 sameScreen 为准——
+           进入页面（列表→详情、客户→客户）→ 定位对话区并跳最新消息；
+           同页刷新（翻译完成等）→ 位置原样保持，绝不拽动外层滚动 */
+        var firstView = !!(window.DDNav && !window.DDNav.same);
+        function placeChat() {
+          if (myGen !== _bdGen) return; /* 本代渲染已被更新：遗留的 rAF 不得再滚动（旧渲染的回调会把新画面拽乱） */
+          var wa = root.querySelector(".wa-msgs");
+          if (!wa) return;
+          if (firstView || _chatPos.atBottom) wa.scrollTop = wa.scrollHeight;
+          else wa.scrollTop = Math.min(_chatPos.top, Math.max(0, wa.scrollHeight - wa.clientHeight));
+          if (firstView) {
+            var chat = root.querySelector(".wa-chat");
+            if (chat && chat.scrollIntoView) chat.scrollIntoView({ behavior: "auto", block: "nearest" });
+          }
+        }
+        requestAnimationFrame(function () { requestAnimationFrame(placeChat); });
        /* 记录里的图片加载完后容器高度变化 → 按同一规则重新定位（不再强制跳底） */
        Array.prototype.forEach.call(root.querySelectorAll(".wa-msgs img"), function (im) {
          if (!im.complete) {

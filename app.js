@@ -18,13 +18,21 @@
     return TITLES[parts[0]] ? { screen: parts[0], param: null } : { screen: "home", param: null };
   }
 
+  var lastKey = "";
   function nav() {
     var p = parse();
     var mod = window.Screens[p.screen];
     var el = $("#screen");
     if (!mod) return;
+    /* 2026-10-18（Phil：进客户页"页面不断自己往上拉+闪烁"）：同一页面的刷新不得把
+       #screen 强制回顶——此前任何后台事件（翻译完成/意向完成）都整页重绘并归零，
+       十几秒内被反复拽回页面顶部。换页才归零，同页刷新恢复原滚动位置 */
+    var key = p.screen + "/" + (p.param || "");
+    var sameScreen = (key === lastKey);
+    lastKey = key;
+    var prevTop = el.scrollTop;
+    window.DDNav = { same: sameScreen }; /* 页面模块用此区分"进入页面"与"同页刷新" */
     el.classList.toggle("detail", p.screen === "buyer-detail");
-    el.scrollTop = 0;
     el.innerHTML = mod.render(p.param);
     document.querySelectorAll(".tabbar .tab").forEach(function (t) {
       t.classList.toggle("active", t.dataset.tab === p.screen || (p.screen === "buyer-detail" && t.dataset.tab === "buyers"));
@@ -36,6 +44,11 @@
       else { fab.style.display = ""; fab.style.bottom = "92px"; }
     }
     if (mod.init) mod.init(p.param, el);
+    /* 同页刷新恢复外层滚动位置，换页回顶。必须 instant：.screen 带 scroll-behavior:smooth，
+       用默认赋值会被平滑动画，恢复动作本身反而变成可见的"滚动" */
+    var target = sameScreen ? prevTop : 0;
+    try { el.scrollTo({ top: target, behavior: "instant" }); }
+    catch (e) { el.scrollTop = target; }
   }
 
   function phoneEl() { return $(".phone"); }
