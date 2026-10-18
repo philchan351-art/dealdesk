@@ -4,9 +4,37 @@
   var MediaRec = window.MediaRecorder || window.webkitMediaRecorder;
   var MIME_PREF = ["audio/mp4", "audio/mp4;codecs=mp4a.40.2", "audio/aac", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
   var actx = null;
-  /* 2026-10-16 修正：录音流一律每次现取、用完即停。
-     之前"会话级复用"会拿到已 stop 的死流 → 录出来是静音（iPhone 上表现为语音时好时坏）。
-     同一浏览器会话内权限已授权时，现取不会再次弹系统授权框，无额外成本 */
+  /* 2026-10-18（Phil："点了 Allow 第二次还要 Allow"＋"以为是录音"）：
+     ① 页面级"保温流"：在系统不持久记忆授权的环境（微信内置浏览器/无痕模式）里，
+        每次 getUserMedia 都会弹系统框。改为首次按压取得流后保持（不立即停），
+        20 秒内的后续按压直接复用 → 同一次进页最多弹 1 次；切后台/锁屏/离页立即释放。
+     ② 10-16 死流教训照旧生效：只在 track live 时复用；复用到空录音立即丢弃保温流重新现取 */
+  var warmStream = null, warmTimer = null, WARM_TTL = 20000;
+  function warmLive() {
+    if (!warmStream) return false;
+    try { var t = warmStream.getAudioTracks()[0]; return !!(t && t.readyState === "live"); } catch (e) { return false; }
+  }
+  function releaseWarm() {
+    if (warmTimer) { clearTimeout(warmTimer); warmTimer = null; }
+    if (warmStream) { try { warmStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} warmStream = null; }
+  }
+  function refreshWarm() {
+    if (warmTimer) clearTimeout(warmTimer);
+    warmTimer = setTimeout(releaseWarm, WARM_TTL);
+  }
+  function acquireStream() {
+    if (warmLive()) { refreshWarm(); return Promise.resolve(warmStream); }
+    if (warmStream) releaseWarm(); /* 保温流已死（iOS 挂后台会杀流）：丢弃重新现取 */
+    return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
+      warmStream = s; refreshWarm();
+      return s;
+    });
+  }
+  try {
+    /* 切后台/锁屏/离页立即释放保温流——绝不让麦克风指示标在后台亮着 */
+    window.addEventListener("pagehide", releaseWarm);
+    document.addEventListener("visibilitychange", function () { if (document.hidden) releaseWarm(); });
+  } catch (e) {}
   function beep(freq, dur) {
     try {
       var AC = window.AudioContext || window.webkitAudioContext;
@@ -46,17 +74,22 @@
    /* 2026-10-17「每次都要重新 Allow」根因修复：iOS 麦克风权限是网站级持久设置
       （设置→Safari→网站设置→麦克风）。反复弹窗 = ① 无痕模式（永不记忆）② 站点没设"总是允许"。
       首次授权成功后每天提醒一次去系统设置设"总是允许"，从根上消灭反复弹窗 */
-   function noteGrant() {
-     try {
-       var today = new Date().toDateString();
-       if (localStorage.getItem("dd_mic_perm_hint") !== today) {
-         localStorage.setItem("dd_mic_perm_hint", today);
-         setTimeout(function () {
-           App.toast("麦克风已记住。若以后还反复弹 Allow：别用无痕模式（地址栏有紫色 Private），并去 设置→Safari→网站设置→麦克风 把本站设为「总是允许」", 14000);
-         }, 1500);
-       }
-     } catch (e) {}
-   }
+    function noteGrant(repeat) {
+      /* repeat=true：本会话刚授权过但系统又弹窗（= 环境不记忆授权，如微信/无痕）→ 给更准的诊断 */
+      try {
+        localStorage.setItem("dd_mic_ever_granted", String(Date.now()));
+        var today = new Date().toDateString();
+        if (localStorage.getItem("dd_mic_perm_hint") === today) return;
+        localStorage.setItem("dd_mic_perm_hint", today);
+        setTimeout(function () {
+          if (repeat) {
+            App.toast("系统没记住刚才的 Allow——多半是在微信里打开或用了无痕模式（地址栏紫色 Private），两者都不记授权。彻底解法：用 Safari 普通模式打开本站（可点分享按钮「添加到主屏幕」），再 设置→Safari→网站→麦克风→允许", 18000);
+          } else {
+            App.toast("麦克风已记住。若以后还反复弹 Allow：多半是微信/无痕模式（不记授权）——彻底解法：Safari 普通模式打开 + 设置→Safari→网站→麦克风→允许", 16000);
+          }
+        }, 1500);
+      } catch (e) {}
+    }
    function micState() {
     try {
       if (navigator.permissions && navigator.permissions.query) {
@@ -88,13 +121,12 @@
     phone.appendChild(el);
     deniedPanel = el;
     el.querySelector(".md-x").addEventListener("click", hideDeniedPanel);
-    el.querySelector(".md-retry").addEventListener("click", function () {
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) {
-        s.getTracks().forEach(function (t) { t.stop(); });
-        noteGrant();
-        hideDeniedPanel();
-        App.toast("麦克风已恢复，按住说话即可");
-      }).catch(function () {
+     el.querySelector(".md-retry").addEventListener("click", function () {
+       acquireStream().then(function (s) {
+         noteGrant(false);
+         hideDeniedPanel();
+         App.toast("麦克风已恢复，按住说话即可（本会话内无需再点 Allow）");
+       }).catch(function () {
         App.toast("还没成功：确认改的是 dealdesk 这个网站的麦克风（列表里找带 dealdesk 的地址）", 5000);
       });
     });
@@ -108,8 +140,10 @@
      opts: { onResult(text, target), placeholder(默认"🎤 按住说话"), busyText } */
   function attach(btn, target, opts) {
     opts = opts || {};
-    var DEFAULT = opts.placeholder || "🎤 按住说话";
-    var busyText = opts.busyText || "识别中…";
+    /* 2026-10-18 文案（Phil："我只是想让系统听到我说话，把我的话翻译为文字，而不是录音"）：
+       全程说清"语音转文字"，松手后的等待态明确"已停录音" */
+    var DEFAULT = opts.placeholder || "🎤 按住说话 · 语音转文字";
+    var busyText = opts.busyText || "正在转成文字…（已停录音）";
     var rec = null, busy = false, pendingStop = false, graceStop = false;
     function setLabel(t) { if (btn) btn.textContent = t; }
     function setCls(on, which) {
@@ -118,7 +152,10 @@
       if (on) btn.classList.add(which || "rec");
     }
     function stopStream() {
-      if (rec && rec.stream) { try { rec.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
+      if (rec && rec.stream) {
+        if (rec.stream === warmStream) return; /* 保温流由页面级统一管理（TTL/切后台释放），每次录完不停——停了下次又要弹授权 */
+        try { rec.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+      }
     }
     function stopMic() {
       /* 录音还没真正开始就松手（典型：首次按住时系统权限弹窗打断手势）→ 标记为"被中断"，
@@ -140,11 +177,14 @@
       busy = true;
       pendingStop = false;
       graceStop = false;
+      var wasWarm = warmLive();
       micState().then(function (st) {
         if (st === "denied") { busy = false; showDeniedPanel(); return; }
+        var repeat = false;
+        try { repeat = st === "prompt" && !!localStorage.getItem("dd_mic_ever_granted"); } catch (e) {}
         beep(880, 0.12);
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-          noteGrant();
+        acquireStream().then(function (stream) {
+          noteGrant(repeat);
           var mime = "";
           for (var i = 0; i < MIME_PREF.length; i++) {
             if (MediaRec.isTypeSupported && MediaRec.isTypeSupported(MIME_PREF[i])) { mime = MIME_PREF[i]; break; }
@@ -164,8 +204,9 @@
             stopStream();
             beep(520, 0.12);
             if (!blob.size) {
+              if (wasWarm && !graceStop) releaseWarm(); /* 保温流录出空录音 = 流已死（10-16 同款）：丢弃，下次按压重新现取 */
               busy = false; setCls(false); setLabel(DEFAULT);
-              App.toast(graceStop ? "系统权限弹窗打断了这次录音，再按住说一次（这次已授权，不会再弹）" : "没录到声音，再按住说一次");
+              App.toast(graceStop ? "系统授权弹窗打断了这次，再按住说一次（本会话内已授权，不会再弹）" : "没录到声音，再按住说一次");
               return;
             }
             busy = false; setCls(true, "busy"); setLabel(busyText);
@@ -212,7 +253,7 @@
             stopStream(); busy = false;
             App.toast("录音启动失败：" + err.message);
           }
-          setCls(true, "rec"); setLabel("松手结束");
+          setCls(true, "rec"); setLabel("正在听… 说完松手");
         }).catch(function (err) {
           busy = false; setCls(false); setLabel(DEFAULT);
           if (/NotAllowed|Permission|Security/i.test(String(err.message || err.name))) showDeniedPanel();
