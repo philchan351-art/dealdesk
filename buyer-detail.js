@@ -20,6 +20,7 @@
 
   /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
   var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
+  var BD_VER = 75; /* 2026-10-18（Phil「依然没翻译」）：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
   var zhBusy = {}; // 防重入：同一文本正在翻译时不重复发起
 
   function diagText(b) {
@@ -113,7 +114,8 @@
 
   function bubble(m, idx) {
     /* P0 XSS：客户消息/译文/标签/时间全部来自外部数据，必须转义（存储型注入的主入口） */
-    var zh = m.zh ? '<div class="zh-line">' + escHtml(m.zh) + "</div>" : "";
+    var zh = m.zh ? '<div class="zh-line' + (m.zh === "翻译中…" ? " zh-busy" : "") + '">' + escHtml(m.zh) + "</div>"
+      : (m.zhFail ? '<div class="zh-line zh-fail" data-act="zh-retry" data-idx="' + idx + '">翻译失败 · 点按重试 ↻</div>' : "");
     var txt = m.text ? escHtml(m.text) : "";
     var tag = m.tag ? '<div class="imp-tag">' + escHtml(m.tag) + "</div>" : "";
     var time = escHtml(m.time || "");
@@ -262,7 +264,7 @@
          '<div class="wa-hmid"><b>' + escHtml(b.name) + "</b><span>" + escHtml(b.wa || "已绑定") + " · 在线</span></div>" +
         '<button class="wa-lang" data-act="import" style="margin-right:6px">＋ 导入</button>' +
         '<button class="wa-lang active" data-act="lang">中文对照</button>' +
-        '<span class="wa-pill">官方通道 · 零感知</span>' +
+        '<span class="wa-pill">官方通道 · 零感知</span>' + '<span class="zh-ver">v' + BD_VER + '</span>' +
         "</div>" +
         importHtml +
         '<div class="wa-msgs zh-on" id="waMsgs">' + msgHtml + "</div>" +
@@ -382,34 +384,39 @@
       /* 客户回复速记：保持虚拟对话与真实 WhatsApp 一致 */
       var logIn = root.querySelector("#logBuyer");
       var logBtn = root.querySelector('[data-act="log-buyer"]');
-       /* 客户发外语 → 自动补中文对照（译文存进消息里，下次不用再翻）
-          2026-10-18（Phil 反馈"压根没翻译出来"）：① 先放「翻译中…」占位，功能可被看见
-          ② 失败不再只 console.warn（用户永远看不见），弹 toast 说清原因 ③ 失败清 zhBusy 允许重试 */
-       function autoZh(text) {
-         if (!text || /[一-龥]/.test(text)) return; // 中文不用翻
-         if (!window.LLM || !LLM.configured()) return;
-         if (zhBusy[text]) return;
-         zhBusy[text] = 1;
-         var target = null;
-         for (var i0 = b.messages.length - 1; i0 >= 0; i0--) {
-           var m0 = b.messages[i0];
-           if (m0.text === text && (!m0.zh || m0.zh === "翻译中…")) { target = m0; break; }
-         }
-         if (target) target.zh = "翻译中…";
-         LLM.translate(text, b).then(function (zh) {
-           zh = String(zh || "").trim();
-           if (!zh) throw new Error("返回空译文");
-           var done = false;
-           for (var i = b.messages.length - 1; i >= 0; i--) {
-             var m = b.messages[i];
-             if (m.text === text && (!m.zh || m.zh === "翻译中…")) { m.zh = zh; done = true; break; }
-           }
-           if (done) { if (window.Store) Store.commit(); App.refresh(); }
-         }).catch(function (e) {
-           if (target && target.zh === "翻译中…") target.zh = "";
-           App.toast("自动翻译失败：" + String((e && e.message) || e).slice(0, 40), 3500);
-         }).then(function () { zhBusy[text] = 0; });
-       }
+        /* 客户发外语 → 自动补中文对照（译文存进消息里，下次不用再翻）
+           2026-10-18（Phil 反馈「依然没看到翻译」）：全程状态可见——
+           ① 气泡里立即显示「翻译中…」占位（功能跑没跑，一眼可见）
+           ② 失败弹 toast 说原因 + 气泡留「点按重试」标记，不再有任何静默路径
+           ③ 失败清 zhBusy 锁，同一条随时可重试 */
+        function autoZh(text) {
+          if (!text || /[一-龥]/.test(text)) return; // 中文不用翻
+          if (!window.LLM || !LLM.configured()) return;
+          if (zhBusy[text]) return;
+          zhBusy[text] = 1;
+          var target = null;
+          for (var i0 = b.messages.length - 1; i0 >= 0; i0--) {
+            var m0 = b.messages[i0];
+            if (m0.text === text && (!m0.zh || m0.zh === "翻译中…" || m0.zhFail)) { target = m0; break; }
+          }
+          if (!target) { zhBusy[text] = 0; return; }
+          target.zh = "翻译中…"; target.zhFail = false;
+          App.refresh(); /* 占位立即可见 */
+          LLM.translate(text, b).then(function (zh) {
+            zh = String(zh || "").trim();
+            if (!zh) throw new Error("返回空译文");
+            var done = false;
+            for (var i = b.messages.length - 1; i >= 0; i--) {
+              var m = b.messages[i];
+              if (m.text === text && (!m.zh || m.zh === "翻译中…")) { m.zh = zh; m.zhFail = false; done = true; break; }
+            }
+            if (done) { if (window.Store) Store.commit(); App.refresh(); }
+          }).catch(function (e) {
+            if (target) { target.zh = ""; target.zhFail = true; }
+            App.toast("自动翻译失败：" + String((e && e.message) || e).slice(0, 40), 3500);
+            App.refresh();
+          }).then(function () { zhBusy[text] = 0; });
+        }
 
        /* P2：意向信号——客户回复后 AI 静默默估升降并留一句依据（列表点徽章查看） */
        function judgeIntent(t) {
@@ -502,8 +509,9 @@
        /* 2026-10-17：记一句改多行框后——Enter 提交（保持快记习惯），Shift+Enter 换行（写完整信息） */
       if (logIn) logIn.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doLogBuyer(); } });
 
-       /* 页面加载时：给最近缺中文对照的外语消息自动补翻译（客户和我发的都算，最多 6 条，不刷屏） */
-       b.messages.filter(function (m) { return !m.zh && m.text && !/[一-龥]/.test(m.text); }).slice(-6)
+        /* 页面加载时：给最近缺中文对照的外语消息自动补翻译（客户和我发的都算，最多 6 条，不刷屏）。
+           「翻译中…」视为缺失（防极端时序下占位被存进云端后卡死）；zhFail 不自动重翻（持续失败会刷屏），靠气泡里点按重试 */
+        b.messages.filter(function (m) { return (!m.zh || m.zh === "翻译中…") && !m.zhFail && m.text && !/[一-龥]/.test(m.text); }).slice(-6)
          .forEach(function (m) {
            autoZh(m.text);
          });
@@ -556,9 +564,16 @@
        /* 记录里的图片点开放大（2026-10-17），点任意处关闭 */
        var imgView = null;
        function closeImgView() { if (imgView) { imgView.remove(); imgView = null; } }
-       if (msgs) msgs.addEventListener("click", function (e) {
-         var im = e.target && e.target.closest ? e.target.closest(".msg-img") : null;
-         if (!im) return;
+        /* 2026-10-18：气泡里「翻译失败 · 点按重试」→ 对那条消息重翻 */
+        if (msgs) msgs.addEventListener("click", function (e) {
+          var rz = e.target && e.target.closest ? e.target.closest('[data-act="zh-retry"]') : null;
+          if (!rz) return;
+          var rm = b.messages[+rz.getAttribute("data-idx")];
+          if (rm && rm.text) autoZh(rm.text);
+        });
+        if (msgs) msgs.addEventListener("click", function (e) {
+          var im = e.target && e.target.closest ? e.target.closest(".msg-img") : null;
+          if (!im) return;
          closeImgView();
          var el = document.createElement("div");
          el.className = "img-view";
