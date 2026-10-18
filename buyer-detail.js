@@ -851,7 +851,7 @@
           var box = root.querySelector("#photoCard");
           if (!box || b.outcome || b.scope === "pet") return;
           var pageBase = location.href.split("#")[0].replace(/[^/]*$/, "");
-          fetch("photos.json?v=2").then(function (r) { return r.json(); }).then(function (man) {
+          fetch("photos.json?v=3").then(function (r) { return r.json(); }).then(function (man) {
             var data = man && man.suitcase;
             if (!data || !data.groups || !data.groups.length) { box.innerHTML = ""; return; }
             var flat = [];
@@ -881,7 +881,7 @@
               html += '<div class="ph-grid">';
               flat.forEach(function (it, n) {
                 html += '<button type="button" class="ph-chip' + (sel[n] ? " sel" : "") + '" data-n="' + n + '">' +
-                  '<img src="' + it.file + '?v=2" loading="lazy" alt=""/>' +
+                  '<img src="' + it.file + '?v=3" loading="lazy" alt=""/>' +
                   '<span class="ph-lb">' + escHtml(it.label) + "</span></button>";
               });
               html += "</div>" +
@@ -916,7 +916,7 @@
                 var items = selItems();
                 if (!items.length) { App.toast("先点照片选中（或点右上角「全选」）"); return; }
                 Promise.all(items.map(function (it) {
-                  return fetch(it.file + "?v=2").then(function (r) { return r.blob(); }).then(function (bl) {
+                  return fetch(it.file + "?v=3").then(function (r) { return r.blob(); }).then(function (bl) {
                     return new File([bl], "WA-" + it.label + ".jpg", { type: "image/jpeg" });
                   });
                 })).then(function (files) {

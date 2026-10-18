@@ -1,15 +1,30 @@
 {
   "suitcase": {
     "name": "产品照片 · WA Titan X",
-    "base": "photos/wa/",
+    "base": "photos/",
     "groups": [
       {
         "title": "整体照",
         "photos": [
-          { "file": "1.jpg", "label": "侧面" },
-          { "file": "2.jpg", "label": "称重 8.4kg" },
-          { "file": "3.jpg", "label": "背面·拉杆" },
-          { "file": "4.jpg", "label": "正面·把手" }
+          { "file": "wa/1.jpg", "label": "侧面" },
+          { "file": "wa/2.jpg", "label": "称重 8.4kg" },
+          { "file": "wa/3.jpg", "label": "背面·拉杆" },
+          { "file": "wa/4.jpg", "label": "正面·把手" }
+        ]
+      },
+      {
+        "title": "局部照",
+        "photos": [
+          { "file": "titanx/3.jpg", "label": "细节 1" },
+          { "file": "titanx/4.jpg", "label": "细节 2" },
+          { "file": "titanx/5.jpg", "label": "灯 1" },
+          { "file": "titanx/6.jpg", "label": "灯 2" },
+          { "file": "titanx/7.jpg", "label": "拉链" },
+          { "file": "titanx/8.jpg", "label": "杯托" },
+          { "file": "titanx/9.jpg", "label": "轮子 1" },
+          { "file": "titanx/10.jpg", "label": "轮子 2" },
+          { "file": "titanx/11.jpg", "label": "箱体 1" },
+          { "file": "titanx/12.jpg", "label": "箱体 2" }
         ]
       }
     ]
