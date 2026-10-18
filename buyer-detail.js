@@ -386,26 +386,34 @@
       /* 客户回复速记：保持虚拟对话与真实 WhatsApp 一致 */
       var logIn = root.querySelector("#logBuyer");
       var logBtn = root.querySelector('[data-act="log-buyer"]');
-      /* 客户发外语 → 自动补中文对照（译文存进消息里，下次不用再翻） */
-      function autoZh(text) {
-        if (!text || /[一-龥]/.test(text)) return; // 中文不用翻
-        if (!window.LLM || !LLM.configured()) return;
-        if (zhBusy[text]) return;
-        zhBusy[text] = 1;
-        LLM.translate(text, b).then(function (zh) {
-          zh = String(zh || "").trim();
-          if (!zh) return;
+       /* 客户发外语 → 自动补中文对照（译文存进消息里，下次不用再翻）
+          2026-10-18（Phil 反馈"压根没翻译出来"）：① 先放「翻译中…」占位，功能可被看见
+          ② 失败不再只 console.warn（用户永远看不见），弹 toast 说清原因 ③ 失败清 zhBusy 允许重试 */
+       function autoZh(text) {
+         if (!text || /[一-龥]/.test(text)) return; // 中文不用翻
+         if (!window.LLM || !LLM.configured()) return;
+         if (zhBusy[text]) return;
+         zhBusy[text] = 1;
+         var target = null;
+         for (var i0 = b.messages.length - 1; i0 >= 0; i0--) {
+           var m0 = b.messages[i0];
+           if (m0.text === text && (!m0.zh || m0.zh === "翻译中…")) { target = m0; break; }
+         }
+         if (target) target.zh = "翻译中…";
+         LLM.translate(text, b).then(function (zh) {
+           zh = String(zh || "").trim();
+           if (!zh) throw new Error("返回空译文");
+           var done = false;
            for (var i = b.messages.length - 1; i >= 0; i--) {
              var m = b.messages[i];
-             if (m.text === text && !m.zh) {
-               m.zh = zh;
-               if (window.Store) Store.commit();
-               App.refresh();
-               return;
-             }
+             if (m.text === text && (!m.zh || m.zh === "翻译中…")) { m.zh = zh; done = true; break; }
            }
-        }).catch(function (e) { console.warn("自动翻译失败：", e.message); });
-      }
+           if (done) { if (window.Store) Store.commit(); App.refresh(); }
+         }).catch(function (e) {
+           if (target && target.zh === "翻译中…") target.zh = "";
+           App.toast("自动翻译失败：" + String((e && e.message) || e).slice(0, 40), 3500);
+         }).then(function () { zhBusy[text] = 0; });
+       }
 
        /* P2：意向信号——客户回复后 AI 静默默估升降并留一句依据（列表点徽章查看） */
        function judgeIntent(t) {
@@ -473,24 +481,25 @@
           if (logImgs.length) msg.imgs = logImgs.slice();
           b.messages.push(msg);
           AIevt(b, "reply", { via: "quicklog", text: t });
-          if (window.Store) Store.commit();
-          logImgs = []; logPrevRender();
-          App.refresh();
-          if (t) { autoZh(t); judgeIntent(t); }
-        }
-       /* 2026-10-14 现场反馈：业务员在 WhatsApp 自己报了价，但记录里只有客户那句"多少钱"，
-          看板就一直显示"他在等你的回复/待报价"。记我发 = 手动补记我方消息，最新一条变我方 → 状态立即翻成"你已回" */
-       function doLogMe() {
-          var t = logIn && logIn.value.trim();
-          if (!t && !logImgs.length) { App.toast("先写你发的内容，或点 📷 附图"); return; }
-          var msg = { from: "me", text: t, time: "刚刚" };
-          if (logImgs.length) msg.imgs = logImgs.slice();
-          b.messages.push(msg);
-          AIevt(b, "reply", { via: "quicklog-me", text: t });
-          if (window.Store) Store.commit();
-          logImgs = []; logPrevRender();
-          App.refresh();
-        }
+           if (window.Store) Store.commit();
+           logImgs = []; logPrevRender();
+           App.refresh();
+           if (t) { autoZh(t); judgeIntent(t); }
+         }
+        /* 2026-10-14 现场反馈：业务员在 WhatsApp 自己报了价，但记录里只有客户那句"多少钱"，
+           看板就一直显示"他在等你的回复/待报价"。记我发 = 手动补记我方消息，最新一条变我方 → 状态立即翻成"你已回" */
+        function doLogMe() {
+           var t = logIn && logIn.value.trim();
+           if (!t && !logImgs.length) { App.toast("先写你发的内容，或点 📷 附图"); return; }
+           var msg = { from: "me", text: t, time: "刚刚" };
+           if (logImgs.length) msg.imgs = logImgs.slice();
+           b.messages.push(msg);
+           AIevt(b, "reply", { via: "quicklog-me", text: t });
+           if (window.Store) Store.commit();
+           logImgs = []; logPrevRender();
+           App.refresh();
+           if (t) autoZh(t); /* 2026-10-18（Phil）：我方发的英文也即时补中文对照，与加载时补翻口径一致 */
+         }
        var logMeBtn = root.querySelector('[data-act="log-me"]');
        if (logBtn) logBtn.addEventListener("click", doLogBuyer);
        if (logMeBtn) logMeBtn.addEventListener("click", doLogMe);
