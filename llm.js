@@ -133,8 +133,11 @@
       var pheaders = { "Content-Type": "application/json" };
       var _ddau = window.Auth && Auth.get();
       if (_ddau && _ddau.session) pheaders["x-dealdesk-session"] = _ddau.session;
-      /* 2026-10-16：把当前客户的产品线传给服务端，团队资料按线注入（行李箱客户不吃宠物资料） */
-      if (opt.scope) pheaders["x-dealdesk-scope"] = opt.scope;
+       /* 2026-10-16：把当前客户的产品线传给服务端，团队资料按线注入（行李箱客户不吃宠物资料） */
+       if (opt.scope) pheaders["x-dealdesk-scope"] = opt.scope;
+       /* 2026-10-18（Phil）：翻译等轻量调用跳过服务端资料注入（prompt 数万字符→百余字符，目标 2 秒内出译文）；
+          旧版 FC 不识别该头会忽略，无副作用 */
+       if (opt.nodocs) pheaders["x-dealdesk-nodocs"] = "1";
       var useStream = !!opt.onChunk;
       if (useStream) payload.stream = true;
       function streamParse(resp) {
@@ -239,12 +242,13 @@
       return chat("你是测试助手。", "Reply with the single word OK.", { max_tokens: 8, model: c.model });
     },
       translate: function (text, buyer) {
-      return fullSystem(buyer).then(function (sys) {
-        return chat(sys, Prompts.translate + "\n\n消息：" + text, { max_tokens: 300, temp: 0.2, scope: buyer.scope });
-      }).then(function (t) {
-        var o = parseJSON(t);
-        return (o && o.zh) || null;
-      });
+      /* 2026-10-18（Phil）：「记一条」中文对照要 2 秒内 —— 纯翻译不需要档案/剧本/团队资料上下文，
+         改轻系统提示 + nodocs 跳过服务端注入；翻译质量要求：自然商务中文，数字/品牌/型号/证书名保留原文 */
+      return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 150, temp: 0.2, nodocs: true })
+        .then(function (t) {
+          var o = parseJSON(t);
+          return (o && o.zh) || null;
+        });
     },
       extract: function (text, buyer) {
       return fullSystem(buyer).then(function (sys) {
