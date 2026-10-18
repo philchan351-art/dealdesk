@@ -1,4 +1,4 @@
-/* ===== LLM 客户端：OpenAI 兼容接口（百炼工作区） =====
+﻿/* ===== LLM 客户端：OpenAI 兼容接口（百炼工作区） =====
  * W2 直连模式：Key 存于本机 localStorage（设置页配置），不进代码库。
  * W3 团队规模化后可切 FC 代理模式（接口不变，换 endpoint）。
  */
@@ -244,7 +244,7 @@
       translate: function (text, buyer) {
       /* 2026-10-18（Phil）：「记一条」中文对照要 2 秒内 —— 纯翻译不需要档案/剧本/团队资料上下文，
          改轻系统提示 + nodocs 跳过服务端注入；翻译质量要求：自然商务中文，数字/品牌/型号/证书名保留原文 */
-      return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 150, temp: 0.2, nodocs: true })
+      return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 300, temp: 0.2, nodocs: true })
         .then(function (t) {
           var o = parseJSON(t);
           return (o && o.zh) || null;

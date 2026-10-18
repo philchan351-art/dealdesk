@@ -842,36 +842,42 @@
           }).catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
         })();
 
-        /* ===== 2026-10-17 产品照片库（Phil）：业务员随时发产品图给客户 =====
-           照片是 Pages 静态资源（photos.json 清单 + photos/titanx/*.jpg，已压到 1600px），
-           样式与新客话术一致：点选照片 → 底部唯一「发到 WhatsApp」按钮。
-           发送走 iOS 分享面板（navigator.share 带文件，可直接选客户）；
-           不支持分享时降级：全屏展示 + 长按保存，去 WhatsApp 会话里附图发送。 */
+        /* ===== 2026-10-18 产品照片库改版（Phil 三指令）：
+           ① 换成 WA 版整体照 4 张（photos/wa/，旧 Titan X 12 张已删）
+           ② 缩略图一排 4 张，尽量省空间
+           ③ 发送直达当前客户：openWa 把「照片链接」预填进本客户的 WhatsApp 对话框，
+              不用再选客户；保留「分享原图」走 iOS 分享面板（发原生图片/其他 App） */
         (function loadPhotoCard() {
           var box = root.querySelector("#photoCard");
           if (!box || b.outcome || b.scope === "pet") return;
-          fetch("photos.json?v=1").then(function (r) { return r.json(); }).then(function (man) {
+          var pageBase = location.href.split("#")[0].replace(/[^/]*$/, "");
+          fetch("photos.json?v=2").then(function (r) { return r.json(); }).then(function (man) {
             var data = man && man.suitcase;
             if (!data || !data.groups || !data.groups.length) { box.innerHTML = ""; return; }
             var flat = [];
+            data.groups.forEach(function (g) {
+              (g.photos || []).forEach(function (p) {
+                flat.push({ label: p.label, file: (data.base || "photos/") + p.file });
+              });
+            });
+            if (!flat.length) { box.innerHTML = ""; return; }
             var sel = 0;
+            function absUrl(it) { return pageBase + it.file; }
             function renderCard() {
               var html = '<div class="card ctx-card" style="margin:12px 16px 0">' +
                 '<div class="ctx-head"><span class="ctx-title">📷 ' + escHtml(data.name || "产品照片") + '</span>' +
-                '<span class="ctx-hint">点选照片 → 下方发送</span></div><div class="sp-body">';
-              data.groups.forEach(function (g) {
-                html += '<div class="ph-gtitle">' + escHtml(g.title) + '</div><div class="ph-grid">';
-                (g.photos || []).forEach(function (p) {
-                  var n = flat.length;
-                  flat.push({ label: p.label, file: (data.base || "photos/") + p.file });
-                  html += '<button type="button" class="ph-chip' + (n === sel ? " sel" : "") + '" data-n="' + n + '">' +
-                    '<img src="' + flat[n].file + '?v=1" loading="lazy" alt=""/>' +
-                    '<span class="ph-lb">' + escHtml(p.label) + "</span></button>";
-                });
-                html += "</div>";
+                '<span class="ctx-hint">点选照片 → 直接发给本客户</span></div><div class="sp-body">';
+              if (data.groups.length > 1) html += '<div class="ph-gtitle">' + escHtml(data.groups[0].title) + '</div>';
+              html += '<div class="ph-grid">';
+              flat.forEach(function (it, n) {
+                html += '<button type="button" class="ph-chip' + (n === sel ? " sel" : "") + '" data-n="' + n + '">' +
+                  '<img src="' + it.file + '?v=2" loading="lazy" alt=""/>' +
+                  '<span class="ph-lb">' + escHtml(it.label) + "</span></button>";
               });
-              html += '<button type="button" class="ph-sendone" data-act="ph-send">📤 发到 WhatsApp · ' +
-                escHtml(flat[sel] ? flat[sel].label : "") + "</button></div></div>";
+              html += "</div>" +
+                '<button type="button" class="ph-sendone" data-act="ph-send">📤 发给本客户 · ' +
+                escHtml(flat[sel] ? flat[sel].label : "") + "</button>" +
+                '<button type="button" class="ph-share" data-act="ph-share">分享原图（选客户/其他 App）</button></div></div>';
               box.innerHTML = html;
               box.querySelectorAll(".ph-chip").forEach(function (ch) {
                 ch.addEventListener("click", function () { sel = +ch.getAttribute("data-n"); renderCard(); });
@@ -879,28 +885,26 @@
               box.querySelector('[data-act="ph-send"]').addEventListener("click", function () {
                 var it = flat[sel];
                 if (!it) return;
-                var url = it.file + "?v=1";
-                fetch(url).then(function (r) { return r.blob(); }).then(function (bl) {
-                  var f = new File([bl], "TitanX-" + it.label + ".jpg", { type: "image/jpeg" });
-                  function fb() {
-                    var phone = document.querySelector(".phone") || document.body;
-                    if (phone.querySelector(".img-view")) return;
-                    var el = document.createElement("div");
-                    el.className = "img-view";
-                    el.innerHTML = '<img src="' + url + '" alt=""/><div class="iv-hint">长按图片保存 → 打开 WhatsApp 与该客户的对话附图发送 · 点任意处关闭</div>';
-                    el.addEventListener("click", function () { el.remove(); });
-                    phone.appendChild(el);
-                  }
+                if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先点右上角「✎ 编辑」补全"); return; }
+                var msg = "📷 " + it.label + "\n" + absUrl(it);
+                if (openWa(msg, "发了照片：" + it.label)) {
+                  AIevt(b, "photo", { label: it.label, via: "wa-link" });
+                }
+              });
+              box.querySelector('[data-act="ph-share"]').addEventListener("click", function () {
+                var it = flat[sel];
+                if (!it) return;
+                fetch(it.file + "?v=2").then(function (r) { return r.blob(); }).then(function (bl) {
+                  var f = new File([bl], "WA-" + it.label + ".jpg", { type: "image/jpeg" });
                   if (navigator.canShare && navigator.canShare({ files: [f] })) {
                     navigator.share({ files: [f], title: it.label }).then(function () {
-                      /* 进了分享面板即视为"交出去"，沿用话术的 ✓/✕ 确认口径 */
                       b.messages.push({ from: "me", text: "📷 已发照片：" + it.label, time: "刚刚", status: "handed" });
-                      AIevt(b, "photo", { label: it.label });
+                      AIevt(b, "photo", { label: it.label, via: "share" });
                       if (window.Store) Store.commit();
                       App.refresh();
-                    }).catch(function (e) { if (String((e && e.name) || e) !== "AbortError") fb(); });
-                  } else fb();
-                }).catch(fb);
+                    }).catch(function (e) { if (String((e && e.name) || e) !== "AbortError") App.toast("分享面板没打开，可改用「发给本客户」"); });
+                  } else App.toast("这台设备不支持分享，请点「发给本客户」");
+                }).catch(function () { App.toast("照片没加载出来，请点「发给本客户」"); });
               });
             }
             renderCard();
