@@ -19,6 +19,7 @@
           .sort(function (a, b) { return a.dueIn - b.dueIn; })
           .map(function (f) {
             var b = Mock.getBuyer(f.buyerId);
+            if (!b) return ""; /* 2026-10-18（A2）：客户已删除 → 跳过该任务；旧版直接读 null 字段，整页白屏 */
             return '<div class="fitem' + (f.done ? " done" : "") + '" data-fid="' + f.id + '" data-go="' + b.id + '">' +
               '<span class="fbx">✓</span>' +
               '<div class="fmain"><b>' + escHtml(f.action) + "</b>" +

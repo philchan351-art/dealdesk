@@ -20,15 +20,13 @@
 
   /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
   var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
-  var BD_VER = 77; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
+  var BD_VER = 78; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
   var zhBusy = {};
   var _chatPos = { id: null, top: 0, atBottom: true }; /* 2026-10-18（Phil「页面自己跳上跳下」）：聊天滚动位置跨重渲染记忆 */ // 防重入：同一文本正在翻译时不重复发起
   var _bdGen = 0;      /* 2026-10-18：init 代际号——被新一轮渲染取代后，遗留的 rAF 回调不得再执行（旧渲染的滚动会把新画面拽乱） */
-
-  function diagText(b) {
-    var d = b.aiDiag || {};
-    return "谈单诊断 · 下一步目标：" + (d.nextGoal || "推进") + (d.blocker && d.blocker !== "无" ? " · 卡点：" + d.blocker : "");
-  }
+  var scriptCache = { key: "", ts: 0, j: null }; /* 2026-10-18（A7）：话术数据 60s 缓存——同页刷新不重复请求 */
+  var photoCache = { ts: 0, data: null };        /* 2026-10-18（A7）：photos.json 60s 缓存 */
+  var photoSel = {};                             /* 2026-10-18（A7）：照片选中状态按客户存模块级，同页刷新不清空 */
 
   /* P2：底线校验——文本里出现低于底线的价格时软提示（不拦截，人来拍板） */
   function limitWarn(b, text) {
@@ -61,16 +59,17 @@
     return { reasons: reasons.join("，"), strat: strat };
   }
 
+  /* 2026-10-18（B2）：成交/流失是低频动作，从两个大按钮收成小胶囊，不再占满一行 */
   function outcomeHtml(b) {
     if (b.outcome) {
       var won = b.outcome.status === "won";
-    return '<div class="outcome-row" style="margin:0 16px 12px">' +
-      '<span class="outcome-chip ' + (won ? "won" : "lost") + '">' + (won ? "✓ 已成交" : "✗ 已流失" + (b.outcome.reason ? " · " + escHtml(b.outcome.reason) : "")) + "</span>" +
-      '<button class="oc-clear" data-act="oc-clear">清除标记</button></div>';
+      return '<div class="outcome-row" style="margin:10px 16px 0">' +
+        '<span class="outcome-chip ' + (won ? "won" : "lost") + '">' + (won ? "✓ 已成交" : "✗ 已流失" + (b.outcome.reason ? " · " + escHtml(b.outcome.reason) : "")) + "</span>" +
+        '<button class="oc-clear" data-act="oc-clear">清除标记</button></div>';
     }
-    return '<div class="outcome-row" style="margin:0 16px 12px">' +
-      '<button class="oc-btn won" data-act="oc-won">✓ 标记已成交</button>' +
-      '<button class="oc-btn lost" data-act="oc-lost">✗ 标记已流失</button></div>';
+    return '<div class="outcome-row" style="margin:10px 16px 0">' +
+      '<button class="oc-mini" data-act="oc-won">✓ 成交</button>' +
+      '<button class="oc-mini oc-mini-lost" data-act="oc-lost">✗ 流失</button></div>';
   }
 
   /* 埋点：记录谈单行为事件（学习层原料），每个买家保留最近 200 条 */
@@ -255,19 +254,19 @@
           (function () {
             var p = (window.Store && Store.getPersona) ? Store.getPersona() : null;
             var hasDocs = !!(p && (p.docs || []).length);
-            return hasDocs ? "" : '<div class="card" style="margin:10px 16px 0;background:#FFF7E8;border:1px solid #FFD591"><b>⚠ 还没喂产品资料</b><div style="font-size:12px;color:#8a6d1a;margin-top:4px">没有资料，AI 回复客户时会"编"参数（续航/认证/价格都可能是假的）。到「设置 → AI 训练资料」上传你的产品目录/公司简介，AI 就只按你资料里写的说。</div></div>';
+            /* 2026-10-18（B10）：两行长横幅收成单行小条，一句话讲清后果和去处 */
+            return hasDocs ? "" : '<div class="set-note" style="margin:10px 16px 0;padding:8px 12px;border-radius:10px;background:#FFF7E8;border:1px solid #FFD591;font-size:12px;color:#8a6d1a">⚠ 还没喂产品资料，AI 可能"编"参数 · 到「设置 → AI 训练资料」上传即可</div>';
           })() +
            '<div id="scriptCard"></div>' +
            '<div id="photoCard"></div>' +
-           '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
-         '<div class="set-note" style="padding:0 16px 8px;font-size:11px">预填 ≠ 已发：发送后点「✓ 已发」计入记录；没发或改过的点「✕ 没发」删除。</div>' +
-        '<div class="wa-chat">' +
-         '<div class="wa-head">' + WA_ICON +
-         '<div class="wa-hmid"><b>' + escHtml(b.name) + "</b><span>" + escHtml(b.wa || "已绑定") + " · 在线</span></div>" +
-        '<button class="wa-lang" data-act="import" style="margin-right:6px">＋ 导入</button>' +
-        '<button class="wa-lang active" data-act="lang">中文对照</button>' +
-        '<span class="wa-pill">官方通道 · 零感知</span>' + '<span class="zh-ver">v' + BD_VER + '</span>' +
-        "</div>" +
+            '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
+          '<div class="wa-chat">' +
+          '<div class="wa-head">' + WA_ICON +
+          '<div class="wa-hmid"><b>' + escHtml(b.name) + "</b><span>" + escHtml(b.wa ? (String(b.wa).charAt(0) === "+" ? b.wa : "+" + b.wa) : "未填 WhatsApp") + "</span></div>" +
+         '<button class="wa-lang" data-act="import" style="margin-right:6px">＋ 导入</button>' +
+         '<button class="wa-lang active" data-act="lang">中文对照</button>' +
+         '<span class="zh-ver">v' + BD_VER + '</span>' +
+         "</div>" +
         importHtml +
         '<div class="wa-msgs zh-on" id="waMsgs">' + msgHtml + "</div>" +
         optHtml +
@@ -283,9 +282,9 @@
                方式②一行标题「AI 代写 · 语言」+重新生成按钮；谈单诊断行/已存时间/说明小字全删 */
             langCard(b) +
             '<div class="mode-card mode-a" style="margin:0 16px 10px">' +
-           '<div class="mode-head"><span class="mode-badge a">①</span>' +
-           '<div class="mode-tt"><b>自己写中文 · AI 自动扩充</b></div></div>' +
-           '<div class="mt-row"><button class="mt-btn active" data-mt="expand">按意图扩充（推荐）</button><button class="mt-btn" data-mt="direct">逐句直译</button></div>' +
+            '<div class="mode-head"><span class="mode-badge a">①</span>' +
+            '<div class="mode-tt"><b>自己写中文 · AI 自动扩充</b></div>' +
+            '<div class="mt-row mt-row-inline"><button class="mt-btn active" data-mt="expand">按意图扩充</button><button class="mt-btn" data-mt="direct">逐句直译</button></div></div>' +
            '<textarea id="msgInput" rows="3" placeholder="写大概意图（写完自动扩充），或按住下面🎤说话"></textarea>' +
              '<button class="mic-btn" id="micBtn" type="button">🎤 按住说话</button>' +
              '<div id="pendWrap"></div>' +
@@ -813,8 +812,11 @@
        (function loadScriptCard() {
          var box = root.querySelector("#scriptCard");
          if (!box || b.outcome || !window.Sync || !Sync.enabled()) return;
-         Sync.sharedAll().then(function (j) {
-           var line = b.scope || "all";
+          var line = b.scope || "all";
+          /* 2026-10-18（A7）：60s 缓存——同页刷新（记一笔/确认已发等）不重复请求云端 */
+          if (scriptCache.j && scriptCache.key === line && Date.now() - scriptCache.ts < 60000) { onShared(scriptCache.j); return; }
+          function onShared(j) {
+            if (!j) return;
            /* 产品线=通用（或未设）→ 看全部剧本；指定产品线 → 该产品线 + 通用 */
            var scripts = ((j && j.docs) || []).filter(function (d) {
              return d.type === "script" && d.steps && d.steps.length && (line === "all" || d.scope === "all" || d.scope === line);
@@ -910,7 +912,9 @@
                 });
             }
             renderCard();
-          }).catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
+          }
+          Sync.sharedAll().then(function (j) { if (j) { scriptCache = { key: line, ts: Date.now(), j: j }; onShared(j); } })
+            .catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
         })();
 
         /* ===== 2026-10-18 产品照片库改版（Phil 三指令）：
@@ -922,19 +926,19 @@
           var box = root.querySelector("#photoCard");
           if (!box || b.outcome || b.scope === "pet") return;
           var pageBase = location.href.split("#")[0].replace(/[^/]*$/, "");
-          fetch("photos.json?v=3").then(function (r) { return r.json(); }).then(function (man) {
+          function onManifest(man) {
             var data = man && man.suitcase;
             if (!data || !data.groups || !data.groups.length) { box.innerHTML = ""; return; }
             var flat = [];
             data.groups.forEach(function (g) {
               (g.photos || []).forEach(function (p) {
-                flat.push({ label: p.label, file: (data.base || "photos/") + p.file });
+                flat.push({ label: p.label, file: (data.base || "photos/") + p.file, g: g.title });
               });
             });
             if (!flat.length) { box.innerHTML = ""; return; }
             /* 2026-10-18 v2（Phil）：多选 + 右上角「全选」+ 醒目圈框——
                sel 为索引集合，点照片切换选中，全选框一次框定全部，可一次发给本客户 */
-            var sel = {};
+            var sel = photoSel[b.id] || (photoSel[b.id] = {}); /* 2026-10-18（A7）：选中状态跨同页刷新保留 */
             function selItems() {
               var out = [];
               flat.forEach(function (it, n) { if (sel[n]) out.push(it); });
@@ -948,9 +952,11 @@
                 '<div class="ctx-head"><span class="ctx-title">📷 ' + escHtml(data.name || "产品照片") + '</span>' +
                 '<label class="ph-all"><input type="checkbox" data-act="ph-all"' + (allOn ? " checked" : "") + "/> 全选</label></div>" +
                 '<div class="sp-body">';
-              if (data.groups.length > 1) html += '<div class="ph-gtitle">' + escHtml(data.groups[0].title) + '</div>';
               html += '<div class="ph-grid">';
+              /* 2026-10-18（A3）：恢复每组小标题（多选改版拍平后两组混在一起分不清）；标题占满整行 */
+              var lastG = null;
               flat.forEach(function (it, n) {
+                if (data.groups.length > 1 && it.g !== lastG) { html += '<div class="ph-gtitle ph-gtitle-row">' + escHtml(it.g) + '</div>'; lastG = it.g; }
                 html += '<button type="button" class="ph-chip' + (sel[n] ? " sel" : "") + '" data-n="' + n + '">' +
                   '<img src="' + it.file + '?v=3" loading="lazy" alt=""/>' +
                   '<span class="ph-lb">' + escHtml(it.label) + "</span></button>";
@@ -969,7 +975,7 @@
                 });
               });
               box.querySelector('[data-act="ph-all"]').addEventListener("change", function (e) {
-                sel = {};
+                photoSel[b.id] = {}; sel = photoSel[b.id];
                 if (e.target.checked) flat.forEach(function (it, n) { sel[n] = true; });
                 renderCard();
               });
@@ -986,8 +992,9 @@
                 })).then(function (files) {
                   if (navigator.canShare && navigator.canShare({ files: files })) {
                     navigator.share({ files: files, title: items.length === 1 ? items[0].label : "产品照片 ×" + items.length }).then(function () {
-                      b.messages.push({ from: "me", text: "📷 已发照片×" + items.length + "（原生）", time: "刚刚", status: "handed" });
-                      AIevt(b, "photo", { n: items.length, via: "share" });
+                      /* 2026-10-18（A4）：原生分享是"已分享"，不是"预填 WhatsApp"——不带待确认按钮 */
+                      b.messages.push({ from: "me", text: "📷 已分享照片×" + items.length, time: "刚刚", status: "sent" });
+                      AIevt(b, "photo", { n: items.length, via: "native-share" });
                       if (window.Store) Store.commit();
                       App.refresh();
                     }).catch(function (e) { if (String((e && e.name) || e) !== "AbortError") App.toast("分享面板没打开，可改用「发图片链接」"); });
@@ -1007,6 +1014,12 @@
               });
             }
             renderCard();
+          }
+          /* 2026-10-18（A7）：60s 缓存——同页刷新不重复请求 photos.json */
+          if (photoCache.data && Date.now() - photoCache.ts < 60000) { onManifest(photoCache.data); return; }
+          fetch("photos.json?v=3").then(function (r) { return r.json(); }).then(function (man) {
+            photoCache = { ts: Date.now(), data: man };
+            onManifest(man);
           }).catch(function () { box.innerHTML = ""; });
         })();
 
@@ -1061,8 +1074,7 @@
            mtMode = btn.getAttribute("data-mt");
            root.querySelectorAll("[data-mt]").forEach(function (x) { x.classList.remove("active"); });
            btn.classList.add("active");
-           var go = root.querySelector("#mtGo");
-           if (go) go.textContent = mtMode === "expand" ? "AI 扩充 →" : "AI 翻译 →";
+
          });
        });
 
@@ -1172,134 +1184,13 @@
          }, 2000);
        });
 
-        /* 🎤 按住说话：录音 → 上传云端识别 → 回填文字（iPhone/微信/任意浏览器通用，不依赖浏览器语音引擎） */
-        var micBtn = root.querySelector("#micBtn");
-        if (micBtn) {
-          var MediaRec = window.MediaRecorder || window.webkitMediaRecorder;
-          var rec = null, chunks = [], busy = false, baseVal = "";
-          var DEFAULT_LABEL = micBtn.textContent;
-          function setLabel(t) { micBtn.textContent = t; }
-           function cloudCfg() {
-             var s = (window.Store && Store.getSettings) ? (Store.getSettings() || {}) : {};
-             var c = s.llm || {};
-             var cl = s.cloud || {};
-             if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
-             var au = window.Auth && Auth.get();
-             c.session = (au && au.session) || "";
-             return c;
-           }
-          function pickMime() {
-            var pref = ["audio/mp4", "audio/mp4;codecs=mp4a.40.2", "audio/aac", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
-            if (MediaRec && MediaRec.isTypeSupported) {
-              for (var i = 0; i < pref.length; i++) { try { if (MediaRec.isTypeSupported(pref[i])) return pref[i]; } catch (e) {} }
-            }
-            return "";
-          }
-          function fmtOf(m) {
-            m = (m || "").toLowerCase();
-            if (m.indexOf("mp4") >= 0 || m.indexOf("aac") >= 0) return "m4a";
-            if (m.indexOf("mp3") >= 0 || m.indexOf("mpeg") >= 0) return "mp3";
-            if (m.indexOf("wav") >= 0 || m.indexOf("pcm") >= 0) return "wav";
-            if (m.indexOf("ogg") >= 0) return "ogg";
-            if (m.indexOf("webm") >= 0) return "webm";
-            return "m4a";
-          }
-          function b64FromBlob(blob) {
-            return new Promise(function (resolve, reject) {
-              var fr = new FileReader();
-              fr.onload = function () { resolve(String(fr.result).split(",")[1] || ""); };
-              fr.onerror = function () { reject(new Error("读取录音失败")); };
-              fr.readAsDataURL(blob);
-            });
-          }
-          function stopStream() {
-            if (rec && rec.stream) { try { rec.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
-          }
-          /* 按住说话提示音：按下=高音（开始录），松开=低音（停止录） */
-          var actx = null;
-          function beep(freq, dur) {
-            try {
-              var AC = window.AudioContext || window.webkitAudioContext;
-              if (!AC) return;
-              if (!actx) actx = new AC();
-              if (actx.state === "suspended") actx.resume();
-              var t0 = actx.currentTime;
-              var o = actx.createOscillator(), g = actx.createGain();
-              o.type = "sine"; o.frequency.value = freq;
-              g.gain.setValueAtTime(0.0001, t0);
-              g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02);
-              g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-              o.connect(g); g.connect(actx.destination);
-              o.start(t0); o.stop(t0 + dur + 0.05);
-            } catch (e) {}
-          }
-           var pendingStop = false, recTimer = null;
-           function stopMic() {
-            if (rec && rec.state === "recording") { try { rec.stop(); } catch (e) {} }
-            else pendingStop = true; /* 手指先松、录音还没就绪：记一笔，rec.start() 后立即停，防止麦克风一直开着 */
-          }
-          micBtn.addEventListener("pointerdown", function (e) {
-            e.preventDefault();
-            if (busy) return;
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !MediaRec) {
-              App.toast("这台设备/浏览器不支持录音，请用系统浏览器打开，或用键盘输入"); return;
-            }
-            var c = cloudCfg();
-            if (!c.proxyUrl) { App.toast("语音识别需要云服务：请先登录（设置里填云服务地址）"); return; }
-            if (!c.session) { App.toast("请先登录后再使用语音识别"); return; }
-            busy = true;
-            pendingStop = false;
-            var mime = pickMime();
-            beep(880, 0.12); /* 按下提示音：开始录音 */
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-              if (window.Voice && Voice.noteGrant) Voice.noteGrant();
-              try { rec = new MediaRec(stream, mime ? { mimeType: mime } : undefined); }
-              catch (err) { rec = new MediaRec(stream); }
-              chunks = [];
-              baseVal = (input.value || "").replace(/\s+$/, "");
-              micBtn.classList.add("rec"); setLabel("松手结束");
-              rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
-              rec.onerror = function (ev) { stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音出错：" + (ev.error || ev.message || "未知")); };
-               rec.onstop = function () {
-                 try { if (recTimer) { clearTimeout(recTimer); recTimer = null; } } catch (e) {}
-                 var blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || "audio/mp4" });
-                var fmt = fmtOf((rec && rec.mimeType) || mime);
-                stopStream();
-                beep(520, 0.12); /* 松开提示音：录音已结束 */
-                if (!blob.size) { busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("没录到声音，再按住说一次"); return; }
-                micBtn.classList.remove("rec"); micBtn.classList.add("busy"); setLabel("识别中…");
-                 b64FromBlob(blob).then(function (b64) {
-                   var ctl = new AbortController();
-                   var tm = setTimeout(function () { ctl.abort(); }, 75000); /* 75s 封顶：服务端最长 60s（60s 长音频），再多就是网络问题 */
-                    return fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json", "x-dealdesk-session": c.session || "" },
-                      body: JSON.stringify({ audio: b64, format: fmt }),
-                      signal: ctl.signal
-                   }).then(function (r) { clearTimeout(tm); return r.json(); });
-                 }).then(function (j) {
-                  micBtn.classList.remove("busy"); setLabel(DEFAULT_LABEL);
-                  if (j && j.text) { input.value = (baseVal ? baseVal + " " : "") + j.text; input.focus(); }
-                  else App.toast((j && j.error ? j.error : "没识别到内容，再按住说一次").slice(0, 80));
-                 }).catch(function (e2) {
-                   micBtn.classList.remove("busy"); setLabel(DEFAULT_LABEL);
-                   App.toast(e2 && e2.name === "AbortError" ? "识别超时（网络不稳定），请再试一次或改用打字" : "识别失败，请重试：" + e2.message);
-                 }).then(function () { busy = false; });
-              };
-               recTimer = setTimeout(function () { try { if (rec && rec.state === "recording") rec.stop(); } catch (e3) {} }, 60000); /* 2026-10-14 反馈修复：业务员一次说 30-60s 长句会被 30s 截断"记录不下来"，放宽到 60s */
-               try { rec.start(); if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} } } catch (err) { try { clearTimeout(recTimer); } catch (e4) {} stopStream(); busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL); App.toast("录音启动失败：" + err.message); }
-             }).catch(function (e) {
-               busy = false; micBtn.classList.remove("rec"); setLabel(DEFAULT_LABEL);
-               if (window.Voice && Voice.showDeniedPanel) Voice.showDeniedPanel();
-               else App.toast("麦克风被禁用：点浏览器地址栏左侧图标允许麦克风，再按住说话");
-             });
-          });
-          micBtn.addEventListener("pointerup", function (e) { e.preventDefault(); stopMic(); });
-          micBtn.addEventListener("pointercancel", function () { stopMic(); });
-          micBtn.addEventListener("pointerleave", function () { stopMic(); });
-          micBtn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-          micBtn.addEventListener("dragstart", function (e) { e.preventDefault(); });
-        }
+         /* 2026-10-18（A1）：🎤 按住说话统一用修好的 Voice 组件——保温流（每次进页最多弹 1 次 Allow）、
+            "按住说话 · 语音转文字"文案、松手后"已停录音"、被禁常驻指引面板、授权弹窗打断诊断。
+            本页原有一套独立旧实现（每次按压现取麦克风、"松手结束/识别中…"看着像录音键），已整体移除 */
+         var micBtn = root.querySelector("#micBtn");
+         if (micBtn && input && window.Voice) {
+           Voice.attach(micBtn, input);
+         }
 
       /* 编号选项：客户回数字 → 自动识别 → 上下文沉淀 → 阶段/意向自动推进 */
       root.querySelectorAll(".wa-opt").forEach(function (btn) {

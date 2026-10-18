@@ -150,20 +150,18 @@
       var trained = !!(pNow && pNow.updated && String(pNow.thoughts || "").indexOf(AUTO_MARK) >= 0);
       var llmOn = !!(window.LLM && LLM.configured());
       var bannerBase = '<div style="margin:0 16px 12px;padding:10px 12px;border-radius:10px;background:#EAF5F0;border:1px solid #CDE7DC;color:#0F5138;font-size:13px;line-height:1.5">';
-      var learnHtml;
-      if (!llmOn) {
-        learnHtml = bannerBase + "<b>AI 学习进度</b> · 已积累 <b>" + learned + "</b> 条原话配对 · 去「设置 → 智能引擎」配置 AI 后，这里可一键学会你的风格</div>";
-      } else if (learned < 30) {
-        learnHtml = bannerBase +
-          "<b>AI 学习进度</b> · 已积累 <b>" + learned + "</b> 条原话配对（满 30 条解锁「风格自动学习」，满 1 周出「教练周报」）" +
-          '<div style="margin-top:4px;font-size:11.5px;opacity:.8">攒法：在客户详情页写中文意图 → AI 扩充/翻译 → 发送，每发一条自动记一条</div></div>';
-      } else {
-        var btnLabel = trained ? "再学一次（用新消息刷新）" : "✦ 开始风格自动学习";
-        learnHtml = bannerBase +
-          "<b>AI 学习进度</b> · " + (trained ? "已学会你的风格 · 累计 <b>" + learned + "</b> 条原话配对" : "已攒够 <b>" + learned + "</b> 条原话配对") +
-          '<div style="margin-top:8px"><button type="button" data-act="start-learn" style="background:#0E5E4A;color:#fff;border:0;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700">' + btnLabel +
-          '</button><span style="font-size:11px;opacity:.75;margin-left:8px">学完存进「设置 → 我的思路与话术」，可看可改</span></div></div>';
-      }
+       var learnHtml;
+       /* 2026-10-18（B6）：一行说清状态，长说明收进设置页 */
+       if (!llmOn) {
+         learnHtml = bannerBase + "<b>AI 学习</b> · 先在「设置 → 智能引擎」配置 AI，再攒原话配对学你的风格</div>";
+       } else if (learned < 30) {
+         learnHtml = bannerBase + "<b>AI 学习</b> · 原话配对 <b>" + learned + "</b>/30 · 攒法：写中文意图 → AI 扩充 → 发送（详见设置）</div>";
+       } else {
+         var btnLabel = trained ? "再学一次（用新消息刷新）" : "✦ 开始风格自动学习";
+         learnHtml = bannerBase + "<b>AI 学习</b> · " + (trained ? "已学会你的风格（累计 <b>" + learned + "</b> 对）" : "已攒够 <b>" + learned + "</b> 对") +
+           '<div style="margin-top:6px"><button type="button" data-act="start-learn" style="background:#0E5E4A;color:#fff;border:0;border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:700">' + btnLabel +
+           '</button></div></div>';
+       }
       return UI.topbar(greet + "，" + escHtml(myName), dStr + " · " + due.length + " 笔跟进待处理，其中 " + overdueCnt + " 笔已逾期", UI.bell + UI.gear) +
         '<div class="kpis stagger">' + kpiHtml + "</div>" +
         learnHtml +
@@ -179,8 +177,7 @@
           }).join("") + "</div>" +
         "</div>" +
         "</div>" +
-        '<div class="wa-banner"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.2-1.4A10 10 0 1 0 12 2Zm5.5 14.1c-.2.7-1.3 1.3-1.9 1.4-.5.1-1.1.1-1.8-.1-.4-.1-1-.3-1.7-.6-3-1.3-4.9-4.3-5.1-4.5-.1-.2-1.2-1.6-1.2-3s.7-2.1 1-2.4c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5s.8 1.9.8 2c.1.1.1.3 0 .5l-.4.6c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1.1 2.2 1.4 2.5 1.5.3.1.5.1.6-.1l.8-.9c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.1.1.5-.1 1.1Z"/></svg><div><b>WhatsApp 过渡模式已开启</b><span>走官方通道 · 客户零感知；信息自动沉淀，报价与提醒一键交接发送</span></div></div>' +
-        '<div class="sec-title"><h2>今日待跟进</h2><span class="sec-more" data-act="goto-followup">全部跟进 ›</span></div>' +
+         '<div class="sec-title"><h2>今日待跟进</h2><span class="sec-more" data-act="goto-followup">全部跟进 ›</span></div>' +
         '<div class="stagger">' + dueHtml + "</div>";
     },
 

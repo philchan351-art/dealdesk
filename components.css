@@ -516,3 +516,13 @@
 .intent i{font-style:normal;font-size:9px;margin-left:2px}
 .intent .i-up{color:var(--a)}
 .intent .i-dn{color:#c62f2f}
+/* 2026-10-18（B2）：成交/流失小胶囊 */
+.oc-mini{font-size:11px;font-weight:700;color:var(--brand-ink);background:var(--brand-fill);border:1px solid rgba(185,117,22,.35);border-radius:999px;padding:4px 11px;cursor:pointer}
+.oc-mini:active{background:var(--brand-deep)}
+.oc-mini-lost{color:var(--ink-soft);background:var(--surface-2);border-color:var(--line)}
+.oc-mini-lost:active{background:var(--line-soft)}
+/* 2026-10-18（B7）：方式① 的扩充/直译开关并入标题行 */
+.mt-row-inline{margin:0 0 0 auto;gap:5px}
+.mt-row-inline .mt-btn{flex:none;padding:4px 9px;font-size:11px;border-radius:999px}
+/* 2026-10-18（A3）：照片分组标题占满整行 */
+.ph-gtitle-row{grid-column:1/-1;margin-top:8px}
