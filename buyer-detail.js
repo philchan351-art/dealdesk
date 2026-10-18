@@ -20,7 +20,7 @@
 
   /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
   var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
-  var BD_VER = 78; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
+  var BD_VER = 79; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
   var zhBusy = {};
   var _chatPos = { id: null, top: 0, atBottom: true }; /* 2026-10-18（Phil「页面自己跳上跳下」）：聊天滚动位置跨重渲染记忆 */ // 防重入：同一文本正在翻译时不重复发起
   var _bdGen = 0;      /* 2026-10-18：init 代际号——被新一轮渲染取代后，遗留的 rAF 回调不得再执行（旧渲染的滚动会把新画面拽乱） */
@@ -495,13 +495,30 @@
          logImgBtn.addEventListener("click", function () { logImgIn.click(); });
          logImgIn.addEventListener("change", function (e) { addLogImgs(e.target.files); e.target.value = ""; });
        }
-        function doLogBuyer() {
-          var t = logIn && logIn.value.trim();
-          if (!t && !logImgs.length) { App.toast("先写客户说的内容，或点 📷 附图"); return; }
-          var msg = { from: "buyer", text: t, time: "刚刚" };
-          if (logImgs.length) msg.imgs = logImgs.slice();
-          b.messages.push(msg);
-          AIevt(b, "reply", { via: "quicklog", text: t });
+         /* 2026-10-18（阶段一 · 反应采集）：我方消息确认「已发」后计时，客户下一条记录到达时记下响应时长（ms）。
+            纯后台数据，界面无任何显示、不影响现有流程——L5 小样本学习与信任账本的原料。
+            基线口径：最近 N 条已盖 sentAt 的我方消息中，有 reactionMs 的比例=回应率，其均值=平均响应时长 */
+         function recordReaction() {
+           var ms = b.messages;
+           for (var i = ms.length - 2; i >= 0; i--) { /* 从倒数第二条起扫：末尾正是刚记的客户消息 */
+             var m = ms[i];
+             if (m.from === "buyer") break; /* 先碰到更早的客户消息 = 该待发项在采集期内无回应，保持原样计入未回 */
+             if (m.from === "me" && m.sentAt && !m.reactedAt) {
+               m.reactedAt = new Date().toISOString();
+               m.reactionMs = Date.now() - new Date(m.sentAt).getTime();
+               AIevt(b, "buyer_reaction", { ms: m.reactionMs });
+               break;
+             }
+           }
+         }
+         function doLogBuyer() {
+           var t = logIn && logIn.value.trim();
+           if (!t && !logImgs.length) { App.toast("先写客户说的内容，或点 📷 附图"); return; }
+           var msg = { from: "buyer", text: t, time: "刚刚" };
+           if (logImgs.length) msg.imgs = logImgs.slice();
+           b.messages.push(msg);
+           recordReaction();
+           AIevt(b, "reply", { via: "quicklog", text: t });
            if (window.Store) Store.commit();
            logImgs = []; logPrevRender();
            App.refresh();
@@ -510,12 +527,12 @@
         /* 2026-10-14 现场反馈：业务员在 WhatsApp 自己报了价，但记录里只有客户那句"多少钱"，
            看板就一直显示"他在等你的回复/待报价"。记我发 = 手动补记我方消息，最新一条变我方 → 状态立即翻成"你已回" */
         function doLogMe() {
-           var t = logIn && logIn.value.trim();
-           if (!t && !logImgs.length) { App.toast("先写你发的内容，或点 📷 附图"); return; }
-           var msg = { from: "me", text: t, time: "刚刚" };
-           if (logImgs.length) msg.imgs = logImgs.slice();
-           b.messages.push(msg);
-           AIevt(b, "reply", { via: "quicklog-me", text: t });
+            var t = logIn && logIn.value.trim();
+            if (!t && !logImgs.length) { App.toast("先写你发的内容，或点 📷 附图"); return; }
+            var msg = { from: "me", text: t, time: "刚刚", sentAt: new Date().toISOString() }; /* 2026-10-18（阶段一）：手动补记=已发出，直接盖发送时间戳 */
+            if (logImgs.length) msg.imgs = logImgs.slice();
+            b.messages.push(msg);
+            AIevt(b, "reply", { via: "quicklog-me", text: t });
            if (window.Store) Store.commit();
            logImgs = []; logPrevRender();
            App.refresh();
@@ -551,9 +568,9 @@
          var el = e.target && e.target.closest ? e.target.closest('[data-act="h-y"],[data-act="h-n"],[data-act="m-del"]') : null;
          if (!el) return;
          var idx = +el.getAttribute("data-idx");
-         if (el.getAttribute("data-act") === "h-y") {
-           if (b.messages[idx]) { b.messages[idx].status = "sent"; AIevt(b, "confirmed", { text: b.messages[idx].text, stage: b.stage }); }
-         } else {
+          if (el.getAttribute("data-act") === "h-y") {
+            if (b.messages[idx]) { b.messages[idx].status = "sent"; b.messages[idx].sentAt = new Date().toISOString(); /* 2026-10-18（阶段一）：确认已发=反应计时起点 */ AIevt(b, "confirmed", { text: b.messages[idx].text, stage: b.stage }); }
+          } else {
            /* 埋点：「✕ 没发」＝建议被弃用的负样本，必须先留痕再删；「删除记录」属数据清理，不记 */
            if (el.getAttribute("data-act") === "h-n" && b.messages[idx]) {
              AIevt(b, "rejected", { src: "ai", text: b.messages[idx].text, zh: b.messages[idx].zh, stage: b.stage });
