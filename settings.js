@@ -59,8 +59,8 @@
       var cloudOn = !!(cl.proxyUrl && au0 && au0.session);
       var on = !!(llm.key && llm.baseUrl) || cloudOn;
 
-      var modelOpts = (window.LLM ? LLM.MODELS : ["qwen-plus"]).map(function (m) {
-        return "<option" + (m === (llm.model || "qwen-plus") ? " selected" : "") + ">" + m + "</option>";
+      var modelOpts = (window.LLM ? LLM.MODELS : ["qwen-flash"]).map(function (m) {
+        return "<option" + (m === (llm.model || "qwen-flash") ? " selected" : "") + ">" + m + "</option>";
       }).join("");
 
         var au = au0;
@@ -137,7 +137,7 @@
          '<div class="set-title">数据同步 & 智能引擎</div>' +
          '<div style="display:flex;align-items:center;gap:6px;margin-top:2px"><span class="llm-dot ' + (cloudOn ? "on" : "") + '"></span><span class="set-note" id="cloudStatus" style="flex:1;min-width:0">' + (cloudOn ? "云同步 已连接 · 变更自动上云，开 App 自动拉取" : "云同步 未连接 · 单机模式（先登录账号）") + '</span></div>' +
          '<div class="set-note" style="margin:2px 0 6px">买家 <b>' + s.buyers + '</b> · 消息 <b>' + s.messages + '</b> · 最近保存 <b>' + saved + '</b></div>' +
-         '<div style="display:flex;align-items:center;gap:6px"><span class="llm-dot ' + (on ? "on" : "") + '"></span><span class="set-note" id="llmStatus" style="flex:1;min-width:0">' + (on ? "AI 已配置 · " + (llm.model || "qwen-plus") : "AI 未配置 · 手动模式") + '</span></div>' +
+         '<div style="display:flex;align-items:center;gap:6px"><span class="llm-dot ' + (on ? "on" : "") + '"></span><span class="set-note" id="llmStatus" style="flex:1;min-width:0">' + (on ? "AI 已配置 · " + (llm.model || "qwen-flash") : "AI 未配置 · 手动模式") + '</span></div>' +
          '<div class="set-actions" style="margin-top:8px"><button class="set-btn-inline ghost" data-act="cloud-pull">拉取最新</button><button class="set-btn-inline ghost" data-act="test-llm">测试连接</button><button class="set-btn-inline ghost" data-act="adv-toggle" data-target="syncAdvBody">高级设置</button></div>' +
          '<div id="syncAdvBody" style="display:none;margin-top:10px">' +
          '<label class="set-lbl">云服务地址（FC 触发器 URL）</label>' +
@@ -151,6 +151,7 @@
          '<input class="set-inp" id="llmKey" type="password" placeholder="sk-ws-…（从百炼控制台下载 CSV 里的 apiKey）" value="' + esc(llm.key || "") + '"/>' +
          '<label class="set-lbl">模型</label>' +
          '<select class="set-inp" id="llmModel">' + modelOpts + "</select>" +
+         '<div class="set-note" style="margin-top:4px">省钱期（2026-10-18 Phil 指令）：全部 AI 功能暂用便宜快模型 qwen-flash，上面模型选择暂不生效，恢复后自动放开</div>' +
          '<div class="set-actions"><button class="set-btn-inline" data-act="save-llm">保存 AI 配置</button></div>' +
          '<div class="set-note">Key 只存这台设备浏览器本地，不上传。配置云同步后 Key 可留空（走云端代理）</div>' +
          "</div>" +
@@ -310,7 +311,7 @@
         Store.saveSettings(readInputs());
         status("连接中…");
         LLM.test()
-          .then(function () { status("连接成功 · 模型 " + (Store.getSettings().llm.model || "qwen-plus") + " 可用", true); App.toast("LLM 连接成功"); })
+          .then(function () { status("连接成功 · 模型 " + (Store.getSettings().llm.model || "qwen-flash") + " 可用", true); App.toast("LLM 连接成功"); })
           .catch(function (e) { status("失败：" + e.message, false); App.toast("连接失败：" + e.message); });
       });
 

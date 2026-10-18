@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var MODELS = ["qwen-plus", "qwen3.8-flash", "qwen3.8-max-0902"];
+  var MODELS = ["qwen-flash", "qwen-plus", "qwen3.8-flash", "qwen3.8-max-0902"]; /* 2026-10-18（Phil）：便宜快模型排默认位 */
 
   function cfg() {
     var s = Store.getSettings() || {};
@@ -119,7 +119,10 @@
     opt = opt || {};
     var c = cfg();
     if (!c || !(c.key || c.proxyUrl)) return Promise.reject(new Error("LLM 未配置（设置里填 Key 或云代理地址）"));
-    var model0 = opt.model || c.model || "qwen-plus";
+    /* 2026-10-18（Phil 成本指令："目前暂时不要用贵的"）：全部 AI 调用走便宜快模型 qwen-flash，
+       期间忽略设置里选中的模型（防手机已存过 qwen-plus 继续走贵的）。
+       恢复贵模型时改回：opt.model || c.model || "qwen-plus" */
+    var model0 = opt.model || "qwen-flash";
     function one(model) {
     var payload = {
       model: model,
@@ -250,11 +253,10 @@
       return chat("你是测试助手。", "Reply with the single word OK.", { max_tokens: 8, model: c.model });
     },
       translate: function (text, buyer) {
-      /* 2026-10-18（Phil）：「记一条」中文对照要 2 秒内 —— 三重提速：
-         ① 轻系统提示（纯翻译不需要档案/剧本上下文）② nodocs 跳过服务端资料注入
-         ③ qwen-flash 快模型（实测 0.8-1s vs qwen-plus 1.9s，翻译质量实测达标），
-         端点不支持时自动降级 qwen-plus（fallbackModel，chat() 内兜底） */
-      return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 300, temp: 0.2, nodocs: true, model: "qwen-flash", fallbackModel: "qwen-plus" })
+       /* 2026-10-18（Phil）：「记一条」中文对照 ~1 秒内 —— 轻系统提示（纯翻译不需要档案/剧本上下文）
+          + nodocs 跳过服务端资料注入 + qwen-flash（热态实测 0.75-0.77s）。
+          Phil 成本指令：暂时不用贵模型 → 快模型不可用不再静默降级 qwen-plus，直接报错（autoZh 弹 toast，业务员看得见） */
+       return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 300, temp: 0.2, nodocs: true, model: "qwen-flash" })
         .then(function (t) {
           var o = parseJSON(t);
           return (o && o.zh) || null;
