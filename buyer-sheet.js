@@ -306,10 +306,12 @@
       field("nbName", "姓名", "如 Carla Mendes", true, null, isEdit ? editB.name : "") +
       field("nbCountry", "国家", "如 巴西（画像库已内置常用市场）", true, KNOWN, isEdit ? editB.country : "") +
       field("nbLang", "语言", "选填：留空=按国家自动；可输 英语/中文/西语…", false, CountryProfiles.langs(), isEdit ? (editB.msgLang || "") : "") +
-      field("nbCompany", "公司", "选填", null, isEdit ? (editB.company && editB.company !== "—" ? editB.company : "") : "") +
-      field("nbWa", "WhatsApp / 电话", "+55 …（直达对话要填）", null, isEdit ? (editB.wa || "") : "") +
-      field("nbQty", "数量", "选填：如 500 件", null, isEdit ? (editB.qty != null ? String(editB.qty) : "") : "") +
-      field("nbProduct", "产品线 / 意向产品", "选填：如 电动行李箱", null, isEdit ? (editB.product && editB.product !== "待确认" ? editB.product : "") : "") +
+       /* 2026-10-19（Phil「编辑键无法编辑」）：原把值错放进第 5 参 list（数组位）→ 编辑已有客户时
+          editB.wa 等是字符串，list.map 抛 TypeError，面板渲染中断、点击无反应。值归位到第 6 参 val。 */
+       field("nbCompany", "公司", "选填", null, null, isEdit ? (editB.company && editB.company !== "—" ? editB.company : "") : "") +
+       field("nbWa", "WhatsApp / 电话", "+55 …（直达对话要填）", null, null, isEdit ? (editB.wa || "") : "") +
+       field("nbQty", "数量", "选填：如 500 件", null, null, isEdit ? (editB.qty != null ? String(editB.qty) : "") : "") +
+       field("nbProduct", "产品线 / 意向产品", "选填：如 电动行李箱", null, null, isEdit ? (editB.product && editB.product !== "待确认" ? editB.product : "") : "") +
       '<label class="set-lbl">产品线（用于话术剧本 / 资料库隔离，可后补）</label>' +
       '<select class="set-inp" id="nbScope">' +
       '<option value="">通用（全部产品线）</option>' +

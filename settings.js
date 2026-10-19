@@ -128,10 +128,10 @@
         '<div id="personaBody" style="display:none;margin-top:8px">' +
         '<label class="set-lbl">我的谈单思路（你怎么谈、先问什么、什么节奏）</label>' +
         '<textarea class="set-inp" id="personaThoughts" maxlength="4000" style="min-height:90px;padding:10px;font-family:inherit;line-height:1.5" placeholder="如：我先确认客户的用途和采购量，再报阶梯价；习惯先寄样品建立信任，不急着让下大单…">' + esc(p.thoughts || "") + "</textarea>" +
-        '<button class="persona-mic" id="micThoughts" type="button">🎤 按住说话补充思路</button>' +
+        '<button class="persona-mic" id="micThoughts" type="button">🎤 按一下说话补充思路</button>' +
         '<label class="set-lbl">我的常用话术（怎么开头、怎么报价、怎么催单）</label>' +
         '<textarea class="set-inp" id="personaScripts" maxlength="6000" style="min-height:110px;padding:10px;font-family:inherit;line-height:1.5" placeholder="如：常用开头 Hi, thanks for your inquiry… ；报价时一定附交期和起订量；催单就说 the price is valid till end of this week…">' + esc(p.scripts || "") + "</textarea>" +
-        '<button class="persona-mic" id="micScripts" type="button">🎤 按住说话补充话术</button>' +
+        '<button class="persona-mic" id="micScripts" type="button">🎤 按一下说话补充话术</button>' +
         '<label class="set-lbl">参考资料（公司简介 / 价目表 / 认证清单，AI 报价和介绍公司时自动参考）</label>' +
         '<div id="docList">' + docRows(p.docs || []) + "</div>" +
          '<div id="docViewBox"></div>' +
@@ -245,8 +245,8 @@
 
        /* 语音输入：按住说话 → 识别文字追加进对应框 */
        if (window.Voice) {
-         Voice.attach(root.querySelector("#micThoughts"), root.querySelector("#personaThoughts"));
-         Voice.attach(root.querySelector("#micScripts"), root.querySelector("#personaScripts"));
+         Voice.attach(root.querySelector("#micThoughts"), root.querySelector("#personaThoughts"), { placeholder: "🎤 按一下说话补充思路" });
+         Voice.attach(root.querySelector("#micScripts"), root.querySelector("#personaScripts"), { placeholder: "🎤 按一下说话补充话术" });
        }
 
        /* 资料上传 */

@@ -1,4 +1,4 @@
-/* ===== 语音输入组件：按住说话 → 云端 /stt 识别 → 回调文字（各输入框复用，与买家页麦克风同一套链路） ===== */
+/* ===== 语音输入组件：按一下开始聆听、再按一下结束 → 云端 /stt 识别 → 回调文字（各输入框复用，与买家页麦克风同一套链路） ===== */
 (function () {
   "use strict";
   var MediaRec = window.MediaRecorder || window.webkitMediaRecorder;
@@ -10,12 +10,15 @@
         20 秒内的后续按压直接复用 → 同一次进页最多弹 1 次；切后台/锁屏/离页立即释放。
      ② 10-16 死流教训照旧生效：只在 track live 时复用；复用到空录音立即丢弃保温流重新现取 */
   var warmStream = null, warmTimer = null, WARM_TTL = 20000;
+  var warmUsers = 0;    /* 正在用保温流录音的数量（2026-10-19 点按模式：聆听可持续超过 20s，空闲计时不得掐断录音） */
+  var activeRec = null; /* 正在录音的 MediaRecorder（切后台/离页先停它，绝不让麦克风指示标后台常亮） */
   function warmLive() {
     if (!warmStream) return false;
     try { var t = warmStream.getAudioTracks()[0]; return !!(t && t.readyState === "live"); } catch (e) { return false; }
   }
   function releaseWarm() {
     if (warmTimer) { clearTimeout(warmTimer); warmTimer = null; }
+    if (warmUsers > 0) { refreshWarm(); return; }
     if (warmStream) { try { warmStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} warmStream = null; }
   }
   function refreshWarm() {
@@ -31,9 +34,9 @@
     });
   }
   try {
-    /* 切后台/锁屏/离页立即释放保温流——绝不让麦克风指示标在后台亮着 */
-    window.addEventListener("pagehide", releaseWarm);
-    document.addEventListener("visibilitychange", function () { if (document.hidden) releaseWarm(); });
+    /* 切后台/锁屏/离页：先停掉进行中的录音（走 onstop 正常收口），再释放保温流——绝不让麦克风指示标在后台亮着 */
+    window.addEventListener("pagehide", function () { try { if (activeRec) activeRec.stop(); } catch (e) {} releaseWarm(); });
+    document.addEventListener("visibilitychange", function () { if (document.hidden) { try { if (activeRec) activeRec.stop(); } catch (e) {} releaseWarm(); } });
   } catch (e) {}
   function beep(freq, dur) {
     try {
@@ -132,7 +135,7 @@
        acquireStream().then(function (s) {
          noteGrant(false);
          hideDeniedPanel();
-         App.toast("麦克风已恢复，按住说话即可（本会话内无需再点 Allow）");
+          App.toast("麦克风已恢复，按一下说话即可（本会话内无需再点 Allow）");
        }).catch(function () {
         App.toast("还没成功：确认改的是 dealdesk 这个网站的麦克风（列表里找带 dealdesk 的地址）", 5000);
       });
@@ -144,20 +147,27 @@
 
   /* attach(btnEl, targetEl, opts)：
      targetEl 是 <input> 或 <textarea>；识别出的文字默认追加到 target
-     opts: { onResult(text, target), placeholder(默认"🎤 按住说话"), busyText } */
+     opts: { onResult(text, target), placeholder(默认"🎤 按一下说话"), busyText }
+     2026-10-19（Phil：「调整为按一下就直接语音，再按一下结束这样的模式」）：
+     "按住说话"改"点按开关"——第 1 下=开始聆听（按钮转绿+提示音），第 2 下=结束并转成文字；
+     转文字期间再按无效；90 秒没按第 2 下自动收口（安全网，防忘记关麦）；
+     保温流/权限恢复面板/只转写不存录音 全部沿用。 */
   function attach(btn, target, opts) {
     opts = opts || {};
     /* 2026-10-18 文案（Phil："我只是想让系统听到我说话，把我的话翻译为文字，而不是录音"；
        10-18 二次反馈"怎么还有录音"→ 全部"录音"措辞清除，统一"聆听/语音转文字"口径） */
-    var DEFAULT = opts.placeholder || "🎤 按住说话 · 语音转文字";
+    var DEFAULT = opts.placeholder || "🎤 按一下说话 · 语音转文字";
+    var LISTEN = "正在听… 再按一下结束";
     var busyText = opts.busyText || "听到了，正在转成文字…";
-    var rec = null, busy = false, pendingStop = false, graceStop = false;
+    var MAX_MS = 90000;
+    var rec = null, phase = "idle", pendingStop = false, graceStop = false, wasWarm = false, maxTimer = null;
     function setLabel(t) { if (btn) btn.textContent = t; }
     function setCls(on, which) {
       if (!btn) return;
       btn.classList.remove("rec", "busy");
       if (on) btn.classList.add(which || "rec");
     }
+    function resetUI() { if (maxTimer) { clearTimeout(maxTimer); maxTimer = null; } phase = "idle"; setCls(false); setLabel(DEFAULT); }
     function stopStream() {
       if (rec && rec.stream) {
         if (rec.stream === warmStream) return; /* 保温流由页面级统一管理（TTL/切后台释放），每次录完不停——停了下次又要弹授权 */
@@ -165,28 +175,21 @@
       }
     }
     function stopMic() {
-      /* 录音还没真正开始就松手（典型：首次按住时系统权限弹窗打断手势）→ 标记为"被中断"，
-         空录音的提示要说明原因，免得用户以为软件坏了 */
+      /* 第 2 下=结束。录音还没真正开始就按（典型：权限弹窗还没关）→ 标记为"被中断"，
+         开始后立刻停；空录音的提示要说明原因，免得用户以为软件坏了 */
       if (rec && rec.state === "recording") { try { rec.stop(); } catch (e) {} }
       else { graceStop = true; pendingStop = true; }
     }
-    if (!btn) return { setBusy: function () {} };
-    btn.type = "button";
-    btn.textContent = DEFAULT;
-    setLabel(!MediaRec ? "🎤 此浏览器不支持" : DEFAULT);
-    btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-    btn.addEventListener("dragstart", function (e) { e.preventDefault(); });
-    btn.addEventListener("pointerdown", function (e) {
-      e.preventDefault();
-      if (busy) return;
+    function startMic() {
       if (!MediaRec) { App.toast("此浏览器用不了麦克风，请直接打字"); return; }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { App.toast("当前环境不支持麦克风（试试 Safari/Chrome）"); return; }
-      busy = true;
+      phase = "starting";
       pendingStop = false;
       graceStop = false;
-      var wasWarm = warmLive();
+      wasWarm = warmLive();
+      setCls(true, "rec"); setLabel("正在开启麦克风…");
       micState().then(function (st) {
-        if (st === "denied") { busy = false; showDeniedPanel(); return; }
+        if (st === "denied") { resetUI(); showDeniedPanel(); return; }
         var repeat = false;
         try { repeat = st === "prompt" && !!localStorage.getItem("dd_mic_ever_granted"); } catch (e) {}
         beep(880, 0.12);
@@ -200,82 +203,99 @@
           try {
             rec = mime ? new MediaRec(stream, { mimeType: mime }) : new MediaRec(stream);
           } catch (err) {
-            stopStream(); busy = false;
+            stopStream(); resetUI();
             App.toast("没听清你的声音：" + err.message);
             return;
           }
           rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
           rec.onstop = function () {
+            if (activeRec === rec) activeRec = null;
+            if (rec.stream === warmStream) warmUsers--;
             var blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || "audio/mp4" });
             var fmt = fmtOf((rec && rec.mimeType) || mime);
             stopStream();
             beep(520, 0.12);
             if (!blob.size) {
-              if (wasWarm && !graceStop) releaseWarm(); /* 保温流录出空录音 = 流已死（10-16 同款）：丢弃，下次按压重新现取 */
-              busy = false; setCls(false); setLabel(DEFAULT);
-              App.toast(graceStop ? "系统授权弹窗打断了这次，再按住说一次（本会话内已授权，不会再弹）" : "没听到声音，再按住说一次");
+              if (wasWarm && !graceStop) releaseWarm(); /* 保温流录出空录音 = 流已死（10-16 同款）：丢弃，下次点按重新现取 */
+              resetUI();
+              App.toast(graceStop ? "系统授权弹窗打断了这次，再按一下说一次（本会话内已授权，不会再弹）" : "没听到声音，再按一下说一次");
               return;
             }
-            busy = false; setCls(true, "busy"); setLabel(busyText);
-            b64(blob, function (b64) {
-              var st = Store.getSettings() || {};
-              var c = st.llm || {}, cl = st.cloud || {};
+            phase = "stt"; setCls(true, "busy"); setLabel(busyText);
+            b64(blob, function (b64v) {
+              var s2 = Store.getSettings() || {};
+              var c = s2.llm || {}, cl = s2.cloud || {};
               if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
-              if (!c.proxyUrl) { setCls(false); setLabel(DEFAULT); App.toast("先在设置里配置云代理地址"); return; }
+              if (!c.proxyUrl) { resetUI(); App.toast("先在设置里配置云代理地址"); return; }
               var au = window.Auth && Auth.get();
-              if (!au || !au.session) { setCls(false); setLabel(DEFAULT); App.toast("请先登录后再使用语音"); return; }
+              if (!au || !au.session) { resetUI(); App.toast("请先登录后再使用语音"); return; }
               var p = {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session },
-                body: JSON.stringify({ audio: b64, format: fmt })
+                body: JSON.stringify({ audio: b64v, format: fmt })
               };
               fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", p)
                 .then(function (r) { return r.json(); })
                 .then(function (j) {
-                  setCls(false); setLabel(DEFAULT);
-                    if (j && j.text) {
-                      if (opts.onResult) opts.onResult(j.text, target);
-                      else if (target && "value" in target) {
-                        var v = target.value || "";
-                        target.value = v ? v.replace(/\s+$/, "") + " " + j.text : j.text;
-                        /* 2026-10-18（Phil「语音转化的文字，AI 没有自动扩充」）：程序改 value 不触发 input 事件
-                           → 买家页「停笔 2 秒自动扩充」监听器永远不启动。补发 input 事件，与手敲完全同一条链路 */
-                        target.dispatchEvent(new Event("input", { bubbles: true }));
-                      }
-                    } else {
-                    App.toast((j && j.error ? j.error : "没识别到内容，再按住说一次").slice(0, 80));
+                  resetUI();
+                  if (j && j.text) {
+                    if (opts.onResult) opts.onResult(j.text, target);
+                    else if (target && "value" in target) {
+                      var v = target.value || "";
+                      target.value = v ? v.replace(/\s+$/, "") + " " + j.text : j.text;
+                      /* 2026-10-18（Phil「语音转化的文字，AI 没有自动扩充」）：程序改 value 不触发 input 事件
+                         → 买家页「停笔 2 秒自动扩充」监听器永远不启动。补发 input 事件，与手敲完全同一条链路 */
+                      target.dispatchEvent(new Event("input", { bubbles: true }));
+                    }
+                  } else {
+                    App.toast((j && j.error ? j.error : "没识别到内容，再按一下说一次").slice(0, 80));
                   }
                 })
                 .catch(function (err) {
-                  setCls(false); setLabel(DEFAULT);
+                  resetUI();
                   App.toast("识别失败：" + err.message);
                 });
             });
           };
           rec.onerror = function () {
-            stopStream(); busy = false; setCls(false); setLabel(DEFAULT);
+            if (activeRec === rec) activeRec = null;
+            if (rec.stream === warmStream) warmUsers--;
+            stopStream(); resetUI();
             App.toast("聆听被打断，再试一次");
           };
           try {
             rec.start();
-            if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} }
+            activeRec = rec;
+            if (rec.stream === warmStream) { warmUsers++; refreshWarm(); }
+            if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} return; }
+            phase = "listening";
+            setCls(true, "rec"); setLabel(LISTEN);
+            maxTimer = setTimeout(function () { if (phase === "listening") stopMic(); }, MAX_MS);
           } catch (err) {
-            stopStream(); busy = false;
+            stopStream(); resetUI();
             App.toast("没听清你的声音：" + err.message);
           }
-          setCls(true, "rec"); setLabel("正在听… 说完松手");
         }).catch(function (err) {
-          busy = false; setCls(false); setLabel(DEFAULT);
+          resetUI();
           if (/NotAllowed|Permission|Security/i.test(String(err.message || err.name))) showDeniedPanel();
           else App.toast("打不开麦克风：" + err.message);
         });
       });
-    });
-    ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) {
-      btn.addEventListener(ev, function () { stopMic(); });
+    }
+    if (!btn) return { setBusy: function () {} };
+    btn.type = "button";
+    btn.textContent = DEFAULT;
+    setLabel(!MediaRec ? "🎤 此浏览器不支持" : DEFAULT);
+    btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    btn.addEventListener("dragstart", function (e) { e.preventDefault(); });
+    btn.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (phase === "stt") return; /* 转文字中：等文字进输入框，别乱按 */
+      if (phase === "starting" || phase === "listening") { stopMic(); return; } /* 第 2 下 = 结束 */
+      startMic(); /* 第 1 下 = 开始 */
     });
     return {
-      setBusy: function (on) { busy = !!on; setCls(on, "busy"); setLabel(on ? busyText : DEFAULT); }
+      setBusy: function (on) { if (on) { phase = "stt"; setCls(true, "busy"); setLabel(busyText); } else resetUI(); }
     };
   }
   window.Voice = { attach: attach, showDeniedPanel: showDeniedPanel, noteGrant: noteGrant };

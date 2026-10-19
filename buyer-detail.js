@@ -289,7 +289,7 @@
             '<div class="mode-tt"><b>自己写中文 · AI 自动扩充</b></div>' +
             '<div class="mt-row mt-row-inline"><button class="mt-btn active" data-mt="expand">按意图扩充</button><button class="mt-btn" data-mt="direct">逐句直译</button></div></div>' +
            '<textarea id="msgInput" rows="3" placeholder="写大概意图（写完自动扩充），或按住下面🎤说话"></textarea>' +
-             '<button class="mic-btn" id="micBtn" type="button">🎤 按住说话</button>' +
+             '<button class="mic-btn" id="micBtn" type="button">🎤 按一下说话</button>' +
              '<div class="mic-note">语音→文字 · 只转写、不存任何录音</div>' +
              '<div id="pendWrap"></div>' +
             "</div>" +
