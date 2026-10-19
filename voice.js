@@ -147,10 +147,10 @@
      opts: { onResult(text, target), placeholder(默认"🎤 按住说话"), busyText } */
   function attach(btn, target, opts) {
     opts = opts || {};
-    /* 2026-10-18 文案（Phil："我只是想让系统听到我说话，把我的话翻译为文字，而不是录音"）：
-       全程说清"语音转文字"，松手后的等待态明确"已停录音" */
+    /* 2026-10-18 文案（Phil："我只是想让系统听到我说话，把我的话翻译为文字，而不是录音"；
+       10-18 二次反馈"怎么还有录音"→ 全部"录音"措辞清除，统一"聆听/语音转文字"口径） */
     var DEFAULT = opts.placeholder || "🎤 按住说话 · 语音转文字";
-    var busyText = opts.busyText || "正在转成文字…（已停录音）";
+    var busyText = opts.busyText || "听到了，正在转成文字…";
     var rec = null, busy = false, pendingStop = false, graceStop = false;
     function setLabel(t) { if (btn) btn.textContent = t; }
     function setCls(on, which) {
@@ -179,7 +179,7 @@
     btn.addEventListener("pointerdown", function (e) {
       e.preventDefault();
       if (busy) return;
-      if (!MediaRec) { App.toast("此浏览器不支持录音，请直接打字"); return; }
+      if (!MediaRec) { App.toast("此浏览器用不了麦克风，请直接打字"); return; }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { App.toast("当前环境不支持麦克风（试试 Safari/Chrome）"); return; }
       busy = true;
       pendingStop = false;
@@ -201,7 +201,7 @@
             rec = mime ? new MediaRec(stream, { mimeType: mime }) : new MediaRec(stream);
           } catch (err) {
             stopStream(); busy = false;
-            App.toast("录音启动失败：" + err.message);
+            App.toast("没听清你的声音：" + err.message);
             return;
           }
           rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
@@ -213,7 +213,7 @@
             if (!blob.size) {
               if (wasWarm && !graceStop) releaseWarm(); /* 保温流录出空录音 = 流已死（10-16 同款）：丢弃，下次按压重新现取 */
               busy = false; setCls(false); setLabel(DEFAULT);
-              App.toast(graceStop ? "系统授权弹窗打断了这次，再按住说一次（本会话内已授权，不会再弹）" : "没录到声音，再按住说一次");
+              App.toast(graceStop ? "系统授权弹窗打断了这次，再按住说一次（本会话内已授权，不会再弹）" : "没听到声音，再按住说一次");
               return;
             }
             busy = false; setCls(true, "busy"); setLabel(busyText);
@@ -251,14 +251,14 @@
           };
           rec.onerror = function () {
             stopStream(); busy = false; setCls(false); setLabel(DEFAULT);
-            App.toast("录音出错，再试一次");
+            App.toast("聆听被打断，再试一次");
           };
           try {
             rec.start();
             if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} }
           } catch (err) {
             stopStream(); busy = false;
-            App.toast("录音启动失败：" + err.message);
+            App.toast("没听清你的声音：" + err.message);
           }
           setCls(true, "rec"); setLabel("正在听… 说完松手");
         }).catch(function (err) {

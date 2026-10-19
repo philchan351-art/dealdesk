@@ -20,7 +20,7 @@
 
   /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
   var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
-  var BD_VER = 79; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
+  var BD_VER = 80; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
   var zhBusy = {};
   var _chatPos = { id: null, top: 0, atBottom: true }; /* 2026-10-18（Phil「页面自己跳上跳下」）：聊天滚动位置跨重渲染记忆 */ // 防重入：同一文本正在翻译时不重复发起
   var _bdGen = 0;      /* 2026-10-18：init 代际号——被新一轮渲染取代后，遗留的 rAF 回调不得再执行（旧渲染的滚动会把新画面拽乱） */
@@ -287,6 +287,7 @@
             '<div class="mt-row mt-row-inline"><button class="mt-btn active" data-mt="expand">按意图扩充</button><button class="mt-btn" data-mt="direct">逐句直译</button></div></div>' +
            '<textarea id="msgInput" rows="3" placeholder="写大概意图（写完自动扩充），或按住下面🎤说话"></textarea>' +
              '<button class="mic-btn" id="micBtn" type="button">🎤 按住说话</button>' +
+             '<div class="mic-note">语音→文字 · 只转写、不存任何录音</div>' +
              '<div id="pendWrap"></div>' +
             "</div>" +
           '<div class="mode-card mode-b" style="margin:0 16px 10px">' +
