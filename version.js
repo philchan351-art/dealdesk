@@ -5,10 +5,15 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.1.2",
+  v: "1.1.3",
   date: "2026-10-19",
-  note: "链接卡片（OG）上线：品牌封面图 og-cover.png（带标语「0 基础，也能做外贸」）+ 手册/一页版标题摘要，微信 WhatsApp 粘贴链接即显示封面",
+  note: "新增外贸向封面图 og-cover-v2.png（「成交」主题，标语「从最低多少，到发PI」），待 Phil 选定后替换正式封面",
   changelog: [
+    {
+      v: "1.1.3", date: "2026-10-19", items: [
+        "[新] 外贸向链接卡片封面 og-cover-v2.png（Phil：再生成一张外贸人都喜欢的封面）——「成交」主题：银色电动行李箱 + 客户“发PI、500 units”聊天 + DEAL CLOSED 金章 + 标语「从最低多少，到发PI」，1200x630；原 og-cover.png 保留，正式替换待 Phil 选定"
+      ]
+    },
     {
       v: "1.1.2", date: "2026-10-19", items: [
         "[新] OG 链接卡片（Phil：做成有漂亮封面的链接）：og-cover.png 品牌封面（DealPilot/谈单舱 + 电动行李箱 + 手机聊天界面 + 标语「0 基础，也能做外贸」，1200x630/2K）；manual.html 与 pitch.html 加 og:title/og:description/og:image + twitter:card——微信/WhatsApp 粘贴链接直接显示封面卡片"
