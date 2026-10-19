@@ -5,10 +5,15 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.1.4",
+  v: "1.1.5",
   date: "2026-10-19",
-  note: "新增外贸向封面图 og-cover-v3.png（「出海」主题：集装箱货轮+纸箱，文字与 v2 完全一致），待 Phil 选定后替换正式封面",
+  note: "新增外贸向封面图 og-cover-v4.png（「出海」主题，标语「小学文化也能做外贸」），待 Phil 选定后替换正式封面",
   changelog: [
+    {
+      v: "1.1.5", date: "2026-10-19", items: [
+        "[新] 外贸向链接卡片封面 og-cover-v4.png（Phil：上面的文字改成「小学文化也能做外贸」）——基于 v3「出海」主题（集装箱货轮 + 出口纸箱 + 客户“发PI、500 units”聊天 + DEAL CLOSED 金章），仅标语由「从最低多少，到发PI」改为「小学文化也能做外贸」，1200x630；og-cover / v2 / v3 保留，正式替换待 Phil 选定"
+      ]
+    },
     {
       v: "1.1.4", date: "2026-10-19", items: [
         "[新] 外贸向链接卡片封面 og-cover-v3.png（Phil：不要箱子，换外贸人有共识的图，文字不改）——「出海」主题：金色黄昏集装箱货轮 + 出口纸箱 + 客户“发PI、500 units”聊天 + DEAL CLOSED 金章 + 标语「从最低多少，到发PI」，1200x630；og-cover.png / og-cover-v2.png 保留，正式替换待 Phil 选定"
