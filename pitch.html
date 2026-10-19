@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="theme-color" content="#B97516"/>
+<title>谈单舱 · 为什么值得用（一页版）</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#F6F1EA; --card:#FFFFFF; --ink:#2A2118; --ink-2:#4A3D2F; --muted:#8A7B6A;
+    --line:#E7DCCB; --line-2:#F0E8DA;
+    --brand:#B97516; --brand-deep:#8A5A10;
+    --green:#2F9E63; --blue:#3E6FA8; --red:#C2452D;
+    --shadow:0 1px 2px rgba(60,40,10,.06),0 8px 24px -12px rgba(60,40,10,.18);
+  }
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(1200px 500px at 80% -10%, rgba(185,117,22,.12), transparent 60%),
+      radial-gradient(900px 420px at -10% 30%, rgba(47,158,99,.09), transparent 55%),
+      var(--bg);
+    line-height:1.65; font-size:15px;
+  }
+  .container{max-width:720px;margin:0 auto;padding:22px 14px 60px}
+
+  /* hero */
+  .hero{
+    background:linear-gradient(135deg,#3A2A12 0%,#6B4A1D 55%,#8A5A10 100%);
+    color:#fff;border-radius:18px;padding:34px 24px 28px;
+    box-shadow:0 16px 40px -18px rgba(90,60,10,.55);text-align:center;
+  }
+  .hero-k{font-size:12px;letter-spacing:.18em;color:#EAD9BC;margin-bottom:14px}
+  .hero h1{font-size:clamp(24px,6vw,34px);line-height:1.3;font-weight:800}
+  .hero h1 em{font-style:normal;color:#FFD9A0}
+  .hero .sub{margin-top:14px;font-size:13.5px;color:#F3E7D2;line-height:1.8}
+  .hero .sub b{color:#fff}
+  .hero .badge{display:inline-block;margin-top:16px;font-size:11.5px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);padding:4px 12px;border-radius:999px}
+
+  /* cards */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:20px 18px;margin:16px 0}
+  .sec-num{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.12em;color:#fff;background:var(--brand);border-radius:6px;padding:2px 8px;margin-bottom:8px}
+  .card h2{font-size:19px;font-weight:800;margin:2px 0 8px;line-height:1.4}
+  .card p{font-size:14.2px;color:var(--ink-2);margin:8px 0}
+  .card p b, .card li b{color:var(--ink)}
+
+  table{width:100%;border-collapse:collapse;font-size:13.6px;margin:10px 0}
+  th{background:#F7F1E5;text-align:left;font-size:12.5px;color:var(--ink-2);padding:8px 10px;border:1px solid var(--line)}
+  td{padding:9px 10px;border:1px solid var(--line);vertical-align:top;line-height:1.55}
+  td b{color:var(--ink)}
+  .td-pain{color:var(--ink-2)}
+
+  .callout{display:flex;gap:10px;border-radius:11px;padding:12px 14px;margin:12px 0;font-size:13.4px;line-height:1.7;align-items:flex-start}
+  .callout .ic{font-size:16px;flex:none;line-height:1.4}
+  .callout.c-gold{background:#FBF3E4;border:1px solid #F0DDB4;color:#6B4E14}
+  .callout.c-gold b{color:#5A3F0C}
+  .callout.c-warn{background:#FBEFEC;border:1px solid #F2CFc5;color:#7A3A28}
+  .callout.c-tip{background:#EFF6EE;border:1px solid #CFE3CB;color:#2F5B2A}
+  .callout.c-good{background:#EAF5F0;border:1px solid #CDE7DC;color:#0F5138}
+  .callout b{font-weight:800}
+
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+  .mini{border-radius:11px;padding:12px 13px;font-size:13.2px;line-height:1.6;border:1px solid var(--line);background:#FCFAF5}
+  .mini b{display:block;font-size:13.8px;margin-bottom:3px}
+  .mini.g{background:#F2F8F3;border-color:#DCEBDD}
+  .mini.g b{color:#1F6B42}
+  .mini b{color:var(--ink)}
+
+  .big{
+    background:linear-gradient(135deg,#2E5E46 0%,#3F7A5B 100%);
+    color:#fff;border-radius:14px;padding:20px 18px;margin:14px 0;text-align:center;
+    box-shadow:0 12px 30px -14px rgba(30,90,60,.5);
+  }
+  .big .t{font-size:12px;letter-spacing:.15em;color:#CBE5D4;margin-bottom:8px}
+  .big .m{font-size:clamp(19px,4.6vw,24px);font-weight:800;line-height:1.45}
+  .big .m em{font-style:normal;color:#FFD9A0}
+  .big .s{margin-top:10px;font-size:13.5px;color:#E4F0E8}
+
+  .cta{
+    background:linear-gradient(135deg,#3A2A12 0%,#6B4A1D 60%,#8A5A10 100%);
+    color:#fff;border-radius:16px;padding:26px 20px;margin:18px 0;text-align:center;
+    box-shadow:0 16px 40px -18px rgba(90,60,10,.55);
+  }
+  .cta .t{font-size:19px;font-weight:800;margin-bottom:10px}
+  .cta .l{font-size:13.5px;color:#F3E7D2;line-height:1.9}
+  .cta .l a{color:#FFD9A0;font-weight:700;text-underline-offset:3px}
+  .cta .b{margin-top:14px;font-size:14.5px;font-weight:800;color:#FFD9A0;line-height:1.6}
+
+  .foot{text-align:center;font-size:12px;color:var(--muted);margin-top:22px;line-height:1.8}
+  .foot a{color:var(--brand-deep);font-weight:700}
+
+  @media (max-width:560px){
+    .duo{grid-template-columns:1fr}
+    body{font-size:14.5px}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="hero">
+    <div class="hero-k">谈单舱 DEALPILOT · 一页看懂</div>
+    <h1>一条客户消息，<br/>你要手动<em>倒手 6 次</em>。</h1>
+    <div class="sub">
+      复制他的英文 → 切翻译软件 → 3 个术语半懂不懂 → 心里纠结说什么 → 翻回英文纠结地不地道 → 再检查一遍才敢发。<br/>
+      <b>一条消息 7 分钟，一天 40 次。</b>这页 2 分钟看完。
+    </div>
+    <span class="badge">v1.1.0 · 2026-10-19</span>
+  </div>
+
+  <section class="card">
+    <span class="sec-num">01</span>
+    <h2>你不是业务员，你是"人肉转换器"</h2>
+    <p>每一条消息，都要从你脑子里过 5-6 次转换。痛的不是"语言差"——是<b>倒手</b>。</p>
+    <table>
+      <tr><th style="width:52%">你在倒什么手</th><th>倒错了会怎样</th></tr>
+      <tr><td class="td-pain"><b>语言</b>：英文进中文出、中文进英文出，一天几百次</td><td>语气跑偏，客户心里给你贴"不专业"的标签</td></tr>
+      <tr><td class="td-pain"><b>术语</b>：UN38.3、cell 还是 battery、FOB/EXW、MOQ</td><td>一个词说错，做这行的客户一眼看穿</td></tr>
+      <tr><td class="td-pain"><b>口径</b>：内部人民币、对外美金；报了 500、压过、又改 300——哪版是最后那版？</td><td>报价版本发错，<b>说出去就收不回</b></td></tr>
+      <tr><td class="td-pain"><b>上下文</b>：他说 "so about the CE thing"——他脑子里是上周那封邮件，你脑子里是空白</td><td>答非所问："他到底有没有记住我说的话？"</td></tr>
+      <tr><td class="td-pain"><b>语气文化</b>：德国要直接、巴西要热络、日本要极客气的分寸</td><td>同一句话，A 客户觉得专业，B 客户觉得冷漠</td></tr>
+      <tr><td class="td-pain"><b>两地传译</b>：客户问 → 中文问工厂 → 工厂中文回 → 再翻英文回客户</td><td>多传一次失真一次，<b>全链条只有你一个人记得</b></td></tr>
+    </table>
+    <div class="callout c-warn"><span class="ic">⏱️</span><div>还有 5 处不叫翻译、但一样疼：<b>时差与换算</b>（半夜 11 点的消息、8.4kg 是多少磅）· <b>文档版本</b>（quote_v1_final_最终版2.pdf，哪个是新的？）· <b>多平台</b>（WA 在手机上、邮件在电脑上、报价在表格里、样品在工厂——你的大脑是路由器）· <b>样品七环节</b>（报价→样品→样品费→寄出→签收→测试→大货，步步要人追）· <b>发送恐惧</b>（手指停在发送键上，又觉得不够专业……有时这步比写还久）。</div></div>
+  </section>
+
+  <section class="card">
+    <span class="sec-num">02</span>
+    <h2>谈单舱干的事：把倒手降下来</h2>
+    <p>它不是"AI 替你写"。它是把你那 6 次倒手，<b>一次一次替你接过去</b>：</p>
+    <table>
+      <tr><th style="width:30%">你的倒手</th><th>它怎么接</th></tr>
+      <tr><td class="td-pain"><b>语言</b></td><td>客户消息<b>当场翻中文</b>（对话里直接显示）；你写中文，<b>停笔 2 秒</b>出母语级外语。一条消息 7 分钟 → <b>1 分钟以内</b></td></tr>
+      <tr><td class="td-pain"><b>术语 / 参数</b></td><td>只说你喂过的资料里有的；没有的它说"让研发确认后回复你"——<b>绝不编</b></td></tr>
+      <tr><td class="td-pain"><b>口径</b></td><td>每笔报价、每次改价都记在客户档案里：上次报多少、他最后那句是"发吧"还是"再等等"，<b>打开就有</b></td></tr>
+      <tr><td class="td-pain"><b>上下文</b></td><td>"CE 那个事"——档案里有上周的线头。<b>永不重复问客户</b></td></tr>
+      <tr><td class="td-pain"><b>语气文化</b></td><td>按客户国家自动调语气，英 / 西 / 法 / 阿等 <b>13 种语言</b>随客户切换</td></tr>
+      <tr><td class="td-pain"><b>两地传译</b></td><td>客户的问题、照片自动沉淀进档案——查工厂时看档案，<b>不再全压在你脑子里</b></td></tr>
+    </table>
+    <div class="big">
+      <div class="t">定 位</div>
+      <div class="m">留给你的，只有<em>判断</em>——<br/>发不发、让不让、推不推。</div>
+      <div class="s">判断是你的本事，倒手不应该是。</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <span class="sec-num">03</span>
+    <h2>用起来，你立刻得到这 4 样</h2>
+    <div class="duo">
+      <div class="mini g"><b>① 早上 10 分钟，补掉隔夜时差</b>打开就知道"谁在等你回复"，按急的排好。北美客户凌晨的问题，你上午之前全部回完。</div>
+      <div class="mini g"><b>② 越用越像你</b>它学你真实的谈单风格——你平时怎么谈，它就怎么帮你写。用半年，客户分不清哪句是你写的。</div>
+      <div class="mini g"><b>③ 人走，档案不走</b>客户细节、报价版本、承诺进度全在云端。你休假有人接得上，新人入职不从零开始。</div>
+      <div class="mini g"><b>④ 客户零感知</b>他看到的永远是你本人在 WhatsApp 上亲自聊天。你手里多强，他永远不知道。</div>
+    </div>
+    <div class="callout c-tip"><span class="ic">🛡️</span><div>还有 3 件小事它一直在默默做：<b>底线价格红警</b>（要低于你设的底线，屏幕先红给你看）· <b>承诺变提醒</b>（"下周发样品报告"自动进提醒，逾期红条置顶）· <b>流失留原因</b>（6 个原因一选，教训攒得下来，下次不踩同一个坑）。</div></div>
+  </section>
+
+  <section class="card">
+    <span class="sec-num">04</span>
+    <h2>它不干什么（先说清楚）</h2>
+    <table>
+      <tr><td style="width:38%">🚫 <b>不替你发送</b></td><td>发送键永远在你手指下——最后一下，必须是你</td></tr>
+      <tr><td>🚫 <b>不替代 WhatsApp</b></td><td>客户零感知，不用装任何东西、不改任何习惯</td></tr>
+      <tr><td>🚫 <b>不替你谈</b></td><td>报价、让价、承诺，永远你拍板——它只把信息备齐</td></tr>
+    </table>
+  </section>
+
+  <section class="card">
+    <span class="sec-num">05</span>
+    <h2>客户凭什么信一个供应商？就 4 条</h2>
+    <div class="duo">
+      <div class="mini g"><b>① 负责 · 不丢事</b>每条消息有人跟、每个承诺有提醒，客户交代的事落地有回响。</div>
+      <div class="mini g"><b>② 专业 · 不出错</b>参数只说资料里有的，语气按国家适配，低于底线价格有红线警告。</div>
+      <div class="mini g"><b>③ 想到 · 超预期</b>它记得客户之前提过的小要求，你回复时顺手带上——"这人靠谱到可怕"。</div>
+      <div class="mini g"><b>④ 可靠 · 有底账</b>每单走到哪一步清清楚楚，客户任何时候问"进度如何"，你 10 秒给出准确答案。</div>
+    </div>
+    <p>信任 = 你负责 + 你专业 + 你想到 + 你可靠。谈单舱把这 4 条，变成你的"自动肌肉记忆"。</p>
+  </section>
+
+  <div class="cta">
+    <div class="t">现在就可以用</div>
+    <div class="l">
+      ① 手机打开 <a href="https://philchan351-art.github.io/dealdesk/">谈单舱</a><br/>
+      ② 新入职？找管理员要团队口令，3 分钟注册（或让管理员直接给你建号）<br/>
+      ③ 完整操作看 <a href="manual.html">《使用手册》</a>——第 1 章和这页讲的是一回事
+    </div>
+    <div class="b">你不是多一个工具，<br/>是多一个"记着、追着、兜着底"的老搭档。</div>
+  </div>
+
+  <div class="foot">
+    谈单舱 DealPilot · 为什么值得用（一页版）v1.1.0 · 2026-10-19<br/>
+    它把"不确定"变"确定"，把必须由你确定的事，清清楚楚留给你。
+  </div>
+
+</div>
+</body>
+</html>
