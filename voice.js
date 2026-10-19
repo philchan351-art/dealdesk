@@ -233,13 +233,16 @@
                 .then(function (r) { return r.json(); })
                 .then(function (j) {
                   setCls(false); setLabel(DEFAULT);
-                  if (j && j.text) {
-                    if (opts.onResult) opts.onResult(j.text, target);
-                    else if (target && "value" in target) {
-                      var v = target.value || "";
-                      target.value = v ? v.replace(/\s+$/, "") + " " + j.text : j.text;
-                    }
-                  } else {
+                    if (j && j.text) {
+                      if (opts.onResult) opts.onResult(j.text, target);
+                      else if (target && "value" in target) {
+                        var v = target.value || "";
+                        target.value = v ? v.replace(/\s+$/, "") + " " + j.text : j.text;
+                        /* 2026-10-18（Phil「语音转化的文字，AI 没有自动扩充」）：程序改 value 不触发 input 事件
+                           → 买家页「停笔 2 秒自动扩充」监听器永远不启动。补发 input 事件，与手敲完全同一条链路 */
+                        target.dispatchEvent(new Event("input", { bubbles: true }));
+                      }
+                    } else {
                     App.toast((j && j.error ? j.error : "没识别到内容，再按住说一次").slice(0, 80));
                   }
                 })
