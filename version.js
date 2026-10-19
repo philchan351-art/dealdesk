@@ -5,10 +5,15 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.1.1",
+  v: "1.1.2",
   date: "2026-10-19",
-  note: "手册第 1 章并入 pitch 内容：6 类倒手→功能映射表、立刻得到的 4 样 + 3 件默默做的小事、一页版入口",
+  note: "链接卡片（OG）上线：品牌封面图 og-cover.png（带标语「0 基础，也能做外贸」）+ 手册/一页版标题摘要，微信 WhatsApp 粘贴链接即显示封面",
   changelog: [
+    {
+      v: "1.1.2", date: "2026-10-19", items: [
+        "[新] OG 链接卡片（Phil：做成有漂亮封面的链接）：og-cover.png 品牌封面（DealPilot/谈单舱 + 电动行李箱 + 手机聊天界面 + 标语「0 基础，也能做外贸」，1200x630/2K）；manual.html 与 pitch.html 加 og:title/og:description/og:image + twitter:card——微信/WhatsApp 粘贴链接直接显示封面卡片"
+      ]
+    },
     {
       v: "1.1.1", date: "2026-10-19", items: [
         "[改] 手册第 1 章并入《为什么值得用》内容（Phil：把这个内容做到手册里）：6 类倒手→功能映射表（7 分钟→1 分钟以内）、「立刻得到的 4 样」+「3 件默默做的小事」、一键跳转 pitch.html 一页版（转发给新入职）"
