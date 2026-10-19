@@ -20,7 +20,7 @@
 
   /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
   var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
-  var BD_VER = 80; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
+  var BD_VER = 81; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
   var zhBusy = {};
   var _chatPos = { id: null, top: 0, atBottom: true }; /* 2026-10-18（Phil「页面自己跳上跳下」）：聊天滚动位置跨重渲染记忆 */ // 防重入：同一文本正在翻译时不重复发起
   var _bdGen = 0;      /* 2026-10-18：init 代际号——被新一轮渲染取代后，遗留的 rAF 回调不得再执行（旧渲染的滚动会把新画面拽乱） */
@@ -423,8 +423,16 @@
           try { wa.replaceChild(div.firstChild, node); } catch (e) { return false; }
           return true;
         }
-        function startZh(m) {
-          LLM.translate(m.text, b).then(function (zh) {
+         function startZh(m) {
+           /* 2026-10-19（Phil「翻译老失败」）：网络瞬断类失败（Load failed 等）先自动重试 1 次再报错——
+              翻译是幂等调用，重试无副作用；系统性失败仍走红字+toast */
+           function attempt(retries) {
+             return LLM.translate(m.text, b).catch(function (e) {
+               if (retries > 0) return new Promise(function (res) { setTimeout(function () { res(attempt(retries - 1)); }, 800); });
+               throw e;
+             });
+           }
+           attempt(1).then(function (zh) {
             zh = String(zh || "").trim();
             if (!zh) throw new Error("返回空译文");
             m.zh = zh; m.zhFail = false;
