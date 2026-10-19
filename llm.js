@@ -256,7 +256,8 @@
        /* 2026-10-18（Phil）：「记一条」中文对照 ~1 秒内 —— 轻系统提示（纯翻译不需要档案/剧本上下文）
           + nodocs 跳过服务端资料注入 + qwen-flash（热态实测 0.75-0.77s）。
           Phil 成本指令：暂时不用贵模型 → 快模型不可用不再静默降级 qwen-plus，直接报错（autoZh 弹 toast，业务员看得见） */
-       return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 300, temp: 0.2, nodocs: true, model: "qwen-flash" })
+       /* 2026-10-19：中英混合输入（客户信息表单/带中文标注）也要译——保留中文原样、只译外文部分 */
+       return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；若消息里已含中文，保留中文原样、只把外文部分译成中文；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 300, temp: 0.2, nodocs: true, model: "qwen-flash" })
         .then(function (t) {
           var o = parseJSON(t);
           return (o && o.zh) || null;

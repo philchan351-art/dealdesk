@@ -20,7 +20,7 @@
 
   /* ===== P1：谈单诊断 / 成交流失标记 / 行为埋点 ===== */
   var LOSE_REASONS = ["价格", "MOQ", "交期", "无响应", "选了别家", "其他"];
-  var BD_VER = 81; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
+  var BD_VER = 82; /* 2026-10-18：前端版本角标，显示在对话区，便于一眼确认手机跑的是哪版代码 */
   var zhBusy = {};
   var _chatPos = { id: null, top: 0, atBottom: true }; /* 2026-10-18（Phil「页面自己跳上跳下」）：聊天滚动位置跨重渲染记忆 */ // 防重入：同一文本正在翻译时不重复发起
   var _bdGen = 0;      /* 2026-10-18：init 代际号——被新一轮渲染取代后，遗留的 rAF 回调不得再执行（旧渲染的滚动会把新画面拽乱） */
@@ -126,7 +126,10 @@
       var fmt = String(im.f || "jpeg").replace(/[^a-z0-9]/gi, "") || "jpeg";
       return '<img class="msg-img" src="data:image/' + fmt + ';base64,' + im.d + '" loading="lazy" alt="图片"/>';
     }).join("");
-    if (imgsHtml) imgsHtml = '<div class="msg-imgs">' + imgsHtml + "</div>";
+    if (imgsHtml) {
+      if (!m.text) imgsHtml += '<div class="zh-line zh-skip">图片消息不自动翻译 · 把文字复制进「记一句」即可翻</div>'; /* 2026-10-19（Phil「还是翻译不出来」）：纯图片消息不再静默无反馈 */
+      imgsHtml = '<div class="msg-imgs">' + imgsHtml + "</div>";
+    }
     if (m.from === "me") {
       var isH = m.status === "handed";
       var handed = isH
@@ -393,7 +396,10 @@
            ② 失败弹 toast 说原因 + 气泡留「点按重试」标记，不再有任何静默路径
            ③ 失败清 zhBusy 锁，同一条随时可重试 */
         function autoZh(text) {
-          if (!text || /[一-龥]/.test(text)) return; // 中文不用翻
+          /* 2026-10-19（Phil「还是翻译不出来」）：只跳过"纯中文"；中英混合（客户信息表单/带中文标注的消息）也译——
+             翻译 SYS 已支持"保留中文、只译外文"。纯中文 = 有中文且外文字母 <10 个 */
+          if (!text) return;
+          if (/[一-龥]/.test(text) && (text.match(/[A-Za-z]/g) || []).length < 10) return;
           if (!window.LLM || !LLM.configured()) return;
           if (zhBusy[text]) return;
           var target = null;
@@ -558,7 +564,8 @@
             2026-10-18（Phil：进客户页抖动闪烁）：占位一次性批量写入（逐气泡替换、零整页重渲染），
             再并行发起翻译——旧逻辑每条触发一次整页重渲染，进页最多连环重绘 6 次 */
          if (window.LLM && LLM.configured()) {
-           var missZh = b.messages.filter(function (m) { return (!m.zh || m.zh === "翻译中…") && !m.zhFail && m.text && !/[一-龥]/.test(m.text); }).slice(-6);
+           /* 2026-10-19：与 autoZh 同口径——只跳过"纯中文"，中英混合也补翻（SYS 已处理"保留中文、只译外文"） */
+          var missZh = b.messages.filter(function (m) { return (!m.zh || m.zh === "翻译中…") && !m.zhFail && m.text && !(/[一-龥]/.test(m.text) && (m.text.match(/[A-Za-z]/g) || []).length < 10); }).slice(-6);
            var toStart = [];
            missZh.forEach(function (m) {
              if (zhBusy[m.text]) return;

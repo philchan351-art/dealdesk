@@ -136,6 +136,7 @@
 /* 2026-10-18：翻译状态可见（Phil「依然没看到翻译」）——占位斜体灰 / 失败红可点重试 / 版本角标 */
 .zh-line.zh-busy{color:var(--ink-faint);font-style:italic;font-weight:400}
 .zh-line.zh-fail{color:#C2452D;font-size:11.5px;font-weight:500;cursor:pointer}
+.zh-line.zh-skip{color:var(--ink-faint);font-size:11px;font-weight:400}
 .zh-ver{font-size:9px;font-weight:700;color:var(--ink-faint);opacity:.55;margin-left:4px}
 
 /* 国家沟通画像 */
