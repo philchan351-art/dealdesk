@@ -68,8 +68,20 @@
          '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
           '<div class="tb-title"><h1>设置</h1><div class="tb-sub">账号 · 团队 · 数据</div></div>' +
          "</div>" +
-         '<div class="set-stack">' +
-         '<div class="card card-pad">' +
+          '<div class="set-stack">' +
+          (function () {
+            /* 2026-10-19（Phil：更新也要有版本号）：版本卡 = 当前 v + 日期 + 说明 + 最近 3 版变更（单一事实源 version.js） */
+            var AV = window.APP_VERSION || { v: "?", date: "", note: "" };
+            var cl = (AV.changelog || []).slice(0, 3).map(function (c) {
+              return "<b>v" + esc(c.v) + " · " + esc(c.date) + "</b><br>" + (c.items || []).map(esc).join("<br>");
+            }).join("<br><br>");
+            return '<div class="card card-pad">' +
+              '<div class="set-title">版本</div>' +
+              '<div class="set-sub" style="margin-top:2px">v' + esc(AV.v) + ' · ' + esc(AV.date) + (AV.note ? " — " + esc(AV.note) : "") + "</div>" +
+              '<div class="set-sub" style="margin-top:8px;line-height:1.7">' + cl + "</div>" +
+              "</div>";
+          })() +
+          '<div class="card card-pad">' +
           '<div class="set-title">当前账号</div>' +
           '<div class="card set-row"><span class="set-k">业务员</span><b>' + esc(au ? au.name : "未登录") + (au && au.role === "admin" ? " · 管理员" : "") + "</b></div>" +
           '<div class="set-actions"><button class="set-btn-inline danger" data-act="logout">切换账号 / 退出登录</button></div>' +
