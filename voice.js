@@ -34,9 +34,11 @@
     });
   }
   try {
-    /* 切后台/锁屏/离页：先停掉进行中的录音（走 onstop 正常收口），再释放保温流——绝不让麦克风指示标在后台亮着 */
-    window.addEventListener("pagehide", function () { try { if (activeRec) activeRec.stop(); } catch (e) {} releaseWarm(); });
-    document.addEventListener("visibilitychange", function () { if (document.hidden) { try { if (activeRec) activeRec.stop(); } catch (e) {} releaseWarm(); } });
+    /* 切后台/锁屏/离页：先停掉进行中的录音（走 onstop 正常收口），再强制释放保温流
+       （warmUsers 守卫只防"页面内使用中"被 20s 空闲计时掐断；离页时直接清零强放——
+       绝不让麦克风指示标在后台亮着） */
+    window.addEventListener("pagehide", function () { try { if (activeRec) activeRec.stop(); } catch (e) {} warmUsers = 0; releaseWarm(); });
+    document.addEventListener("visibilitychange", function () { if (document.hidden) { try { if (activeRec) activeRec.stop(); } catch (e) {} warmUsers = 0; releaseWarm(); } });
   } catch (e) {}
   function beep(freq, dur) {
     try {
@@ -210,7 +212,7 @@
           rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
           rec.onstop = function () {
             if (activeRec === rec) activeRec = null;
-            if (rec.stream === warmStream) warmUsers--;
+            if (rec.stream === warmStream && warmUsers > 0) warmUsers--; /* 离页已强清零时兜底，避免负数 */
             var blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || "audio/mp4" });
             var fmt = fmtOf((rec && rec.mimeType) || mime);
             stopStream();
@@ -259,7 +261,7 @@
           };
           rec.onerror = function () {
             if (activeRec === rec) activeRec = null;
-            if (rec.stream === warmStream) warmUsers--;
+            if (rec.stream === warmStream && warmUsers > 0) warmUsers--;
             stopStream(); resetUI();
             App.toast("聆听被打断，再试一次");
           };
