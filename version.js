@@ -5,10 +5,15 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.2.0",
+  v: "1.2.1",
   date: "2026-10-19",
-  note: "语音输入改点按模式（按一下开始、再按一下结束）；修复买家页「✎ 编辑」点击无反应的参数错位 bug",
+  note: "手册新增麦克风权限指南（Phil iPhone 真机验证路径：设置 → Apps → Safari → 麦克风 → Allow）",
   changelog: [
+    {
+      v: "1.2.1", date: "2026-10-19", items: [
+        "[文档] 手册 §8 新增「话筒没反应/红色麦克风被禁用面板」权限指南表：iPhone（设置 → Apps → Safari → 网站区 → 麦克风 → Allow，2026-10-19 Phil 真机截图验证；Chrome on iOS 无自己的站点设置、同走此开关）、安卓（系统权限给 Chrome 开麦克风）、微信（无法持久，每次进页最多弹一次）；FAQ 麦克风条目同步修正（原 iOS 指引有误：Chrome 地址栏左侧无站点设置入口，iOS 上 Chrome 与 Safari 共用权限）；手册 v58 → v59"
+      ]
+    },
     {
       v: "1.2.0", date: "2026-10-19", items: [
         "[修] 买家页「✎ 编辑」点不动：buyer-sheet.js 建档/编辑面板 4 个字段（公司/WhatsApp/数量/产品线）把值错放进下拉列表参数位，编辑已有客户时 list.map 抛 TypeError 面板渲染中断（浏览器实测定位）——值归位，编辑/保存链路恢复",
