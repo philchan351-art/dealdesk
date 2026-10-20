@@ -892,8 +892,11 @@
                 }
               }
               var selSt = sel ? scripts[sel.si] && scripts[sel.si].steps[sel.i] : null;
+              /* 2026-10-20（v1.2.7，Phil）：只有一套话术时名称原来不显示（只在多套并存时分行标注）
+                 → 单一话术的完整名称直接进卡头，随时可见是哪套剧本 */
+              var singleName = (scripts.length === 1 && scripts[0].name) ? scripts[0].name : "新客话术";
               var html = '<div class="card ctx-card" style="margin:12px 16px 0">' +
-                '<div class="ctx-head"><span class="ctx-title">📜 新客话术（' + sent + "/" + total + '）</span>' +
+                '<div class="ctx-head"><span class="ctx-title">📜 ' + escHtml(singleName) + '（' + sent + "/" + total + '）</span>' +
                 '<span class="ctx-hint">' + (scripts.length > 1 ? scripts.length + " 套 · " : "") + "点选一段 → 下方发送</span></div>" +
                 (isNew ? '<div class="sp-hint">💡 新客户首谈：按编号顺序一段段发（客户回一段你再发下一段）。署名自动换成你的名字；客户以后问参数，选中对应那步再发即可。</div>' : "") +
                 '<div class="sp-body">';
@@ -946,8 +949,8 @@
             }
             renderCard();
           }
-          Sync.sharedAll().then(function (j) { if (j) { scriptCache = { key: line, ts: Date.now(), j: j }; onShared(j); } })
-            .catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
+           Sync.sharedMeta().then(function (j) { if (j) { scriptCache = { key: line, ts: Date.now(), j: j }; onShared(j); } })
+             .catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
         })();
 
         /* ===== 2026-10-18 产品照片库改版（Phil 三指令）：

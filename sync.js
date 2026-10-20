@@ -209,6 +209,12 @@
       if (!this.enabled()) return Promise.resolve({ docs: [] });
       return fetch(url("/shared/all"), { headers: headers() }).then(function (r) { return wrap(r); });
     },
+    /* 2026-10-20（v1.2.7）：话术卡专用轻量通道——只回元数据（剧本带 steps，正文不落响应），
+       比 /shared/all 少一次会话校验的云端往返，卡片渲染更快。返回形状与 /shared/all 兼容。 */
+    sharedMeta: function () {
+      if (!this.enabled()) return Promise.resolve({ docs: [] });
+      return fetch(url("/admin/shared"), { headers: headers() }).then(function (r) { return wrap(r); });
+    },
     sharedDelete: function (doc) {
       if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));
       return fetch(url("/admin/shared/delete"), {
