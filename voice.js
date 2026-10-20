@@ -152,7 +152,7 @@
      opts: { onResult(text, target), placeholder(默认"🎤 按一下说话"), busyText }
      2026-10-19（Phil：「调整为按一下就直接语音，再按一下结束这样的模式」）：
      "按住说话"改"点按开关"——第 1 下=开始聆听（按钮转绿+提示音），第 2 下=结束并转成文字；
-     转文字期间再按无效；90 秒没按第 2 下自动收口（安全网，防忘记关麦）；
+     转文字期间再按无效；单次录入硬上限 60 秒（绿色按钮上实时倒计时，说话的人看得见进度）；
      保温流/权限恢复面板/只转写不存录音 全部沿用。 */
   function attach(btn, target, opts) {
     opts = opts || {};
@@ -161,15 +161,26 @@
     var DEFAULT = opts.placeholder || "🎤 按一下说话 · 语音转文字";
     var LISTEN = "正在听… 再按一下结束";
     var busyText = opts.busyText || "听到了，正在转成文字…";
-    var MAX_MS = 90000;
-    var rec = null, phase = "idle", pendingStop = false, graceStop = false, wasWarm = false, maxTimer = null;
+    var MAX_MS = 60000; /* 2026-10-19（Phil）：语音录入硬上限 60 秒，绿色按钮上实时倒计时让说话的人知道进度 */
+    var rec = null, phase = "idle", pendingStop = false, graceStop = false, wasWarm = false, maxTimer = null, remain = 0;
     function setLabel(t) { if (btn) btn.textContent = t; }
     function setCls(on, which) {
       if (!btn) return;
       btn.classList.remove("rec", "busy");
       if (on) btn.classList.add(which || "rec");
     }
-    function resetUI() { if (maxTimer) { clearTimeout(maxTimer); maxTimer = null; } phase = "idle"; setCls(false); setLabel(DEFAULT); }
+    function stopCountdown() { if (maxTimer) { clearInterval(maxTimer); maxTimer = null; } }
+    function startCountdown() {
+      stopCountdown();
+      remain = MAX_MS / 1000;
+      setLabel(LISTEN + " · " + remain + "s");
+      maxTimer = setInterval(function () {
+        remain--;
+        if (remain <= 0) { stopCountdown(); if (phase === "listening") stopMic(); return; }
+        if (phase === "listening") setLabel(LISTEN + " · " + remain + "s");
+      }, 1000);
+    }
+    function resetUI() { stopCountdown(); phase = "idle"; setCls(false); setLabel(DEFAULT); }
     function stopStream() {
       if (rec && rec.stream) {
         if (rec.stream === warmStream) return; /* 保温流由页面级统一管理（TTL/切后台释放），每次录完不停——停了下次又要弹授权 */
@@ -223,6 +234,7 @@
           }
           rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
           rec.onstop = function () {
+            stopCountdown();
             if (activeRec === rec) activeRec = null;
             if (rec.stream === warmStream && warmUsers > 0) warmUsers--; /* 离页已强清零时兜底，避免负数 */
             var blob = new Blob(chunks, { type: (rec && rec.mimeType) || mime || "audio/mp4" });
@@ -272,6 +284,7 @@
             });
           };
           rec.onerror = function () {
+            stopCountdown();
             if (activeRec === rec) activeRec = null;
             if (rec.stream === warmStream && warmUsers > 0) warmUsers--;
             stopStream(); resetUI();
@@ -283,8 +296,8 @@
             if (rec.stream === warmStream) { warmUsers++; refreshWarm(); }
             if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} return; }
             phase = "listening";
-            setCls(true, "rec"); setLabel(LISTEN);
-            maxTimer = setTimeout(function () { if (phase === "listening") stopMic(); }, MAX_MS);
+            setCls(true, "rec");
+            startCountdown();
           } catch (err) {
             stopStream(); resetUI();
             App.toast("没听清你的声音：" + err.message);
