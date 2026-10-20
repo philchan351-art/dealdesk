@@ -182,9 +182,21 @@
       if (rec && rec.state === "recording") { try { rec.stop(); } catch (e) {} }
       else { graceStop = true; pendingStop = true; }
     }
+    /* 2026-10-19（Phil「语音转文字慢」实测定位）：云端识别本身 <1s（15-45s 音频 server 680-850ms），
+       慢的是 FC 实例闲置(>60s)后冷启动 + 手机上传。第 1 下点按开麦的瞬间先打一个免鉴权 /healthz
+       ——用户说话的这 3-60 秒里实例必然预热完成，第 2 下的 STT 请求直接命中热实例。 */
+    function prewarm() {
+      try {
+        var s = Store.getSettings() || {};
+        var c = s.llm || {}, cl = s.cloud || {};
+        if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
+        if (c.proxyUrl) fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/healthz", { method: "GET" }).catch(function () {});
+      } catch (e) {}
+    }
     function startMic() {
       if (!MediaRec) { App.toast("此浏览器用不了麦克风，请直接打字"); return; }
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { App.toast("当前环境不支持麦克风（试试 Safari/Chrome）"); return; }
+      prewarm();
       phase = "starting";
       pendingStop = false;
       graceStop = false;
