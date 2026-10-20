@@ -244,7 +244,9 @@
             if (!blob.size) {
               if (wasWarm && !graceStop) releaseWarm(); /* 保温流录出空录音 = 流已死（10-16 同款）：丢弃，下次点按重新现取 */
               resetUI();
-              App.toast(graceStop ? "系统授权弹窗打断了这次，再按一下说一次（本会话内已授权，不会再弹）" : "没听到声音，再按一下说一次");
+              /* 2026-10-20（Phil「生成不出来」）：点按模式下空录音主因是"两下点得太近"（旧按住模式的肌肉记忆），
+                 提示按这个口径说；授权弹窗打断同样表现为空录音，建议相同（再按一次） */
+              App.toast(graceStop ? "这次停得有点快，还没收到声音——按一下开始，说完再按一下" : "没听到声音，再按一下说一次", 4000);
               return;
             }
             phase = "stt"; setCls(true, "busy"); setLabel(busyText);
@@ -260,9 +262,15 @@
                 headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session },
                 body: JSON.stringify({ audio: b64v, format: fmt })
               };
-              fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", p)
+              /* 2026-10-20（Phil「生成不出来」）：手机信号差时上传会卡死——原来 fetch 无超时，
+                 按钮永远停在"正在转成文字…"。加 45s 熔断：超时报错并复位按钮，可立刻重说 */
+              var ac = (window.AbortController ? new AbortController() : null);
+              var sttTimer = ac ? setTimeout(function () { ac.abort(); }, 45000) : null;
+              function unarmStt() { if (sttTimer) { clearTimeout(sttTimer); sttTimer = null; } }
+              fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", ac ? Object.assign(p, { signal: ac.signal }) : p)
                 .then(function (r) { return r.json(); })
                 .then(function (j) {
+                  unarmStt();
                   resetUI();
                   if (j && j.text) {
                     if (opts.onResult) opts.onResult(j.text, target);
@@ -278,8 +286,9 @@
                   }
                 })
                 .catch(function (err) {
+                  unarmStt();
                   resetUI();
-                  App.toast("识别失败：" + err.message);
+                  App.toast(err && err.name === "AbortError" ? "识别超时了，信号可能不好——再按一下说一次" : "识别失败：" + (err && err.message), 5000);
                 });
             });
           };
