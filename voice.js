@@ -225,12 +225,15 @@
             if (MediaRec.isTypeSupported && MediaRec.isTypeSupported(MIME_PREF[i])) { mime = MIME_PREF[i]; break; }
           }
           var chunks = [];
+          /* 2026-10-20（Phil「15 秒语音等 10 秒以上」）：实测热实例识别仅 1.2-1.4s、冷启动也只 +1.2s，
+             大头是手机上传——默认 AAC 码率下 15s 音频 b64 后约 200KB，上行 200kbps 就要 8s。
+             压到 32kbps 单声道（语音识别足够，模型内部还会重采样）→ 上传量约 1/3。
+             个别内核不认 audioBitsPerSecond 时回退无参构造 */
           try {
-            rec = mime ? new MediaRec(stream, { mimeType: mime }) : new MediaRec(stream);
+            rec = mime ? new MediaRec(stream, { mimeType: mime, audioBitsPerSecond: 32000 }) : new MediaRec(stream, { audioBitsPerSecond: 32000 });
           } catch (err) {
-            stopStream(); resetUI();
-            App.toast("没听清你的声音：" + err.message);
-            return;
+            try { rec = mime ? new MediaRec(stream, { mimeType: mime }) : new MediaRec(stream); }
+            catch (err2) { stopStream(); resetUI(); App.toast("没听清你的声音：" + err2.message); return; }
           }
           rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
           rec.onstop = function () {
