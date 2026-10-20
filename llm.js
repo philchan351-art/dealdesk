@@ -236,8 +236,15 @@
       return /认证|证书|检测报告|test report|\bCE\b|RoHS|REACH|\bUL\b|FDA|UKCA/i.test(String(c.k) + String(c.v));
     });
     var certNeg = hasCert ? "" : "；认证/检测报告=档案未记录，即状态未知：声称\"有\"和断言\"肯定没有\"都禁止，唯一允许的说法是\"让 QC 核实状态后回你\"";
+    /* v1.2.12「读→定」：最近一次态势研判进简报，suggest/expand/localize/extract 全部吃到 */
+    var readLine = (buyer.lastRead && buyer.lastRead.posture)
+      ? "\n最近研判：" + buyer.lastRead.posture +
+        (buyer.lastRead.concern ? "｜在意：" + buyer.lastRead.concern : "") +
+        (buyer.lastRead.warm && buyer.lastRead.warm !== "持平" ? "｜温度：" + buyer.lastRead.warm : "") +
+        (buyer.lastRead.evidence ? "｜依据：「" + buyer.lastRead.evidence + "」" : "")
+      : "";
     return "客户：" + buyer.name + "（" + buyer.country + "，" + buyer.company + "）" +
-      "｜谈单阶段：" + Mock.STAGES[buyer.stage] + "｜意向分：" + buyer.intent +
+      "｜谈单阶段：" + Mock.STAGES[buyer.stage] + "｜意向分：" + buyer.intent + readLine +
       "\n档案：" + (buyer.context || []).map(function (c) { return c.k + "=" + c.v; }).join("；") + certNeg +
       (buyer.profile ? "\n国家画像：" + buyer.profile.address + " / " + buyer.profile.style : "") +
        (buyer.memory ? "\n客户长期记忆（来自导入的过往聊天记录总结，重要背景，回答涉及这些话题时必须一致）：" + buyer.memory.slice(0, 800) : "") +
@@ -287,12 +294,21 @@
         return (o && o.fields) || [];
       });
     },
-    intentDelta: function (text, buyer) {
-      return chat(ctx(buyer), Prompts.intent + "\n\n消息：" + text, { max_tokens: 120, temp: 0.2 })
+    /* v1.2.12「读」：原 intentDelta 升级为态势研判。delta 兼容原意向分管线；
+       nodocs＝读只看客户原话和档案简报，跳过服务端资料注入（省一整轮 bundle 注入的延迟与费用） */
+    readMsg: function (text, buyer) {
+      return chat(ctx(buyer), Prompts.read + "\n\n消息：" + text, { max_tokens: 220, temp: 0.2, nodocs: true })
         .then(function (t) {
           var o = parseJSON(t);
           if (!o || typeof o.delta !== "number") return null;
           o.delta = Math.max(-15, Math.min(15, Math.round(o.delta)));
+          var POST = { "砍价": 1, "比价": 1, "拖延": 1, "试探": 1, "推进": 1, "追问": 1, "正常": 1 };
+          var WARM = { "升温": 1, "持平": 1, "降温": 1 };
+          if (!POST[o.posture]) o.posture = "";
+          if (!WARM[o.warm]) o.warm = "";
+          o.reason = String(o.reason || "").slice(0, 16);
+          o.concern = String(o.concern || "").slice(0, 24);
+          o.evidence = String(o.evidence || "").slice(0, 40);
           return o;
         });
     },

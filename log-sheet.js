@@ -100,14 +100,15 @@
       if (!aiOn()) { doSave(bd); return; }
       var btn = bd.querySelector('[data-act="save"]');
       btn.disabled = true;
-      btn.textContent = "AI 识别中…（翻译 + 提取 + 评分）";
+      btn.textContent = "AI 识别中…（翻译 + 提取 + 研判）";
       var b = cur();
       if (!b) { App.toast("这个客户已不存在，请重新选择"); btn.disabled = false; btn.textContent = "存入客户档案"; return; }
       Promise.all([
         LLM.translate(text, b).catch(function () { return null; }),
         LLM.extract(text, b).catch(function () { return []; }),
-        LLM.intentDelta(text, b).catch(function () { return null; })
+        LLM.readMsg(text, b).catch(function () { return null; })
       ]).then(function (res) {
+        /* v1.2.12：delta 字段现在装的是完整研判对象 {delta,reason,posture,concern,warm,evidence}（键名沿用兼容 doSave 旧逻辑） */
         state.ai = { text: text, zh: res[0], fields: res[1], delta: res[2] };
         state.phase = "review";
         renderReview(bd);
@@ -140,6 +141,12 @@
     if (!b) { App.toast("这个客户已不存在"); closeSheet(); return; }
     var from = b.intent;
     if (d) Store.bumpIntent(state.buyerId, d, reason);
+    /* v1.2.12「读」入库：研判存进档案，生成链路自动吃到 */
+    var rd = (state.phase === "review" && state.ai) ? state.ai.delta : null;
+    if (rd && rd.posture) {
+      b.lastRead = { posture: rd.posture, concern: rd.concern || "", warm: rd.warm || "", evidence: rd.evidence || "", at: new Date().toISOString() };
+      Store.commit();
+    }
     closeSheet();
     App.toast("已记录" + (applied.length ? " · 沉淀 " + applied.length + " 项" : "") + (d ? " · 意向 " + from + "→" + b.intent : ""));
     App.refresh();

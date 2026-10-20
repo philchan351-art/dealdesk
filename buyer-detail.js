@@ -451,13 +451,20 @@
           }).then(function () { zhBusy[m.text] = 0; });
         }
 
-       /* P2：意向信号——客户回复后 AI 静默默估升降并留一句依据（列表点徽章查看） */
+       /* P2：意向信号——客户回复后 AI 静默默估升降并留一句依据（列表点徽章查看）
+          v1.2.12「读」：同步存态势研判到 b.lastRead，生成链路（代写/扩充/直译）自动吃到 */
        function judgeIntent(t) {
          if (!window.LLM || !LLM.configured() || !window.Store) return;
-         LLM.intentDelta(t, b).then(function (o) {
-           if (!o || !o.delta) return;
-           AIevt(b, "intent", { delta: o.delta, reason: o.reason || "" });
-           Store.bumpIntent(b.id, o.delta, o.reason || "客户消息信号");
+         LLM.readMsg(t, b).then(function (o) {
+           if (!o) return;
+           if (o.delta) {
+             AIevt(b, "intent", { delta: o.delta, reason: o.reason || "" });
+             Store.bumpIntent(b.id, o.delta, o.reason || "客户消息信号");
+           }
+           if (o.posture) {
+             b.lastRead = { posture: o.posture, concern: o.concern || "", warm: o.warm || "", evidence: o.evidence || "", at: new Date().toISOString() };
+             Store.commit();
+           }
            App.refresh();
          }).catch(function () {});
        }
@@ -1069,7 +1076,8 @@
             '<div class="pending-head"><span class="pending-tag">' + (loading ? (isExp ? "AI 正在按意图扩充…" : "AI 正在翻译…") : (isExp ? "① 已扩充 · 确认后发送" : "① 已翻译 · 确认后发送")) + '</span><span class="pending-lang">→ ' + escHtml(pending.lang) + "</span></div>" +
             (loading
               ? '<div class="pending-text pending-loading">' + (isExp ? "正在把你的意图补成一条完整消息…" : "正在把中文改写为符合客户习惯的表达…") + "</div>"
-              : '<div class="pending-text">' + escHtml(pending.en) + "</div>" +
+              : (pending.brain ? '<div class="pending-brain" style="font-size:12px;color:#8a7f6d;padding:2px 0 6px;line-height:1.5">🧠 ' + escHtml(pending.brain) + "</div>" : "") +
+                '<div class="pending-text">' + escHtml(pending.en) + "</div>" +
                 (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + escHtml(limitWarn(b, pending.en)) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
                 '<div class="pending-zh">' + (isExp ? "这条消息的意思：" : "你写的中文：") + escHtml(pending.zh) + "</div>" +
                '<div class="pending-btns">' +
@@ -1127,10 +1135,11 @@
          call.then(function (o) {
            var en = String(o.text || "").trim();
            if (!en) throw new Error("结果为空");
-           pending.loading = false;
-           pending.en = en;
-           pending.zh = isExp ? (String(o.zh || "").trim() || t) : t;
-           renderPending();
+            pending.loading = false;
+            pending.en = en;
+            pending.zh = isExp ? (String(o.zh || "").trim() || t) : t;
+            pending.brain = isExp ? String(o.brain || "").trim() : "";
+            renderPending();
            App.toast(isExp ? "已按你的意图扩充 · 检查满意再点\"发到 WhatsApp\"" : "已翻译 · 检查一下，满意再点\"发到 WhatsApp\"");
          }).catch(function (e) {
            pending = null;
@@ -1191,13 +1200,21 @@
           var items = list.slice(0, 3);
           var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语";
           b.aiSuggests = { lang: lang, at: new Date().toISOString(), items: items };
-          if (res.diagnosis && (res.diagnosis.nextGoal || res.diagnosis.blocker)) {
-            b.aiDiag = { at: new Date().toISOString(), nextGoal: res.diagnosis.nextGoal || "", blocker: res.diagnosis.blocker || "" };
+          if (res.diagnosis && (res.diagnosis.nextGoal || res.diagnosis.blocker || res.diagnosis.move)) {
+            b.aiDiag = { at: new Date().toISOString(), nextGoal: res.diagnosis.nextGoal || "", blocker: res.diagnosis.blocker || "", move: res.diagnosis.move || "" };
           }
           AIevt(b, "gen", { stage: Mock.STAGES[b.stage], goal: b.aiDiag ? b.aiDiag.nextGoal : "", texts: items.map(function (s) { return s.text; }) });
            if (window.Store) Store.commit();
-           wrap.innerHTML = items.map(function (s) { return suggCard(s, b); }).join("");
-          bindSugg(wrap);
+            /* v1.2.12「定」可视化：一行大脑解读（姿态→出招→下一步），收起式，点开展开依据 */
+            var bb = [];
+            if (b.lastRead && b.lastRead.posture) bb.push("他的姿态：" + b.lastRead.posture + (b.lastRead.concern ? " · 在意：" + b.lastRead.concern : ""));
+            if (res.diagnosis && res.diagnosis.move) bb.push("这轮出招：" + res.diagnosis.move);
+            if (res.diagnosis && res.diagnosis.nextGoal) bb.push("下一步：" + res.diagnosis.nextGoal + (res.diagnosis.blocker && res.diagnosis.blocker !== "无" ? " · 卡点：" + res.diagnosis.blocker : ""));
+            var brainHtml = bb.length
+              ? '<details style="margin:0 0 8px"><summary style="font-size:12px;color:#8a7f6d;cursor:pointer">🧠 ' + escHtml(bb[0] || "大脑解读") + '</summary><div style="font-size:12px;color:#6b6257;padding:4px 0 2px 14px">' + escHtml(bb.slice(1).join(" ｜ ")) + (b.lastRead && b.lastRead.evidence ? "<br>依据：「" + escHtml(b.lastRead.evidence) + "」" : "") + "</div></details>"
+              : "";
+            wrap.innerHTML = brainHtml + items.map(function (s) { return suggCard(s, b); }).join("");
+           bindSugg(wrap);
            /* 2026-10-18：诊断行与"已存"角标已按 Phil 要求删除（UI 精简），不再回填 */
            if (regen) regen.textContent = "✦ 重新生成";
           var leaked = lang !== "中文" && items.some(function (s) { return /[一-龥]/.test(s.text || ""); });
