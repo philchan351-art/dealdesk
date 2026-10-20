@@ -48,10 +48,11 @@
      插入点在第 3 步，旧进度第 3 步起与新内容不对应 → cap=2（只认「一 开场/二 产品卖点」已发）。
      当天二次修正换版（标题改回「未报价收尾」、正文恢复原文弯引号）→ key 98ba0e2f 也视为旧 key，多个旧 key 取 max。
      业务员在新版再发任一步后，新 key 进度接管，旧 key 数据自然失效。
-     2026-10-20 第四步文案更新（价格/颜色 MOQ 调整）+ 乱码修复换版 → 当前 key 16722a14：
-       31eedc36（旧第四步文案，内容自第 4 步起分歧）cap=3；369246e3（同新文案、仅乱码修复）cap=6；
-       五步时代 f47eb318/98ba0e2f 保持 cap=2（插入位移）。 */
-  var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "16722a14-mvga8l75", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "16722a14-mvga8l75", cap: 2 }, "31eedc36-mvc6xdi7": { to: "16722a14-mvga8l75", cap: 3 }, "369246e3-mvg5888z": { to: "16722a14-mvga8l75", cap: 6 } };
+      2026-10-20 第四步文案更新（价格/颜色 MOQ 调整）+ 乱码修复换版 → 16722a14。
+      10-20 夜间乱码排查核实：云端现行 key 为 f0daad5c（内容与 16722a14 完全一致，均为新第四步干净文本）
+      → 全部旧 key 改指向 f0daad5c：f47eb318/98ba0e2f cap=2（插入位移）；31eedc36 cap=3（第四步文案分歧）；
+      369246e3/16722a14 cap=6（内容一致）。 */
+  var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "f0daad5c-mvgbye8l", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "f0daad5c-mvgbye8l", cap: 2 }, "31eedc36-mvc6xdi7": { to: "f0daad5c-mvgbye8l", cap: 3 }, "369246e3-mvg5888z": { to: "f0daad5c-mvgbye8l", cap: 6 }, "16722a14-mvga8l75": { to: "f0daad5c-mvgbye8l", cap: 6 } };
   function scriptProgOf(buyer, d) {
     var prog = buyer.scriptProg || {};
     var p = Number(prog[d.key] || 0);
