@@ -1,8 +1,8 @@
 # 2026-10-20（v1.2.8，Phil 反馈"修复了手机上看不到"）：Pages 默认给 HTML 发
-# Cache-Control: max-age=600，Safari/微信 WebView 会在缓存期内直接吃旧 index.html，
-# 导致新版 JS 的 ?v= 引用永远走不到 → 修复不能即时生效。
-# HTML 入口一律强制再校验（no-cache：可缓存但每次必须带 If-Modified-Since 回源确认，
-# 未变更返回 304 极快，变更立即换新）。JS/CSS 继续靠 ?v= 版本号强缓存，不受影响。
+# Cache-Control: max-age=600（平台级，_headers 无法覆盖，已查证），Safari/微信 WebView
+# 会在缓存期内直接吃旧 index.html，导致新版 JS 的 ?v= 引用走不到 → 修复不能即时生效。
+# 这里的 no-cache 规则作双保险：若日后换自有域名/CDN（缓存策略可配）立即生效。
+# 现阶段保证更新到手机的手段：页面做一次真实刷新（角标 vX.Y.Z 核对）。
 /index.html   Cache-Control: no-cache, must-revalidate
 /manual.html  Cache-Control: no-cache, must-revalidate
 /train.html   Cache-Control: no-cache, must-revalidate
