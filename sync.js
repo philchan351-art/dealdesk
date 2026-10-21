@@ -213,7 +213,13 @@
        比 /shared/all 少一次会话校验的云端往返，卡片渲染更快。返回形状与 /shared/all 兼容。 */
     sharedMeta: function () {
       if (!this.enabled()) return Promise.resolve({ docs: [] });
-      return fetch(url("/admin/shared"), { headers: headers() }).then(function (r) { return wrap(r); });
+      /* 2026-10-21（Phil「新客话术有时有有时没有」根因）：/admin/shared 只对管理员开放（adminGuard），
+         业务员（rep）拿到 403 → 话术卡静默消失；管理员走轻量通道，业务员改走 /shared/all（任意会话可读），
+         管理员路径万一失败也回退 /shared/all。 */
+      var au = (window.Auth && Auth.get) ? (Auth.get() || {}) : {};
+      function g(path) { return fetch(url(path), { headers: headers() }).then(function (r) { return wrap(r); }); }
+      if (au.role === "admin") return g("/admin/shared").catch(function () { return g("/shared/all"); });
+      return g("/shared/all");
     },
     sharedDelete: function (doc) {
       if (!this.enabled()) return Promise.reject(new Error("会话已失效，请重新登录"));

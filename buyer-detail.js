@@ -849,19 +849,52 @@
           - 署名自动替换为当前发送人（谁发署谁的名）
           - 进度记在 b.scriptProg（docKey → 已发步数），客户以后忘了参数可随时「重发」某步
           - 只预填到 WhatsApp，实际发送由业务员确认（与「发到 WhatsApp」同一模式） */
-       (function loadScriptCard() {
-         var box = root.querySelector("#scriptCard");
-         if (!box || b.outcome || !window.Sync || !Sync.enabled()) return;
-          var line = b.scope || "all";
-          /* 2026-10-18（A7）：60s 缓存——同页刷新（记一笔/确认已发等）不重复请求云端 */
-          if (scriptCache.j && scriptCache.key === line && Date.now() - scriptCache.ts < 60000) { onShared(scriptCache.j); return; }
+         (function loadScriptCard() {
+           var box = root.querySelector("#scriptCard");
+           if (!box || b.outcome) return;
+            var line = b.scope || "all";
+            /* 2026-10-18（A7）：60s 缓存——同页刷新（记一笔/确认已发等）不重复请求云端 */
+            if (scriptCache.j && scriptCache.key === line && Date.now() - scriptCache.ts < 60000) { onShared(scriptCache.j); return; }
+            /* 2026-10-21（Phil「新客话术有时有有时没有」）：四条兜底保证"一定有"——
+               ① 本地持久缓存（拉过一次就能离线显示）② 拉取失败自动读缓存
+               ③ 该产品线没有专属剧本时回退显示全部剧本（带提示）
+               ④ 连缓存都没有 → 显示占位卡 + 重试按钮，绝不再静默消失 */
+            function readCache() { try { var raw = localStorage.getItem("dd_scripts_cache_v1"); if (!raw) return null; var o = JSON.parse(raw); return (o && o.docs && o.docs.length) ? o : null; } catch (e) { return null; } }
+            function writeCache(j) { try { localStorage.setItem("dd_scripts_cache_v1", JSON.stringify({ ts: Date.now(), docs: (j && j.docs) || [] })); } catch (e) {} }
+            function renderEmpty() {
+              box.innerHTML = '<div class="card ctx-card" style="margin:12px 16px 0">' +
+                '<div class="ctx-head"><span class="ctx-title">📜 新客话术</span><span class="ctx-hint">没加载到</span></div>' +
+                '<div class="sp-hint">⚠ 没拉到团队剧本（网络或登录状态问题）——点下面重试。若一直加载不到，请管理员到「设置 → 团队资料」确认剧本还在。</div>' +
+                '<button type="button" class="sp-sendone" data-act="sp-retry">↻ 重新加载话术</button></div>';
+              var rt = box.querySelector('[data-act="sp-retry"]');
+              if (rt) rt.addEventListener("click", function () { scriptCache = { key: "", ts: 0, j: null }; load(); });
+            }
+            function useCacheOrEmpty() {
+              var c = readCache();
+              if (c) { onShared({ docs: c.docs }); return; }
+              renderEmpty();
+            }
+            function load() {
+              if (!window.Sync || !Sync.enabled() || !Sync.sharedMeta) { useCacheOrEmpty(); return; }
+              Sync.sharedMeta().then(function (j) {
+                if (j && j.docs && j.docs.length) { writeCache(j); scriptCache = { key: line, ts: Date.now(), j: j }; onShared(j); }
+                else useCacheOrEmpty();
+              }).catch(function () { useCacheOrEmpty(); });
+            }
           function onShared(j) {
             if (!j) return;
            /* 产品线=通用（或未设）→ 看全部剧本；指定产品线 → 该产品线 + 通用 */
-           var scripts = ((j && j.docs) || []).filter(function (d) {
-             return d.type === "script" && d.steps && d.steps.length && (line === "all" || d.scope === "all" || d.scope === line);
-           });
-           if (!scripts.length) return;
+            var allScripts = ((j && j.docs) || []).filter(function (d) {
+              return d.type === "script" && d.steps && d.steps.length;
+            });
+            var scripts = allScripts.filter(function (d) {
+              return line === "all" || d.scope === "all" || d.scope === line;
+            });
+            /* 2026-10-21（Phil）：该产品线一套剧本都没有（如宠物客户 vs 行李箱专属剧本）→ 回退显示全部剧本，
+               卡片里加一行说明，保证新客一定有话术可用 */
+            var scopeFallback = false;
+            if (!scripts.length && allScripts.length) { scripts = allScripts.slice(); scopeFallback = true; }
+            if (!scripts.length) { renderEmpty(); return; }
            var st0 = (window.Store && Store.getSettings) ? (Store.getSettings() || {}) : {};
            var au0 = window.Auth && Auth.get();
            var myName = st0.name || (au0 && au0.name) || "";
@@ -905,7 +938,8 @@
               var html = '<div class="card ctx-card" style="margin:12px 16px 0">' +
                 '<div class="ctx-head"><span class="ctx-title">📜 ' + escHtml(singleName) + '（' + sent + "/" + total + '）</span>' +
                 '<span class="ctx-hint">' + (scripts.length > 1 ? scripts.length + " 套 · " : "") + "点选一段 → 下方发送</span></div>" +
-                (isNew ? '<div class="sp-hint">💡 新客户首谈：按编号顺序一段段发（客户回一段你再发下一段）。署名自动换成你的名字；客户以后问参数，选中对应那步再发即可。</div>' : "") +
+                 (isNew ? '<div class="sp-hint">💡 新客户首谈：按编号顺序一段段发（客户回一段你再发下一段）。署名自动换成你的名字；客户以后问参数，选中对应那步再发即可。</div>' : "") +
+                 (scopeFallback ? '<div class="sp-hint">ℹ 该产品线暂无专属剧本，下面是现有剧本，可直接使用（需要专属版本请管理员上传并把产品线设为该线或「通用」）。</div>' : "") +
                 '<div class="sp-body">';
                 scripts.forEach(function (d, si) {
                   var snt = progOf(d);
@@ -956,8 +990,7 @@
             }
             renderCard();
           }
-           Sync.sharedMeta().then(function (j) { if (j) { scriptCache = { key: line, ts: Date.now(), j: j }; onShared(j); } })
-             .catch(function () { /* 剧本拉取失败不阻塞客户页 */ });
+            load();
         })();
 
         /* ===== 2026-10-18 产品照片库改版（Phil 三指令）：
