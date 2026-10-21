@@ -6,25 +6,81 @@
       {
         "title": "整体照",
         "photos": [
-          { "file": "wa/1.jpg", "label": "侧面" },
-          { "file": "wa/2.jpg", "label": "称重 8.4kg" },
-          { "file": "wa/3.jpg", "label": "背面·拉杆" },
-          { "file": "wa/4.jpg", "label": "正面·把手" }
+          {
+            "file": "wa/1.jpg",
+            "label": "侧面",
+            "thumb": "thumbs/wa/1.jpg"
+          },
+          {
+            "file": "wa/2.jpg",
+            "label": "称重 8.4kg",
+            "thumb": "thumbs/wa/2.jpg"
+          },
+          {
+            "file": "wa/3.jpg",
+            "label": "背面·拉杆",
+            "thumb": "thumbs/wa/3.jpg"
+          },
+          {
+            "file": "wa/4.jpg",
+            "label": "正面·把手",
+            "thumb": "thumbs/wa/4.jpg"
+          }
         ]
       },
       {
         "title": "局部照",
         "photos": [
-          { "file": "titanx/3.jpg", "label": "细节 1" },
-          { "file": "titanx/4.jpg", "label": "细节 2" },
-          { "file": "titanx/5.jpg", "label": "灯 1" },
-          { "file": "titanx/6.jpg", "label": "灯 2" },
-          { "file": "titanx/7.jpg", "label": "拉链" },
-          { "file": "titanx/8.jpg", "label": "杯托" },
-          { "file": "titanx/9.jpg", "label": "轮子 1" },
-          { "file": "titanx/10.jpg", "label": "轮子 2" },
-          { "file": "titanx/11.jpg", "label": "箱体 1" },
-          { "file": "titanx/12.jpg", "label": "箱体 2" }
+          {
+            "file": "titanx/3.jpg",
+            "label": "细节 1",
+            "thumb": "thumbs/titanx/3.jpg"
+          },
+          {
+            "file": "titanx/4.jpg",
+            "label": "细节 2",
+            "thumb": "thumbs/titanx/4.jpg"
+          },
+          {
+            "file": "titanx/5.jpg",
+            "label": "灯 1",
+            "thumb": "thumbs/titanx/5.jpg"
+          },
+          {
+            "file": "titanx/6.jpg",
+            "label": "灯 2",
+            "thumb": "thumbs/titanx/6.jpg"
+          },
+          {
+            "file": "titanx/7.jpg",
+            "label": "拉链",
+            "thumb": "thumbs/titanx/7.jpg"
+          },
+          {
+            "file": "titanx/8.jpg",
+            "label": "杯托",
+            "thumb": "thumbs/titanx/8.jpg"
+          },
+          {
+            "file": "titanx/9.jpg",
+            "label": "轮子 1",
+            "thumb": "thumbs/titanx/9.jpg"
+          },
+          {
+            "file": "titanx/10.jpg",
+            "label": "轮子 2",
+            "thumb": "thumbs/titanx/10.jpg"
+          },
+          {
+            "file": "titanx/11.jpg",
+            "label": "箱体 1",
+            "thumb": "thumbs/titanx/11.jpg"
+          },
+          {
+            "file": "titanx/12.jpg",
+            "label": "箱体 2",
+            "thumb": "thumbs/titanx/12.jpg"
+          }
         ]
       }
     ]

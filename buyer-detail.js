@@ -34,6 +34,22 @@
         if (j && j.docs && j.docs.length) { try { localStorage.setItem("dd_scripts_cache_v1", JSON.stringify({ ts: Date.now(), docs: j.docs })); } catch (e) {} }
       }).catch(function () {});
     } catch (e) {}
+    /* 2026-10-21（Phil「照片要很久才出来」）：预取照片清单 + 预热 14 张缩略图（共约 186KB）——
+       进客户页时清单走本地缓存、缩略图直接命中 HTTP 缓存 */
+    try {
+      fetch("photos.json?v=4").then(function (r) { return r.json(); }).then(function (man) {
+        try { localStorage.setItem("dd_photos_cache_v1", JSON.stringify({ ts: Date.now(), data: man })); } catch (e) {}
+        try {
+          var base = (man && man.suitcase && man.suitcase.base) || "photos/";
+          ((man && man.suitcase && man.suitcase.groups) || []).forEach(function (g) {
+            (g.photos || []).forEach(function (ph) {
+              var im = new Image();
+              im.src = base + (ph.thumb || ("thumbs/" + ph.file)) + "?v=4";
+            });
+          });
+        } catch (e2) {}
+      }).catch(function () {});
+    } catch (e) {}
   };
   var photoCache = { ts: 0, data: null };        /* 2026-10-18（A7）：photos.json 60s 缓存 */
   var photoSel = {};                             /* 2026-10-18（A7）：照片选中状态按客户存模块级，同页刷新不清空 */
@@ -1031,11 +1047,17 @@
             var data = man && man.suitcase;
             if (!data || !data.groups || !data.groups.length) { box.innerHTML = ""; return; }
             var flat = [];
-            data.groups.forEach(function (g) {
-              (g.photos || []).forEach(function (p) {
-                flat.push({ label: p.label, file: (data.base || "photos/") + p.file, g: g.title });
-              });
-            });
+             data.groups.forEach(function (g) {
+               (g.photos || []).forEach(function (p) {
+                 /* 2026-10-21（Phil「照片要很久才出来」）：网格用小缩略图（360px/约13KB），发送仍取原图 */
+                 flat.push({
+                   label: p.label,
+                   file: (data.base || "photos/") + p.file,
+                   thumb: (data.base || "photos/") + (p.thumb || ("thumbs/" + p.file)),
+                   g: g.title
+                 });
+               });
+             });
             if (!flat.length) { box.innerHTML = ""; return; }
             /* 2026-10-18 v2（Phil）：多选 + 右上角「全选」+ 醒目圈框——
                sel 为索引集合，点照片切换选中，全选框一次框定全部，可一次发给本客户 */
@@ -1059,7 +1081,7 @@
               flat.forEach(function (it, n) {
                 if (data.groups.length > 1 && it.g !== lastG) { html += '<div class="ph-gtitle ph-gtitle-row">' + escHtml(it.g) + '</div>'; lastG = it.g; }
                 html += '<button type="button" class="ph-chip' + (sel[n] ? " sel" : "") + '" data-n="' + n + '">' +
-                  '<img src="' + it.file + '?v=3" loading="lazy" alt=""/>' +
+                   '<img src="' + it.thumb + '?v=4" loading="lazy" decoding="async" alt=""/>' +
                   '<span class="ph-lb">' + escHtml(it.label) + "</span></button>";
               });
               html += "</div>" +
@@ -1116,12 +1138,26 @@
             }
             renderCard();
           }
-          /* 2026-10-18（A7）：60s 缓存——同页刷新不重复请求 photos.json */
-          if (photoCache.data && Date.now() - photoCache.ts < 60000) { onManifest(photoCache.data); return; }
-          fetch("photos.json?v=3").then(function (r) { return r.json(); }).then(function (man) {
-            photoCache = { ts: Date.now(), data: man };
-            onManifest(man);
-          }).catch(function () { box.innerHTML = ""; });
+           /* 2026-10-21（Phil「照片也要很久才出来」）：先本地缓存同步出卡（零等待），再后台刷新；
+              连缓存都没有时先出「加载中」骨架，绝不留白；失败自动读缓存 */
+           function readPCache() { try { var raw = localStorage.getItem("dd_photos_cache_v1"); if (!raw) return null; var o = JSON.parse(raw); return (o && o.data) ? o : null; } catch (e) { return null; } }
+           function writePCache(man) { try { localStorage.setItem("dd_photos_cache_v1", JSON.stringify({ ts: Date.now(), data: man })); } catch (e) {} }
+           var pc = readPCache();
+           var shownPhoto = false;
+           if (pc) { try { onManifest(pc.data); shownPhoto = true; } catch (e) {} }
+           if (!shownPhoto) { box.innerHTML = '<div class="card ctx-card" style="margin:12px 16px 0"><div class="ctx-head"><span class="ctx-title">📷 产品照片</span><span class="ctx-hint">加载中…</span></div></div>'; }
+           /* 2026-10-18（A7）：60s 缓存——同页刷新不重复请求 photos.json */
+           if (photoCache.data && Date.now() - photoCache.ts < 60000) { if (!shownPhoto) onManifest(photoCache.data); return; }
+           fetch("photos.json?v=4").then(function (r) { return r.json(); }).then(function (man) {
+             photoCache = { ts: Date.now(), data: man };
+             writePCache(man);
+             onManifest(man);
+           }).catch(function () {
+             if (shownPhoto) return;
+             var pc2 = readPCache();
+             if (pc2) { try { onManifest(pc2.data); return; } catch (e) {} }
+             box.innerHTML = '<div class="card ctx-card" style="margin:12px 16px 0"><div class="ctx-head"><span class="ctx-title">📷 产品照片</span><span class="ctx-hint">没加载到 · 下拉刷新试试</span></div></div>';
+           });
         })();
 
        /* ① 写大概意图 → AI 按意图扩充（或逐句直译）→ 对话区展示对照 → 再手动跳 WhatsApp */
