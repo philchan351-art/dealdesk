@@ -133,6 +133,7 @@
         Store.saveSettings(st2);
         App.toast("你好，" + j.name);
         startApp(j.name, true);
+        if (window.DDSharedPrefetch) setTimeout(window.DDSharedPrefetch, 300); /* 2026-10-21：登录成功后预取话术 */
       }).catch(function (e) {
         fail(e.message);
         go.disabled = false;
@@ -220,5 +221,7 @@
     /* P0：旧版本只存了姓名没有会话的本地状态一律要求重新登录（一次性的切换成本，之后 30 天免登） */
     if (!a || !a.session) { renderAuth(); return; }
     startApp(a.name, false);
+    /* 2026-10-21（Phil）：启动即预取话术元数据（缓存暖了，进客户页话术卡秒出） */
+    if (window.DDSharedPrefetch) setTimeout(window.DDSharedPrefetch, 300);
   });
 })();

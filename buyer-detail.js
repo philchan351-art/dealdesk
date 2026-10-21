@@ -25,6 +25,16 @@
   var _chatPos = { id: null, top: 0, atBottom: true }; /* 2026-10-18（Phil「页面自己跳上跳下」）：聊天滚动位置跨重渲染记忆 */ // 防重入：同一文本正在翻译时不重复发起
   var _bdGen = 0;      /* 2026-10-18：init 代际号——被新一轮渲染取代后，遗留的 rAF 回调不得再执行（旧渲染的滚动会把新画面拽乱） */
   var scriptCache = { key: "", ts: 0, j: null }; /* 2026-10-18（A7）：话术数据 60s 缓存——同页刷新不重复请求 */
+  /* 2026-10-21（Phil「要很久才出来」）：登录进主界面时预取一次话术元数据（5KB、~150ms），
+     让"第一次进客户页"也能从本地缓存秒出，不用等网络 */
+  window.DDSharedPrefetch = function () {
+    try {
+      if (!window.Sync || !Sync.enabled || !Sync.enabled() || !Sync.sharedMeta) return;
+      Sync.sharedMeta().then(function (j) {
+        if (j && j.docs && j.docs.length) { try { localStorage.setItem("dd_scripts_cache_v1", JSON.stringify({ ts: Date.now(), docs: j.docs })); } catch (e) {} }
+      }).catch(function () {});
+    } catch (e) {}
+  };
   var photoCache = { ts: 0, data: null };        /* 2026-10-18（A7）：photos.json 60s 缓存 */
   var photoSel = {};                             /* 2026-10-18（A7）：照片选中状态按客户存模块级，同页刷新不清空 */
 
@@ -853,8 +863,19 @@
            var box = root.querySelector("#scriptCard");
            if (!box || b.outcome) return;
             var line = b.scope || "all";
-            /* 2026-10-18（A7）：60s 缓存——同页刷新（记一笔/确认已发等）不重复请求云端 */
-            if (scriptCache.j && scriptCache.key === line && Date.now() - scriptCache.ts < 60000) { onShared(scriptCache.j); return; }
+             /* 2026-10-21（Phil「要很久才出来 / 退出再进又消失」）：先把本地缓存【同步】画出来，再后台静默刷新——
+                永不空窗、永不闪没；连缓存都没有时先渲染"加载中"骨架，也绝不留白 */
+             function sigOf(docs) { return (docs || []).map(function (d) { return String(d.key || d.name || "") + ":" + ((d.steps || []).length); }).join("|"); }
+             var cachedNow = readCache();
+             var cacheSig = cachedNow ? sigOf(cachedNow.docs) : "";
+             var shown = false;
+             if (cachedNow) { try { onShared({ docs: cachedNow.docs }); shown = true; } catch (e) {} }
+             if (!shown) { box.innerHTML = '<div class="card ctx-card" style="margin:12px 16px 0"><div class="ctx-head"><span class="ctx-title">📜 新客话术</span><span class="ctx-hint">加载中…</span></div></div>'; }
+             /* 2026-10-18（A7）：60s 缓存——同页刷新（记一笔/确认已发等）不重复请求云端 */
+             if (scriptCache.j && scriptCache.key === line && Date.now() - scriptCache.ts < 60000) {
+               if (!shown) { try { onShared(scriptCache.j); shown = true; } catch (e) {} }
+               return;
+             }
             /* 2026-10-21（Phil「新客话术有时有有时没有」）：四条兜底保证"一定有"——
                ① 本地持久缓存（拉过一次就能离线显示）② 拉取失败自动读缓存
                ③ 该产品线没有专属剧本时回退显示全部剧本（带提示）
@@ -875,11 +896,15 @@
               renderEmpty();
             }
             function load() {
-              if (!window.Sync || !Sync.enabled() || !Sync.sharedMeta) { useCacheOrEmpty(); return; }
+              if (!window.Sync || !Sync.enabled() || !Sync.sharedMeta) { if (!shown) useCacheOrEmpty(); return; }
               Sync.sharedMeta().then(function (j) {
-                if (j && j.docs && j.docs.length) { writeCache(j); scriptCache = { key: line, ts: Date.now(), j: j }; onShared(j); }
-                else useCacheOrEmpty();
-              }).catch(function () { useCacheOrEmpty(); });
+                if (j && j.docs && j.docs.length) {
+                  writeCache(j);
+                  scriptCache = { key: line, ts: Date.now(), j: j };
+                  /* 内容与已显示的一致就不重画——避免"闪一下"的观感 */
+                  if (!shown || sigOf(j.docs) !== cacheSig) { onShared(j); shown = true; }
+                } else if (!shown) useCacheOrEmpty();
+              }).catch(function () { if (!shown) useCacheOrEmpty(); });
             }
           function onShared(j) {
             if (!j) return;
