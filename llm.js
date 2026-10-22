@@ -52,9 +52,9 @@
       10-20 夜间乱码排查核实：云端现行 key 为 f0daad5c（内容与 16722a14 完全一致，均为新第四步干净文本）
       → 全部旧 key 改指向 f0daad5c：f47eb318/98ba0e2f cap=2（插入位移）；31eedc36 cap=3（第四步文案分歧）；
       369246e3/16722a14 cap=6（内容一致）。 */
-  /* 2026-10-21 第四次换版：第四步颜色 MOQ 500→1,000（Phil 定夺；感光变色款与定制色同为 1,000 台）。
+  /* 2026-10-21 第四次换版：第四步颜色 MOQ 统一 500 台（Phil 最终定夺；感光变色款与定制色同为 500 台，1,000/100 口径均作废）。
      第四步正文变化 → 所有历史 key 一律 cap=3（一/二/三 三步已发仍算数，第四步起需按新文案重发）。 */
-  var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "5c1906c4-mvj1v3h8", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "5c1906c4-mvj1v3h8", cap: 2 }, "31eedc36-mvc6xdi7": { to: "5c1906c4-mvj1v3h8", cap: 3 }, "369246e3-mvg5888z": { to: "5c1906c4-mvj1v3h8", cap: 3 }, "16722a14-mvga8l75": { to: "5c1906c4-mvj1v3h8", cap: 3 }, "f0daad5c-mvgbye8l": { to: "5c1906c4-mvj1v3h8", cap: 3 } };
+  var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "ca06b323-mvj32bx1", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "ca06b323-mvj32bx1", cap: 2 }, "31eedc36-mvc6xdi7": { to: "ca06b323-mvj32bx1", cap: 3 }, "369246e3-mvg5888z": { to: "ca06b323-mvj32bx1", cap: 3 }, "16722a14-mvga8l75": { to: "ca06b323-mvj32bx1", cap: 3 }, "f0daad5c-mvgbye8l": { to: "ca06b323-mvj32bx1", cap: 3 } };
   function scriptProgOf(buyer, d) {
     var prog = buyer.scriptProg || {};
     var p = Number(prog[d.key] || 0);
@@ -382,3 +382,4 @@
     }
   };
 })();
+
