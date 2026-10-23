@@ -51,7 +51,10 @@
             '<div class="bmid-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + (b.tags && b.tags.length ? " · " + escHtml(b.tags[0]) : "") + "</div>" +
             '<div class="bmid-meta"><span class="stage-tag">' + Mock.STAGES[b.stage] + '</span><span class="wa-badge">WhatsApp</span><span>' + escHtml(b.lastActive) + '</span></div>' +
             "</div>" +
-            '<div class="bright"><button class="bcard-del" data-act="del" data-id="' + escHtml(b.id) + '" data-name="' + escHtml(b.name) + '" title="删除客户">⋯</button><b>' + U.quoteLabel(b) + "</b>" + U.dueBadge(U.buyerFollowDays(b)) + "</div>" +
+            /* 2026-10-23（Phil「没有给他放到成交」）：列表卡片一键 ✓ 标成交——付款发生在 App 之外
+               （银行短信/ACH 通知/内部同步）的单，不进客户页也能一条不落；标错去客户页清除 */
+            '<div class="bright">' + (b.outcome ? "" : '<button class="bcard-del" data-act="qw" data-id="' + escHtml(b.id) + '" data-name="' + escHtml(b.name) + '" title="一键标记成交">✓</button>') +
+            '<button class="bcard-del" data-act="del" data-id="' + escHtml(b.id) + '" data-name="' + escHtml(b.name) + '" title="删除客户">⋯</button><b>' + U.quoteLabel(b) + "</b>" + U.dueBadge(U.buyerFollowDays(b)) + "</div>" +
            "</div>";
        }
 
@@ -112,6 +115,16 @@
             if (!confirm("删除客户「" + btn.dataset.name + "」？删除会同步到云端，不可恢复。")) return;
             if (window.Store) Store.removeBuyer(btn.dataset.id);
             App.toast("已删除");
+            App.refresh();
+          });
+        });
+        /* 2026-10-23：列表一键 ✓ 标成交（走 Store.markWon 统一入口：stage→5 + 留痕 + 计入本月成交） */
+        listEl.querySelectorAll('[data-act="qw"]').forEach(function (btn) {
+          btn.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+            if (!confirm("把「" + btn.dataset.name + "」标记为已成交？\n计入本月成交并移出进行中；标错了去客户页点\"清除标记\"。")) return;
+            if (window.Store && Store.markWon) Store.markWon(btn.dataset.id, "list");
+            App.toast("已记录成交 · 计入本月成交");
             App.refresh();
           });
         });

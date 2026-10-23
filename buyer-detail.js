@@ -363,19 +363,15 @@
         /* 成交 / 流失标记（学习层的结果标签）
            2026-10-22（Phil：实际成交要被判出来）：成交与 stage 联动——
            标成交 ⇒ stage→5（留痕、记 prevStage 可回退）；清标记 ⇒ 回到 prevStage */
-        function markWon(via) {
-          if (b.outcome) return;
-          b.outcome = { status: "won", at: new Date().toISOString() };
-          if (b.stage < 5 && window.U && U.applyStage) {
-            b.outcome.prevStage = b.stage;
-            U.applyStage(b, 5, via === "signal" ? "成交信号确认" : "手动标记成交", "manual", b.closeSignal ? b.closeSignal.evidence : null, true);
-          }
-          b.closeSignal = null;
-          AIevt(b, "outcome", { status: "won", via: via || "manual" });
-          if (window.Store) Store.commit();
-          App.toast("已记录成交 · 计入本月成交");
-          App.refresh();
-        }
+         function markWon(via) {
+           if (b.outcome) return;
+           /* 2026-10-23：数据写入收口到 Store.markWon（与列表一键 ✓ 同一入口），这里只管埋点与界面 */
+           Store.markWon(b.id, via);
+           AIevt(b, "outcome", { status: "won", via: via || "manual" });
+           if (window.Store) Store.commit();
+           App.toast("已记录成交 · 计入本月成交");
+           App.refresh();
+         }
         var ocWon = root.querySelector('[data-act="oc-won"]');
         if (ocWon) ocWon.addEventListener("click", function () {
           if (!confirm("标记为已成交？（标错可点\"清除标记\"）")) return;

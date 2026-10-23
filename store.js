@@ -306,6 +306,23 @@
       if (!o.noSave) save();
       return m;
     },
+    /* 2026-10-23（Phil「没有给他放到成交」）：标记成交的唯一数据入口——
+       客户详情页小按钮、成交信号卡、客户列表卡片一键 ✓ 全部走这里：
+       outcome=won + stage→5（留痕、记 prevStage 可回退）+ 清成交信号卡。
+       付款发生在 App 之外（银行短信/ACH 通知/内部同步）的单，一条都不该被漏掉 */
+    markWon: function (buyerId, via) {
+      var b = Mock.getBuyer(buyerId);
+      if (!b || b.outcome) return null;
+      b.outcome = { status: "won", at: new Date().toISOString() };
+      if (b.stage < 5 && window.U && U.applyStage) {
+        b.outcome.prevStage = b.stage;
+        U.applyStage(b, 5, via === "signal" ? "成交信号确认" : "手动标记成交", "manual", b.closeSignal ? b.closeSignal.evidence : null, true);
+      }
+      b.closeSignal = null;
+      stamp(b);
+      save();
+      return b;
+    },
     bumpIntent: function (buyerId, delta, reason) {
       var b = Mock.getBuyer(buyerId);
       if (!b) return null;

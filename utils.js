@@ -174,7 +174,15 @@
         2026-10-23（Phil：收紧）：付款方词族只认完成时态——"已付款/付了款/款付了/已付定金/
         已付50%定金"触发；裸"付款/付定金"（如"安排下周付款/他会付款/付款条件"）不再误报。
         "收到样品费"不命中（样品费不在词表，仍走 4 档样品信号）；残余假阳性由"还没成·忽略"人工兜底 */
-     { to: 5, why: "付款/PI/收款硬信号", re: /(proforma|形式发票|\bPI\b|invoice).{0,30}(sign|签|ok|confirm|received|已发|sent)|(已付(了)?|付了)(款|定金|尾款|全款)|(款|钱)付了|付(出|齐)(定金|尾款|全款)|已付\s*\d{0,3}\s*%?\s*(款|定金|尾款)|全款已|定金已(付|打)|payment\s+(sent|made|received|done|transferred)|wire\s+transfer|T\/T\s+(sent|made|done)|bank\s+transfer|50\s*%\s*(deposit|advance|paid|sent)|deposit\s+(sent|paid|received|made)|\bE\.?\.C\.?T\.?\b.{0,10}(已|done|sent)|收到(了)?(货款|款项|全款|尾款|定金)(?!条件)|款(项)?已收|(货款|款项|尾款)已?到账|received\s+(the\s+)?(payment|funds|money|deposit|full\s+amount)/i },
+      /* 2026-10-23（二轮，Phil「关键词出现也识别不到」）：英文付款完成式补齐——"paid"（买家说已付款最常用的词）
+         原词表缺失，上轮收紧只处理了中文词族。本次新增：
+         ① \bpaid\b（"I have paid/paid the deposit/he paid full"；样品费语境排除，仍归 4 档）
+         ② money/funds/payment/advance/deposit/balance + sent/transferred/wired/remitted/paid/done（双向语序，
+            "money sent" 与 "sent the payment" 都认；"sent the payment terms" 排除——那是条款不是付款）
+         ③ payment of N done；中文打款动词族：转账了/打款了/已打款/已转账/汇了款/付过款/付完款/全款转了
+         ④ 收款方补"收到付款/收到转账"（"收到付款条件"不误报）
+         保持 Phil 口径：将来时（will pay/going to pay/会付/打算付）不触发，"打款条件"不误报 */
+      { to: 5, why: "付款/PI/收款硬信号", re: /(proforma|形式发票|\bPI\b|invoice).{0,30}(sign|签|ok|confirm|received|已发|sent)|\bpaid\b(?!.{0,16}(sample|样品))|(已付(了)?|付了)(款|定金|尾款|全款)|(款|钱)付了|付(出|齐|过|完)(定金|尾款|全款|款|钱)|已付\s*\d{0,3}\s*%?\s*(款|定金|尾款)|全款已|定金已(付|打)|payment\s+(sent|made|received|done|transferred)|payment\s+(of\s+)?[\d,]+\s*(done|complete|completed)|wire\s+transfer|T\/T\s+(sent|made|done)|bank\s+transfer|(money|funds?|advance|down\s*payment|deposit|balance)\s+(sent|transferred|wired|remitted|paid|done)|(sent|transferred|wired|remitted)\s+(the\s+|a\s+)?(money|funds?|payment|deposit|advance|balance)(?![\s]*(terms|条件|plan|计划))|50\s*%\s*(deposit|advance|paid|sent)|deposit\s+(sent|paid|received|made)|\bE\.?\.C\.?T\.?\b.{0,10}(已|done|sent)|收到(了)?(货款|款项|全款|尾款|定金|付款|转账)(?!条件)|款(项)?已收|(货款|款项|尾款)已?到账|received\s+(the\s+)?(payment|funds|money|deposit|full\s+amount)|转(账|款)(了|过去|完|好了)|已转(账|款)(?![号])|已?(打|汇)(了)?(款|钱|过去)(?!条件)|全款(已)?(打|转|汇)/i },
     { to: 4, why: "样品信号", re: /(要|need|request|send|寄|发|ship|收到|确认|approve|okay|ok|paid).{0,24}(sample|样品)|(sample|样品).{0,14}(fee|cost|charge|寄|发|收到|确认|同意|ok|okay|paid|approval)|样品费|sample\s+(fee|charge|cost|order|approval|confirmed)/i },
     { to: 3, why: "议价/条款信号", needStage: 2, re: /(discount|折[扣惠]?|再?便宜|cheaper|lower\s+price|reduce\s+(the\s+)?price|price\s+(is\s+)?(too\s+)?high|降(价|到|至)|还(能|可以)?(少|降|让)|还价|counter\s*offer|net\s+(15|30|60|90)|账期|payment\s+terms|付款条件|installment|分期|\d+\s*%\s*off|start with \d+|another\s+(supplier|factory|vendor).{0,20}(cheap|low|less|better|offered|quoted)|(offered|quoted)\s+\$?\s?\d+|别家|友商|竞[品争]价)/i },
     /* 2026-10-23（二次审计，Phil「报过价还显示未报价」）：报价数字写法补齐——原式要求数字紧跟 Incoterm，
