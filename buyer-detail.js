@@ -262,7 +262,7 @@
 
        return '<div class="topbar">' +
          '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
-          '<div class="tb-title"><h1>' + escHtml(b.name) + '</h1><div class="tb-sub">' + escHtml(b.wa ? (String(b.wa).charAt(0) === "+" ? b.wa : "+" + b.wa) : "未填 WhatsApp") + " · " + escHtml(b.country) + " · " + escHtml(b.lastActive) + " 活跃</div></div>" +
+          '<div class="tb-title"><h1>' + escHtml(b.name) + '</h1><div class="tb-sub">' + escHtml(b.wa ? U.waDisplay(b.wa) : "未填 WhatsApp") + " · " + escHtml(b.country) + " · " + escHtml(b.lastActive) + " 活跃</div></div>" +
           '<button class="wa-jump edit-prof" data-act="edit-prof" title="修改姓名/WhatsApp 号码等基础信息">✎ 编辑</button>' +
           '<button class="wa-jump" data-act="jump">' + WA_ICON + "<span>直达对话</span></button>" +
          "</div>" +
@@ -303,7 +303,7 @@
             '<div class="d-sec-title" style="margin-top:14px;margin-left:16px;margin-right:16px">WhatsApp 对话记录 · 过渡模式</div>' +
           '<div class="wa-chat">' +
           '<div class="wa-head">' + WA_ICON +
-          '<div class="wa-hmid"><b>' + escHtml(b.name) + "</b><span>" + escHtml(b.wa ? (String(b.wa).charAt(0) === "+" ? b.wa : "+" + b.wa) : "未填 WhatsApp") + "</span></div>" +
+          '<div class="wa-hmid"><b>' + escHtml(b.name) + "</b><span>" + escHtml(b.wa ? U.waDisplay(b.wa) : "未填 WhatsApp") + "</span></div>" +
          '<button class="wa-lang" data-act="import" style="margin-right:6px">＋ 导入</button>' +
          '<button class="wa-lang active" data-act="lang">中文对照</button>' +
          '<span class="zh-ver">v' + BD_VER + '</span>' +
@@ -475,8 +475,9 @@
          if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先点右上角「✎ 编辑」补全"); return; }
         var ju = waLink(b.wa);
         if (!ju) { App.toast("号码格式不正确，请在档案里补全国际号码（含国家码）"); return; }
-        window.open(ju, "_blank");
-        App.toast("已打开官方 WhatsApp → " + b.name);
+        /* 2026-10-22（Phil「客户进不去了」）：微信 webview 拦截 window.open → 兜底当前窗口跳 wa.me 页 */
+        var fbJump = !U.openExternal(ju);
+        App.toast(fbJump ? "微信环境：如弹「离开微信打开 WhatsApp」请点允许 → " + b.name : "已打开官方 WhatsApp → " + b.name);
       });
 
       var langBtn = root.querySelector('[data-act="lang"]');
@@ -945,8 +946,9 @@
         if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return false; }
         push({ from: "me", text: finalText, time: "刚刚", status: "handed", zh: zh || undefined });
         input.value = "";
-        window.open(su, "_blank");
-        App.toast(note || "已预填到 WhatsApp · 还没发送！你发送后回来点「✓ 已发」，没发/改了点「✕ 没发」");
+        /* 2026-10-22（Phil「客户进不去了」）：push 已 commit，微信兜底当前窗口导航不丢记录 */
+        var fbWa = !U.openExternal(su);
+        App.toast((fbWa ? "微信环境：如弹「离开微信」请点允许 · " : "") + (note || "已预填到 WhatsApp · 还没发送！你发送后回来点「✓ 已发」，没发/改了点「✕ 没发」"));
         return true;
       }
        function sendWa(text, zh) {
@@ -1107,8 +1109,9 @@
                   b.scriptProg = b.scriptProg || {};
                   b.scriptProg[d.key] = Math.max(Number(b.scriptProg[d.key] || 0), i + 1);
                   if (window.Store) Store.commit();
-                  window.open(su, "_blank");
-                  App.toast("已打开第 " + (i + 1) + " 步 · 还没发送！发完回来点「✓ 已发」");
+                  /* 2026-10-22（Phil「客户进不去了」）：微信兜底当前窗口导航，commit 已先行不丢进度 */
+                  var fbStep = !U.openExternal(su);
+                  App.toast((fbStep ? "微信环境：如弹「离开微信」请点允许 · " : "") + "已打开第 " + (i + 1) + " 步 · 还没发送！发完回来点「✓ 已发」");
                   App.refresh();
                 });
             }

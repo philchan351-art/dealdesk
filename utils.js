@@ -208,6 +208,22 @@
     return sum(Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome; }).map(function (b) { return b.amount; }));
   }
 
+  /* 2026-10-22（Phil「客户进不去了」微信真机）：微信内置浏览器静默拦截 window.open(_blank)，
+     点「直达对话/发 WhatsApp」什么都没打开但 toast 还说"已打开"。先试新窗口，被拦截就当前窗口
+     导航（wa.me 页引导打开 WhatsApp App；微信里弹"离开微信"确认，允许即跳）。返回 false=走了兜底 */
+  function openExternal(url) {
+    var w = null;
+    try { w = window.open(url, "_blank"); } catch (e) { w = null; }
+    if (!w) { location.href = url; return false; }
+    return true;
+  }
+
+  function waDisplay(num) {
+    var s = String(num || "").trim();
+    if (!s) return "";
+    return s.replace(/^\++/, "+");
+  }
+
   window.U = {
     esc: escHtml,
     grade: grade, money: money, sum: sum,
@@ -217,6 +233,12 @@
     barChart: barChart, donut: donut, countUp: countUp,
     unreadTotal: unreadTotal, getFollowupByBuyer: getFollowupByBuyer, openPipeline: openPipeline,
     followDays: followDays, buyerFollowDays: buyerFollowDays,
-    stageScan: stageScan, applyStage: applyStage
+    stageScan: stageScan, applyStage: applyStage,
+    /* 2026-10-22（Phil「客户进不去了」微信真机）：微信内置浏览器静默拦截 window.open(_blank)，
+       点「直达对话/发 WhatsApp」什么都没打开。兜底改当前窗口导航——wa.me 页会引导打开 WhatsApp App
+       （微信里弹"离开微信"确认，允许即跳转）。返回 false 表示走了兜底，调用方在 toast 里补提示 */
+    openExternal: openExternal,
+    /* 号码展示归一：录入多打的 "++86189…" / 没打 "+" 的 "86189…" → 统一显示单个 + */
+    waDisplay: waDisplay
   };
 })();

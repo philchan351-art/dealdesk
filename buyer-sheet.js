@@ -335,7 +335,7 @@
           country: country,
           msgLang: v("nbLang"),
           company: v("nbCompany"),
-          wa: v("nbWa"),
+          wa: String(v("nbWa") || "").trim().replace(/^\++/, "+"), /* 2026-10-22 录入多打的 + 折叠成一个 */
           qty: v("nbQty"),
           product: v("nbProduct"),
           note: v("nbNote")
@@ -353,7 +353,7 @@
         cc: CountryProfiles.cc(country),
         msgLang: v("nbLang"),
         company: v("nbCompany"),
-        wa: v("nbWa"),
+        wa: String(v("nbWa") || "").trim().replace(/^\++/, "+"), /* 2026-10-22 录入多打的 + 折叠成一个 */
         qty: v("nbQty"),
         product: v("nbProduct"),
         intent: intent,

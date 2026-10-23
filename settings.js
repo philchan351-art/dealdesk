@@ -201,7 +201,7 @@
         });
 
         var manualBtn = root.querySelector('[data-act="open-manual"]');
-        if (manualBtn) manualBtn.addEventListener("click", function () { window.open("manual.html?v=55", "_blank"); });
+        if (manualBtn) manualBtn.addEventListener("click", function () { U.openExternal("manual.html?v=1.4.2"); }); /* 2026-10-22 微信兜底 */
 
        root.querySelector('[data-act="save-name"]').addEventListener("click", function () {
          var stName = Store.getSettings() || {};
