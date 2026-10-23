@@ -148,7 +148,8 @@
   function renderQueue() {
     var wrap = document.querySelector(".wqueue");
     if (!wrap) return;
-    var deals = Mock.buyers.filter(function (b) { return b.stage < 5 && !muted[b.id]; });
+    /* 2026-10-22（口径统一）：已标成交/流失的客户离开谈单队列 */
+    var deals = Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome && !muted[b.id]; });
     var groups = [];
     if (sort === "wait") {
       var p0 = deals.filter(function (b) { return pri(b) === 0; });
@@ -177,7 +178,7 @@
           '<div class="stagger">' + g.items.map(card).join("") + "</div></div>";
       }).join("")
       : '<div class="wempty">🎉 队列空了——该歇口气了</div>';
-    var mut = Mock.buyers.filter(function (b) { return b.stage < 5 && muted[b.id]; });
+    var mut = Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome && muted[b.id]; });
     if (mut.length) {
       html += '<details class="wmuted"><summary>🔕 已静音 ' + mut.length + " 人（点开查看）</summary>" +
         '<div class="stagger">' + mut.map(card).join("") + "</div></details>";
@@ -187,7 +188,7 @@
   }
 
   function render() {
-    var all = Mock.buyers.filter(function (b) { return b.stage < 5; });
+    var all = Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome; });
     var waitN = all.filter(function (b) { return pri(b) === 0; }).length;
     var hotN = Mock.followups.filter(function (f) { return U.followDays(f) < 0 && !f.done; }).length;
     var tabs = SORTS.map(function (s) {

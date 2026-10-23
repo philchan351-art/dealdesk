@@ -79,7 +79,8 @@
       /* 2026-10-14：下线全部示例数字（Mock.kpis / Mock.week）——看板指标一律由真实客户数据实时计算 */
       var buyers = Mock.buyers, followups = Mock.followups;
       var now = new Date(), DAY = 86400000;
-      var open = buyers.filter(function (b) { return b.stage < 5; });
+      /* 2026-10-22（阶段判定严格化）："进行中"= 未成交且未流失——已标结果的客户不再混进管道/待回复 */
+      var open = buyers.filter(function (b) { return b.stage < 5 && !b.outcome; });
       var neg = open.filter(function (b) { return b.stage === 3; }).length;
       var qte = open.filter(function (b) { return b.stage === 2; }).length;
       var waiting = open.filter(function (b) {

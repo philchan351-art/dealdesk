@@ -58,7 +58,7 @@
       /* 2026-10-21（Phil）：「待回复」口径与看板「待我回复」完全一致——
          进行中谈单（stage<5）且最后一条消息来自客户（旧口径 b.unread>0 在记一条时从不累加，实际恒为空） */
       function waitingFor(b) {
-        if (b.stage >= 5) return false;
+        if (b.outcome || b.stage >= 5) return false; /* 已成交/已流失不算"待我回复"（2026-10-22 口径统一） */
         var ms = b.messages || [];
         return ms.length && ms[ms.length - 1].from === "buyer";
       }

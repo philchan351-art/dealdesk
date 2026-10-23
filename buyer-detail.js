@@ -273,8 +273,20 @@
          '<div class="d-tags">' + b.tags.map(function (t) { return '<span class="tag">' + escHtml(t) + "</span>"; }).join("") + "</div></div>" +
          '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
          "</div>" +
-         outcomeHtml(b) +
-          '<div class="card tracker" style="margin-top:10px">' + U.stageTracker(b.stage) + "</div>" +
+          outcomeHtml(b) +
+          /* 2026-10-22（Phil：阶段判定不能"表面"）：阶段卡 = 进度条 + 最近一次留痕 + 手动调阶段（六档芯片） */
+           '<div class="card tracker st-card" style="margin-top:10px">' + U.stageTracker(b.stage) +
+            (function () {
+              var lg = (b.stageLog || [])[b.stageLog.length - 1];
+              return lg ? '<div class="st-log">阶段留痕：' + Mock.STAGES[lg.from] + " → " + Mock.STAGES[lg.to] + (lg.why ? " · " + escHtml(lg.why) : "") + " · " + String(lg.at).slice(5, 10) + "</div>" : "";
+            })() +
+            (b.outcome ? "" : '<div class="st-adj" data-act="st-adj">调整阶段 ▾</div><div class="st-chips" style="display:none">' + Mock.STAGES.map(function (s, i) { return '<button type="button" class="st-chip' + (i === b.stage ? " active" : "") + '" data-si="' + i + '">' + s + "</button>"; }).join("") + "</div>") +
+           "</div>" +
+           /* 成交信号卡：机械/AI 检测到付款/PI 硬证据 → 醒目提示，一键确认才算成交（Phil 口径：成交=人工终裁） */
+           (function () {
+             if (!b.closeSignal || b.outcome) return "";
+             return '<div class="card close-signal" style="margin:10px 16px 0"><b>💰 检测到成交信号</b><span>' + escHtml(b.closeSignal.why) + (b.closeSignal.evidence ? ' · 证据："' + escHtml(b.closeSignal.evidence) + '"' : "") + '</span><div class="cs-actions"><button class="cs-won" data-act="cs-won">✓ 确认成交（计入本月成交）</button><button class="cs-no" data-act="cs-no">还没成 · 忽略</button></div></div>';
+           })() +
            (function () {
              var rk = riskOf(b);
               return rk ? '<div class="card risk-card" style="margin:10px 16px 0"><b>⚠ 谈单遇冷</b><span>' + escHtml(rk.reasons) + '</span><div class="risk-strat">建议策略：' + escHtml(rk.strat) + "</div></div>" : "";
@@ -344,16 +356,40 @@
       if (fuBtn) fuBtn.addEventListener("click", function () { App.go("followup", "new/" + b.id); });
 
       var langSel = root.querySelector("#langSel");
-       /* 成交 / 流失标记（学习层的结果标签） */
-       var ocWon = root.querySelector('[data-act="oc-won"]');
-       if (ocWon) ocWon.addEventListener("click", function () {
-         if (!confirm("标记为已成交？（标错可点\"清除标记\"）")) return;
-         b.outcome = { status: "won", at: new Date().toISOString() };
-         AIevt(b, "outcome", { status: "won" });
-         if (window.Store) Store.commit();
-         App.toast("已记录成交");
-         App.refresh();
-       });
+        /* 成交 / 流失标记（学习层的结果标签）
+           2026-10-22（Phil：实际成交要被判出来）：成交与 stage 联动——
+           标成交 ⇒ stage→5（留痕、记 prevStage 可回退）；清标记 ⇒ 回到 prevStage */
+        function markWon(via) {
+          if (b.outcome) return;
+          b.outcome = { status: "won", at: new Date().toISOString() };
+          if (b.stage < 5 && window.U && U.applyStage) {
+            b.outcome.prevStage = b.stage;
+            U.applyStage(b, 5, via === "signal" ? "成交信号确认" : "手动标记成交", "manual", b.closeSignal ? b.closeSignal.evidence : null, true);
+          }
+          b.closeSignal = null;
+          AIevt(b, "outcome", { status: "won", via: via || "manual" });
+          if (window.Store) Store.commit();
+          App.toast("已记录成交 · 计入本月成交");
+          App.refresh();
+        }
+        var ocWon = root.querySelector('[data-act="oc-won"]');
+        if (ocWon) ocWon.addEventListener("click", function () {
+          if (!confirm("标记为已成交？（标错可点\"清除标记\"）")) return;
+          markWon("manual");
+        });
+        /* 成交信号卡：一键确认 / 忽略 */
+        var csWon = root.querySelector('[data-act="cs-won"]');
+        if (csWon) csWon.addEventListener("click", function () {
+          if (!confirm("确认标记为已成交？（计入本月成交，标错可点\"清除标记\"）")) return;
+          markWon("signal");
+        });
+        var csNo = root.querySelector('[data-act="cs-no"]');
+        if (csNo) csNo.addEventListener("click", function () {
+          b.closeSignal = null;
+          if (window.Store) Store.commit();
+          App.toast("已忽略（之后再有成交信号会重新提醒）");
+          App.refresh();
+        });
        var ocLost = root.querySelector('[data-act="oc-lost"]');
        if (ocLost) ocLost.addEventListener("click", function () {
          var row = root.querySelector(".outcome-row");
@@ -373,12 +409,50 @@
          var cx = row.querySelector('[data-act="oc-cancel"]');
          if (cx) cx.addEventListener("click", function () { App.refresh(); });
        });
-       var ocClear = root.querySelector('[data-act="oc-clear"]');
-       if (ocClear) ocClear.addEventListener("click", function () {
-         b.outcome = null;
-         if (window.Store) Store.commit();
-         App.refresh();
-       });
+        var ocClear = root.querySelector('[data-act="oc-clear"]');
+        if (ocClear) ocClear.addEventListener("click", function () {
+          /* 清除"已成交"：stage 从 5 回到标记前的档位（留痕），客户重新回到进行中管道 */
+          if (b.outcome && b.outcome.status === "won" && b.stage >= 5) {
+            var back = (typeof b.outcome.prevStage === "number") ? b.outcome.prevStage : 4;
+            b.stage = Math.min(back, 4);
+            b.stageLog = b.stageLog || [];
+            b.stageLog.push({ from: 5, to: b.stage, at: new Date().toISOString(), why: "清除成交标记", src: "manual" });
+            AIevt(b, "stage", { to: Mock.STAGES[b.stage] });
+          }
+          b.outcome = null;
+          b.closeSignal = null;
+          if (window.Store) Store.commit();
+          App.refresh();
+        });
+        /* 手动调阶段：进度条上「调整阶段 ▾」→ 六档芯片，任意方向，留痕"手动调整" */
+        var stAdj = root.querySelector('[data-act="st-adj"]');
+        if (stAdj) stAdj.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var chips = root.querySelector(".st-chips");
+          if (chips) chips.style.display = chips.style.display === "none" ? "" : "none";
+        });
+        root.querySelectorAll(".st-chip").forEach(function (ch) {
+          ch.addEventListener("click", function () {
+            var to = Number(ch.dataset.si);
+            if (b.outcome) { App.toast("已成交/流失客户：先清除标记再调阶段"); return; }
+            if (to === b.stage) { App.refresh(); return; }
+            if (window.U && U.applyStage) {
+              if (to > b.stage) U.applyStage(b, to, "手动调整", "manual");
+              else {
+                var f5 = b.stage;
+                b.stage = to;
+                b.stageLog = b.stageLog || [];
+                b.stageLog.push({ from: f5, to: to, at: new Date().toISOString(), why: "手动调回", src: "manual" });
+              }
+            } else {
+              b.stage = to;
+            }
+            AIevt(b, "stage", { to: Mock.STAGES[b.stage] });
+            if (window.Store) Store.commit();
+            App.toast("阶段已设为：" + Mock.STAGES[b.stage]);
+            App.refresh();
+          });
+        });
 
        if (langSel) langSel.addEventListener("change", function () {
          if (langSel.value) b.msgLang = langSel.value; else delete b.msgLang;
@@ -1350,12 +1424,14 @@
           push({ from: "me", text: b.options.text + "：" + opt.t, time: "刚刚" });
           if (!opt.reply || b._optReplied) return;
           b._optReplied = true;
-           setTimeout(function () {
-             push({ from: "buyer", text: opt.reply, time: "刚刚" });
-             if (window.Store) Store.bumpIntent(b.id, 2, "回答编号选项");
-            var prevStage = b.stage;
-            if (b.stage < 4) b.stage++;
-            if (b.stage !== prevStage) AIevt(b, "stage", { to: Mock.STAGES[b.stage] });
+            setTimeout(function () {
+              push({ from: "buyer", text: opt.reply, time: "刚刚" });
+              if (window.Store) Store.bumpIntent(b.id, 2, "回答编号选项");
+             /* 2026-10-22：原来的盲目 stage++（答什么都升一档）→ 有硬信号证据才推进 */
+             var prevStage = b.stage;
+             var sig2 = (window.U && U.stageScan) ? U.stageScan(b, opt.reply) : null;
+             if (sig2 && sig2.to <= 4) U.applyStage(b, sig2.to, sig2.why, "rule", opt.reply);
+             if (b.stage !== prevStage) AIevt(b, "stage", { to: Mock.STAGES[b.stage] });
             AIevt(b, "reply", { via: "option", text: opt.reply });
             autoZh(opt.reply);
             b.context = b.context || [];

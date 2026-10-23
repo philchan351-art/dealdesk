@@ -299,7 +299,13 @@
     /* v1.2.12「读」：原 intentDelta 升级为态势研判。delta 兼容原意向分管线；
        nodocs＝读只看客户原话和档案简报，跳过服务端资料注入（省一整轮 bundle 注入的延迟与费用） */
     readMsg: function (text, buyer) {
-      return chat(ctx(buyer), Prompts.read + "\n\n消息：" + text, { max_tokens: 220, temp: 0.2, nodocs: true })
+      /* 2026-10-22（阶段严格判定）：机械硬信号先确定性扫描一遍注入提示词——
+         信号命中时 AI 不得低于命中档（除非写明理由），防止"表面读"漏掉硬事实 */
+      var scan = (window.U && U.stageScan) ? U.stageScan(buyer, text) : null;
+      var scanLine = scan
+        ? "\n机械扫描（确定性硬信号，命中即成立）：" + scan.why + " → 阶段 " + scan.to + (scan.to >= 5 ? "（成交信号，stage 给 5，等待人工确认标记）" : "")
+        : "\n机械扫描：无阶段硬信号（阶段判定纯靠消息事实）。";
+      return chat(ctx(buyer), Prompts.read + scanLine + "\n\n消息：" + text, { max_tokens: 260, temp: 0.2, nodocs: true })
         .then(function (t) {
           var o = parseJSON(t);
           if (!o || typeof o.delta !== "number") return null;
@@ -311,6 +317,10 @@
           o.reason = String(o.reason || "").slice(0, 16);
           o.concern = String(o.concern || "").slice(0, 24);
           o.evidence = String(o.evidence || "").slice(0, 40);
+          /* stage：null=无阶段证据；只收 0-5 整数，越界/非数字一律当 null（宁缺毋滥） */
+          o.stage = (o.stage === null || o.stage === "" || o.stage === "null") ? null : Math.round(Number(o.stage));
+          if (o.stage === null || isNaN(o.stage) || o.stage < 0 || o.stage > 5) o.stage = null;
+          o.stageWhy = String(o.stageWhy || "").slice(0, 16);
           return o;
         });
     },

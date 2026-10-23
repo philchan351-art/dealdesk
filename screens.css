@@ -23,6 +23,17 @@
 .fu-day.active{background:var(--brand-deep);border-color:var(--brand-deep);color:#fff}
 .fu-new-save{margin-top:12px;width:100%;padding:10px;border:0;border-radius:10px;background:var(--brand-deep);color:#fff;font-size:13px;font-weight:800;cursor:pointer}
 .fu-new-open{display:block;margin:0 16px 12px;width:calc(100% - 32px);padding:10px;border:1.5px dashed var(--line);border-radius:10px;background:none;color:var(--brand-deep);font-size:13px;font-weight:800;cursor:pointer}
+/* ---------- 阶段判定（2026-10-22 v1.4.0） ---------- */
+.st-log{margin-top:8px;font-size:11px;color:var(--ink-soft);background:var(--bg);border-radius:8px;padding:5px 8px}
+.st-adj{margin-top:8px;font-size:12px;font-weight:700;color:var(--brand-deep);cursor:pointer;text-align:center;padding:6px;border:1px dashed var(--line);border-radius:8px}
+.st-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.st-chip{flex:0 0 auto;padding:5px 10px;font-size:12px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-weight:600;cursor:pointer}
+.st-chip.active{background:var(--brand-deep);border-color:var(--brand-deep);color:#fff}
+.close-signal{background:#FFF8E6;border:1px solid #F5C96B;padding:12px 14px;font-size:12.5px;line-height:1.6}
+.close-signal b{font-size:13.5px}
+.cs-actions{display:flex;gap:8px;margin-top:8px}
+.cs-won{flex:1;padding:9px;border:0;border-radius:9px;background:#1F8A5B;color:#fff;font-size:12.5px;font-weight:800;cursor:pointer}
+.cs-no{padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer}
 
 .home-row{display:grid;grid-template-columns:1.5fr 1fr;gap:12px;margin-bottom:6px}
 .chart-card{padding:16px 14px 8px}

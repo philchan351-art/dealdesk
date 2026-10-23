@@ -63,6 +63,7 @@
   }
   purgeDemo();
   migrateFollowDates();
+  migrateOutcomeStages();
 
   function saveLocal() {
     data.savedAt = new Date().toISOString();
@@ -108,6 +109,18 @@
     var hit = false;
     data.followups.forEach(function (f) {
       if (!f.dueDate) { f.dueDate = addDaysISO(f.dueIn || 0); hit = true; }
+    });
+    if (hit) saveLocal();
+  }
+  /* 2026-10-22（Phil：「有实际成交你还是没有判定」）：存量「已标记成交但 stage 还停在前面」的客户
+     （如 Amritpal 24h 成交案例）回填 stage=5 并进 stageLog 留痕；幂等——回填后 stage=5 不再命中 */
+  function migrateOutcomeStages() {
+    var hit = false;
+    data.buyers.forEach(function (b) {
+      if (b.outcome && b.outcome.status === "won" && b.stage < 5 && window.U && U.applyStage) {
+        b.outcome.prevStage = b.stage;
+        if (U.applyStage(b, 5, "补记：已成交标记", "migrate", null, true)) hit = true;
+      }
     });
     if (hit) saveLocal();
   }
@@ -189,6 +202,17 @@
       if (zh) m.zh = zh;
       b.messages.push(m);
       b.lastActive = "刚刚";
+      /* 2026-10-22（Phil：阶段判定不能"表面"）：每条记录消息都过机械硬信号扫描——
+         统一入口，"记客户/记我/记一条"三条路径全覆盖。1-4 档自动推进并留痕；
+         5 成交信号不自动标成交（Phil 口径：成交=人工终裁），只挂"成交信号"卡等一键确认 */
+      var sig = (window.U && U.stageScan) ? U.stageScan(b, text) : null;
+      if (sig && !b.outcome) {
+        if (sig.to >= 5) {
+          if (!b.closeSignal) b.closeSignal = { at: new Date().toISOString(), why: sig.why, evidence: String(text || "").slice(0, 80), src: "rule" };
+        } else if (U.applyStage(b, sig.to, sig.why, "rule", text)) {
+          /* 推进已写入 b.stage + stageLog，随下方 save 同步 */
+        }
+      }
       stamp(b);
       save();
       return m;
@@ -385,6 +409,7 @@
         purge();
         purgeDemo();
         migrateFollowDates(); /* 云端快照可能来自旧版本设备，无 dueDate 的同样补一次（幂等） */
+        migrateOutcomeStages(); /* 同上：旧设备标记成交但 stage 未进 5 的，拉下来同样补（幂等） */
         data.savedAt = snap.updatedAt || data.savedAt;
       /* 修复（审计 M3）：单独记录"已同步到的云端版本"，拉取判断用它而不是本机 savedAt（本机时钟漂移会导致永远不拉新数据） */
       if (snap.updatedAt) data.serverAt = String(snap.updatedAt);

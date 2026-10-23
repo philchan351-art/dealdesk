@@ -58,6 +58,12 @@
       }).join("") : '<div class="set-note">本条消息未检测到业务字段</div>') + "</div>" +
       (ai.delta ? '<div class="sl-delta">意向信号 ' + (ai.delta.delta > 0 ? "+" : "") + ai.delta.delta +
         ' · ' + escHtml(ai.delta.reason || "") + "（" + b.intent + " → " + Math.max(5, Math.min(99, b.intent + ai.delta.delta)) + "）</div>" : "") +
+      /* 2026-10-22 阶段严格判定：复核页预告阶段推进 / 成交信号，入库前业务员看得见 */
+      (ai.delta && typeof ai.delta.stage === "number" && ai.delta.stage > b.stage && !b.outcome
+        ? (ai.delta.stage >= 5
+          ? '<div class="sl-delta" style="background:#FFF8E6;border-color:#F5C96B">💰 成交信号（stage 5）：' + escHtml(ai.delta.stageWhy || "付款/PI 证据") + " — 入库后客户页出现「标记成交」确认卡，你确认才算数</div>"
+          : '<div class="sl-delta" style="background:#EFF6EF;border-color:#BFDDBF">📈 阶段将推进：' + Mock.STAGES[b.stage] + " → " + Mock.STAGES[ai.delta.stage] + (ai.delta.stageWhy ? "（" + escHtml(ai.delta.stageWhy) + "）" : "") + "</div>")
+        : "") +
       '<div class="set-actions"><button class="set-btn-inline ghost" data-act="back">← 重填</button><button class="set-btn-inline" data-act="save">确认入库</button></div>' +
       "</div>";
     wire(bd);
@@ -147,8 +153,28 @@
       b.lastRead = { posture: rd.posture, concern: rd.concern || "", warm: rd.warm || "", evidence: rd.evidence || "", at: new Date().toISOString() };
       Store.commit();
     }
+    /* 2026-10-22 阶段严格判定：机械硬信号在 addMessage 已自动应用（1-4 档）/已挂成交信号（5）；
+       这里叠加 AI 阶段研判——与机械取高、单调推进；5 同样只挂"成交信号"卡（Phil 口径：成交=人工终裁） */
+    var stageNote = "";
+    if (rd && rd.stage !== null && rd.stage > b.stage && !b.outcome) {
+      var rdWhy = rd.stageWhy || "AI 阶段研判";
+      if (rd.stage >= 5) {
+        if (!b.closeSignal) { b.closeSignal = { at: new Date().toISOString(), why: rdWhy, evidence: text.slice(0, 80), src: "ai" }; Store.commit(); }
+        stageNote = " · 已挂成交信号卡";
+      } else if (U.applyStage(b, rd.stage, rdWhy, "ai", text)) {
+        Store.commit();
+        stageNote = " · 阶段→" + Mock.STAGES[b.stage];
+      }
+    }
+    /* 需求确认兜底：数量/规格字段入库且客户还停在询盘 → 推进 1 档（AI 漏判时的确定性补位） */
+    if (b.stage === 0 && !b.outcome && applied.some(function (k) { return /(数量|qty|quantity|规格|spec)/i.test(k); })) {
+      if (U.applyStage(b, 1, "需求确认（数量/规格入库）", "field", text)) {
+        Store.commit();
+        stageNote = " · 阶段→" + Mock.STAGES[b.stage];
+      }
+    }
     closeSheet();
-    App.toast("已记录" + (applied.length ? " · 沉淀 " + applied.length + " 项" : "") + (d ? " · 意向 " + from + "→" + b.intent : ""));
+    App.toast("已记录" + (applied.length ? " · 沉淀 " + applied.length + " 项" : "") + (d ? " · 意向 " + from + "→" + b.intent : "") + stageNote);
     App.refresh();
   }
 

@@ -164,8 +164,48 @@
     return best === null ? (b.followIn || 0) : best;
   }
 
+  /* ===== 2026-10-22（Phil：阶段判定"表面"——有实际成交都没判）：机械硬信号扫描 =====
+     六阶段：0 询盘 1 需求确认 2 报价 3 谈判 4 样品确认 5 成交
+     只认"已发生的硬事实"（付款/PI、样品、议价、报价、数量+单位），命中即成立，不靠语气猜；
+     方向无关——"记一条"可能记客户话也可能记我方动作（"已报价 EXW 222"），信号按事实本身判。
+     3 谈判要求已报价（stage>=2）：没报过价的"what's your best price"是索要报价，不是议价 */
+  var STAGE_PATTERNS = [
+    { to: 5, why: "付款/PI 硬信号", re: /(proforma|形式发票|\bPI\b|invoice).{0,30}(sign|签|ok|confirm|received|已发|sent)|已?付(款|了|定金|尾款)|付(了|出|齐)(定金|尾款|全款)|全款已|定金已(付|打)|payment\s+(sent|made|received|done|transferred)|wire\s+transfer|T\/T\s+(sent|made|done)|bank\s+transfer|50\s*%\s*(deposit|advance|paid|sent)|deposit\s+(sent|paid|received|made)|\bE\.?\.C\.?T\.?\b.{0,10}(已|done|sent)/i },
+    { to: 4, why: "样品信号", re: /(要|need|request|send|寄|发|ship|收到|确认|approve|okay|ok|paid).{0,24}(sample|样品)|(sample|样品).{0,14}(fee|cost|charge|寄|发|收到|确认|同意|ok|okay|paid|approval)|样品费|sample\s+(fee|charge|cost|order|approval|confirmed)/i },
+    { to: 3, why: "议价/条款信号", needStage: 2, re: /(discount|折[扣惠]?|再?便宜|cheaper|lower\s+price|reduce\s+(the\s+)?price|price\s+(is\s+)?(too\s+)?high|降(价|到|至)|还(能|可以)?(少|降|让)|还价|counter\s*offer|net\s+(15|30|60|90)|账期|payment\s+terms|付款条件|installment|分期|\d+\s*%\s*off|start with \d+|another\s+(supplier|factory|vendor).{0,20}(cheap|low|less|better|offered|quoted)|(offered|quoted)\s+\$?\s?\d+|别家|友商|竞[品争]价)/i },
+    { to: 2, why: "报价信号", re: /(已|刚)?报了?价|price\s+list|quote\s+(sent|attached|here|is)|\b(EXW|FOB|CIF)\b[\s:：]*\$?\s?\d+|\$\s?\d{2,6}\s?(per|\/|each|unit|pcs|pieces|台|个|只)|\b(USD|美元)\s?\d{2,6}\s?(per|\/|each|unit|pcs|pieces|台|个|只)/i },
+    { to: 1, why: "需求信号（数量/规格）", re: /\d{2,}\s*(pcs|pieces|units|sets|台|只|个|箱|boxes|cartons|containers?|20ft|40ft|40hq|柜)|quantity\s+of\s+\d+|need\s+\d{2,}|要\s?\d{2,}/i }
+  ];
+
+  function stageScan(buyer, text) {
+    var s = String(text || "");
+    if (!s) return null;
+    for (var i = 0; i < STAGE_PATTERNS.length; i++) {
+      var p = STAGE_PATTERNS[i];
+      if (p.needStage && buyer.stage < p.needStage) continue;
+      if (p.re.test(s)) return { to: p.to, why: p.why };
+    }
+    return null;
+  }
+
+  /* 阶段推进唯一写入口：只进不退（回退=误判，走手动调阶段）、留痕 stageLog（可审计）、
+     已流失客户不推进；已成交客户仅 allowWon 时允许补 5（标记成交/存量迁移两条路径） */
+  function applyStage(b, to, why, src, evidence, allowWon) {
+    to = Math.round(Number(to) || 0);
+    if (isNaN(to) || to < 0 || to > 5) return false;
+    if (b.outcome) { if (b.outcome.status === "lost" || !allowWon) return false; }
+    if (to <= b.stage) return false;
+    var from = b.stage;
+    b.stage = to;
+    b.stageLog = b.stageLog || [];
+    b.stageLog.push({ from: from, to: to, at: new Date().toISOString(), why: String(why || "").slice(0, 24), src: src || "ai", evidence: String(evidence || "").slice(0, 80) });
+    if (b.stageLog.length > 20) b.stageLog = b.stageLog.slice(-20);
+    return true;
+  }
+
   function openPipeline() {
-    return sum(Mock.buyers.filter(function (b) { return b.stage < 5; }).map(function (b) { return b.amount; }));
+    /* 2026-10-22（口径统一）：已标成交/流失的客户不计入进行中管道金额 */
+    return sum(Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome; }).map(function (b) { return b.amount; }));
   }
 
   window.U = {
@@ -176,6 +216,7 @@
     stageTracker: stageTracker, intentRing: intentRing,
     barChart: barChart, donut: donut, countUp: countUp,
     unreadTotal: unreadTotal, getFollowupByBuyer: getFollowupByBuyer, openPipeline: openPipeline,
-    followDays: followDays, buyerFollowDays: buyerFollowDays
+    followDays: followDays, buyerFollowDays: buyerFollowDays,
+    stageScan: stageScan, applyStage: applyStage
   };
 })();
