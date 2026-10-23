@@ -177,7 +177,10 @@
      { to: 5, why: "付款/PI/收款硬信号", re: /(proforma|形式发票|\bPI\b|invoice).{0,30}(sign|签|ok|confirm|received|已发|sent)|(已付(了)?|付了)(款|定金|尾款|全款)|(款|钱)付了|付(出|齐)(定金|尾款|全款)|已付\s*\d{0,3}\s*%?\s*(款|定金|尾款)|全款已|定金已(付|打)|payment\s+(sent|made|received|done|transferred)|wire\s+transfer|T\/T\s+(sent|made|done)|bank\s+transfer|50\s*%\s*(deposit|advance|paid|sent)|deposit\s+(sent|paid|received|made)|\bE\.?\.C\.?T\.?\b.{0,10}(已|done|sent)|收到(了)?(货款|款项|全款|尾款|定金)(?!条件)|款(项)?已收|(货款|款项|尾款)已?到账|received\s+(the\s+)?(payment|funds|money|deposit|full\s+amount)/i },
     { to: 4, why: "样品信号", re: /(要|need|request|send|寄|发|ship|收到|确认|approve|okay|ok|paid).{0,24}(sample|样品)|(sample|样品).{0,14}(fee|cost|charge|寄|发|收到|确认|同意|ok|okay|paid|approval)|样品费|sample\s+(fee|charge|cost|order|approval|confirmed)/i },
     { to: 3, why: "议价/条款信号", needStage: 2, re: /(discount|折[扣惠]?|再?便宜|cheaper|lower\s+price|reduce\s+(the\s+)?price|price\s+(is\s+)?(too\s+)?high|降(价|到|至)|还(能|可以)?(少|降|让)|还价|counter\s*offer|net\s+(15|30|60|90)|账期|payment\s+terms|付款条件|installment|分期|\d+\s*%\s*off|start with \d+|another\s+(supplier|factory|vendor).{0,20}(cheap|low|less|better|offered|quoted)|(offered|quoted)\s+\$?\s?\d+|别家|友商|竞[品争]价)/i },
-    { to: 2, why: "报价信号", re: /(已|刚)?报了?价|price\s+list|quote\s+(sent|attached|here|is)|\b(EXW|FOB|CIF)\b[\s:：]*\$?\s?\d+|\$\s?\d{2,6}\s?(per|\/|each|unit|pcs|pieces|台|个|只)|\b(USD|美元)\s?\d{2,6}\s?(per|\/|each|unit|pcs|pieces|台|个|只)/i },
+    /* 2026-10-23（二次审计，Phil「报过价还显示未报价」）：报价数字写法补齐——原式要求数字紧跟 Incoterm，
+       实际写法 "EXW RMB 1,380"（中间夹货币词）与 "22美元一台"（中文每台）都不被识别。现覆盖：
+       Incoterm+货币词+数字（带不带千分位）、$N per/台、货币词+N+每单位、N+货币+每单位（含"一/每"） */
+    { to: 2, why: "报价信号", re: /(已|刚)?报了?价|price\s+list|quote\s+(sent|attached|here|is)|\b(EXW|FOB|CIF|DDP)\b[\s:：]*(?:USD|US\$|RMB|CNY|人民币|美元|美金)?\s?\$?\s?[\d,]{2,}|\$\s?[\d,]{2,6}\s?(per|\/|each|unit|pcs|pieces|台|个|只)|\b(USD|RMB|CNY|美元|美金|人民币)\s?\$?\s?[\d,]{2,6}\s?(?:一|每)?\s?(per|\/|each|unit|pcs|台|个|只|件)|[\d,]{2,6}\s?(美元|美金|元|RMB|USD)\s?(?:一|每)?\s?(per|\/|each|unit|pcs|台|个|只|件)/i },
     { to: 1, why: "需求信号（数量/规格）", re: /\d{2,}\s*(pcs|pieces|units|sets|台|只|个|箱|boxes|cartons|containers?|20ft|40ft|40hq|柜)|quantity\s+of\s+\d+|need\s+\d{2,}|要\s?\d{2,}/i }
   ];
 

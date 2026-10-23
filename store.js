@@ -161,8 +161,16 @@
     if (!(window.U && U.stageScan && U.applyStage)) return 0;
     var changed = 0;
     data.buyers.forEach(function (b) {
-      if (b.outcome) return; /* 已成交（stage 已由回填保证=5）/已流失：不动 */
       var s0 = b.stage, cs0 = !!b.closeSignal;
+      if (b.outcome) {
+        /* 2026-10-23（二次审计）：v1.4.0 前"已标记成交但 stage 停在旧值"的旧数据，启动时也补到 5——
+           此前只在云端快照时补（本地数据已同步的设备永远等不到快照），成交客户的阶段条不再冻在旧档 */
+        if (b.outcome.status === "won") {
+          if (b.stage < 5 && b.outcome.prevStage == null) b.outcome.prevStage = b.stage;
+          if (U.applyStage(b, 5, "补记：已成交标记", "rescan", null, true)) { stamp(b); changed++; }
+        }
+        return; /* 已成交/已流失：消息不再扫描推进 */
+      }
       (b.messages || []).forEach(function (m) {
         var t = m && m.text;
         if (!t) return;
