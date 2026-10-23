@@ -35,7 +35,27 @@
     var prevTop = el.scrollTop;
     window.DDNav = { same: sameScreen }; /* 页面模块用此区分"进入页面"与"同页刷新" */
     el.classList.toggle("detail", p.screen === "buyer-detail");
-    el.innerHTML = mod.render(p.param);
+    /* 2026-10-22（Phil「客户进不去了」Chrome 真机）：render/init 抛异常绝不能静默——
+       此前某客户记录缺字段时 render 一抛，页面停住、无任何提示，用户看到的就是"点了没反应"。
+       现在：渲染失败 → 可见错误卡（原因+客户名+回列表按钮）；init 失败 → toast 提示 */
+    var renderOk = true;
+    try {
+      el.innerHTML = mod.render(p.param);
+    } catch (err) {
+      renderOk = false;
+      console.error("[render 失败]", p.screen, p.param, err);
+      var who = "";
+      if (p.screen === "buyer-detail") { var bb = window.Mock.getBuyer(p.param); who = bb ? "客户「" + bb.name + "」" : ""; }
+      el.innerHTML = '<div class="empty" style="padding:48px 24px;text-align:center">' +
+        '<div style="font-size:34px">⚠️</div>' +
+        '<div style="font-weight:700;margin:10px 0 6px">' + who + " 打开失败</div>" +
+        '<div class="set-note" style="margin:0 0 14px">' + escHtml(String(err.message || err).slice(0, 80)) + "<br/>报给 Phil 时带上这句话，能直接定位</div>" +
+        '<button class="wgo" data-err-back="1">← 回买家列表</button></div>';
+      document.title = "谈单舱 · 页面打开失败";
+      var eb = el.querySelector("[data-err-back]");
+      if (eb) eb.addEventListener("click", function () { App.go("buyers"); });
+      return;
+    }
     document.querySelectorAll(".tabbar .tab").forEach(function (t) {
       t.classList.toggle("active", t.dataset.tab === p.screen || (p.screen === "buyer-detail" && t.dataset.tab === "buyers"));
     });
@@ -45,7 +65,13 @@
       if (p.screen === "buyer-detail") { fab.style.display = "none"; }
       else { fab.style.display = ""; fab.style.bottom = "92px"; }
     }
-    if (mod.init) mod.init(p.param, el);
+    if (mod.init) {
+      try { mod.init(p.param, el); }
+      catch (err2) {
+        console.error("[init 失败]", p.screen, p.param, err2);
+        if (renderOk) App.toast("页面初始化出错：" + String(err2.message || err2).slice(0, 40));
+      }
+    }
     /* 同页刷新恢复外层滚动位置，换页回顶。必须 instant：.screen 带 scroll-behavior:smooth，
        用默认赋值会被平滑动画，恢复动作本身反而变成可见的"滚动" */
     var target = sameScreen ? prevTop : 0;
@@ -214,6 +240,23 @@
   };
 
   window.addEventListener("hashchange", nav);
+  /* 2026-10-22：全局错误可见化——未捕获异常 / 未处理 Promise 拒绝当场 toast（限流 8s），
+     业务员手机上直接看见，报障不再靠猜。console 保留完整堆栈 */
+  var _lastErrToast = 0;
+  function errToast(msg) {
+    var now = Date.now();
+    if (now - _lastErrToast < 8000) return;
+    _lastErrToast = now;
+    if (window.App) App.toast("⚠ " + String(msg).slice(0, 60), 3500);
+  }
+  window.addEventListener("error", function (e) {
+    console.error("[uncaught]", e.message, e.filename, e.lineno);
+    errToast(e.message + (e.lineno ? " @" + e.lineno : ""));
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    console.error("[unhandled rejection]", e.reason);
+    errToast((e.reason && e.reason.message) || e.reason || "异步任务出错");
+  });
   window.addEventListener("DOMContentLoaded", function () {
     if (/[?&]preview=1/.test(location.search)) {
       var st = $(".stage");

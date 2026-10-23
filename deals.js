@@ -257,9 +257,9 @@
             if (b.unread > 0) b.unread = 0;
             b.lastActive = "刚刚";
             Store.commit();
-            /* 2026-10-22（Phil「客户进不去了」）：微信 webview 拦截 window.open → 兜底当前窗口导航 */
-            var fbSend = !U.openExternal(ju);
-            App.toast((fbSend ? "微信环境：如弹「离开微信」请点允许 · " : "") + "已预填到 WhatsApp · 还没发送，你确认后再点发送");
+            /* 2026-10-22（Phil「客户进不去了」）：commit 已先行；当前窗口导航（Chrome 下 window.open 是后台新标签像死按钮） */
+            location.href = ju;
+            App.toast("已预填到 WhatsApp · 还没发送，你确认后再点发送");
           }
           else if (act === "w-done") {
             Store.toggleFollowup(el.dataset.fid, true);

@@ -5,10 +5,20 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.4.2",
+  v: "1.4.3",
   date: "2026-10-22",
-  note: "修复微信内置浏览器「点直达对话没反应」：window.open 被拦截时自动兜底当前窗口跳 WhatsApp",
+  note: "Chrome「客户进不去了」四层修复：页面报错可见卡 + 客户记录缺字段补形 + 跳 WhatsApp 改当前窗口 + 全局错误不再静默",
   changelog: [
+    {
+      v: "1.4.3", date: "2026-10-22", items: [
+        "[修] Chrome 真机「点客户没反应」的静默卡死：此前客户记录缺字段时 render 抛异常，页面停在原处、无任何提示（nav 无 try/catch）。现在渲染失败 → 可见错误卡（客户名+原因句+回买家列表按钮）；init 失败 → toast",
+        "[修] 客户详情 render 三个裸数组访问加防御：b.tags / b.options.items / b.compare.notes 缺失不再抛异常",
+        "[修] 存量客户记录补形迁移（migrateBuyerShapes，启动+云端快照都跑、幂等）：老版本建的记录缺 tags/messages/context/intentLog/stageLog/stage/intent 一律补齐——旧设备推上来的不完整快照同样被补",
+        "[修] 跳 WhatsApp 四处（直达对话/发 WhatsApp/话术步进/谈单页发送）从 window.open 新窗口改为当前窗口导航：Chrome（尤其安卓）新窗口默认开后台标签、屏幕不动像死按钮；现在点了可见跳转，返回键回客户页，✓已发/✕没发 流程不变",
+        "[加] 全局错误可见化：任何未捕获异常/未处理 Promise 拒绝当场 toast（8 秒限流），console 保留完整堆栈——业务员手机上直接看见，报障带上那句原因就能直接定位",
+        "[防] 买家列表搜索框绑定加空值守卫：元素缺失不再崩 init（崩了后面所有按钮全死）"
+      ]
+    },
     {
       v: "1.4.2", date: "2026-10-22", items: [
         "[修] 客户进不去（微信内置浏览器真机定位）：「直达对话/发 WhatsApp/话术步进/打开手册」共 5 处 window.open(_blank) 被微信 webview 静默拦截——点了没窗口弹出、toast 却提示“已打开”。现统一走 U.openExternal：新窗口被拦截时自动改当前窗口导航，wa.me 页引导打开 WhatsApp（微信弹「离开微信」确认，点允许即跳转）",

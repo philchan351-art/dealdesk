@@ -63,6 +63,8 @@
   }
   purgeDemo();
   migrateFollowDates();
+  /* 先补形再回填成交——缺 stage 的记录补成 0 后，成交回填才不会漏 */
+  migrateBuyerShapes();
   migrateOutcomeStages();
 
   function saveLocal() {
@@ -121,6 +123,22 @@
         b.outcome.prevStage = b.stage;
         if (U.applyStage(b, 5, "补记：已成交标记", "migrate", null, true)) hit = true;
       }
+    });
+    if (hit) saveLocal();
+  }
+  /* 2026-10-22（Phil「客户进不去了」）：老版本建的客户记录可能缺 tags/messages/context 等字段，
+     缺一个字段 render 就抛异常、页面卡死且无声无息。统一补形（幂等）；
+     应用云端快照时也跑一遍——老设备可能推上来不完整记录 */
+  function migrateBuyerShapes() {
+    var hit = false;
+    data.buyers.forEach(function (b) {
+      if (!Array.isArray(b.tags)) { b.tags = []; hit = true; }
+      if (!Array.isArray(b.messages)) { b.messages = []; hit = true; }
+      if (!Array.isArray(b.context)) { b.context = []; hit = true; }
+      if (!Array.isArray(b.intentLog)) { b.intentLog = []; hit = true; }
+      if (!Array.isArray(b.stageLog)) { b.stageLog = []; hit = true; }
+      if (typeof b.stage !== "number") { b.stage = 0; hit = true; }
+      if (typeof b.intent !== "number") { b.intent = 50; hit = true; }
     });
     if (hit) saveLocal();
   }
@@ -409,6 +427,7 @@
         purge();
         purgeDemo();
         migrateFollowDates(); /* 云端快照可能来自旧版本设备，无 dueDate 的同样补一次（幂等） */
+        migrateBuyerShapes(); /* 同上：旧设备记录缺字段（tags 等）的，拉下来补形（幂等）；必须在成交回填之前 */
         migrateOutcomeStages(); /* 同上：旧设备标记成交但 stage 未进 5 的，拉下来同样补（幂等） */
         data.savedAt = snap.updatedAt || data.savedAt;
       /* 修复（审计 M3）：单独记录"已同步到的云端版本"，拉取判断用它而不是本机 savedAt（本机时钟漂移会导致永远不拉新数据） */

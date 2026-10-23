@@ -142,7 +142,7 @@
       <span class="badge">💬 WhatsApp 过渡模式</span>
       <span class="badge">🤖 AI 辅助回复</span>
       <span class="badge">👥 团队云同步</span>
-      <span class="badge">版本 v1.4.2 · 2026-10-22</span>
+      <span class="badge">版本 v1.4.3 · 2026-10-22</span>
     </div>
   </div>
 
@@ -299,7 +299,7 @@
       <li><div class="n">3</div><div>选填：语言、公司、<span class="k-amber">WhatsApp 号码</span>（一键跳转对话要用）、产品线、数量、备注（会成为客户标签）</div></li>
       <li><div class="n">4</div><div>点「保存并进入详情」→ 直接进入客户详情页，开始记对话</div></li>
     </ol>
-    <div class="callout c-tip"><div class="ic">💡</div><div>WhatsApp 号码填带国家码的完整号码（如 <code>+65 9965 5790</code> 或 <code>6599655790</code> 都行），之后点「直达对话」会预填内容直接跳 WhatsApp 发送。<b>在微信里打开本 App 时</b>：点「直达对话 / 发 WhatsApp」如弹出「离开微信打开 WhatsApp」，点允许即可跳转（v1.4.2 起微信环境自动走这条路径）。</div></div>
+    <div class="callout c-tip"><div class="ic">💡</div><div>WhatsApp 号码填带国家码的完整号码（如 <code>+65 9965 5790</code> 或 <code>6599655790</code> 都行），之后点「直达对话」会预填内容直接跳 WhatsApp 发送。跳转是<b>当前窗口</b>离开本页（v1.4.3 起 Chrome 不会再开后台标签），发完按手机返回键回客户页，「✓ 已发 / ✕ 没发」确认条还在；在微信里打开时如弹「离开微信打开 WhatsApp」，点允许即可。</div></div>
 
     <h3><span class="dot"></span>修改档案（改名 / 改号码 / 改国家）</h3>
     <ol class="steps">
@@ -505,7 +505,8 @@
       <tr><td>🕳️ 误删了一个客户？</td><td>删除是"软删"（90 天内云端保留墓碑期）。联系管理员：先用 CSV 备份或云端快照恢复，<b>别自己反复删了再建</b>（会产生重复档案）</td></tr>
       <tr><td>⚡ AI 回复很慢 / 没反应？</td><td>看设置页云同步状态是否"已连接"。没连接 → 先登录账号。网络差时切 4G/5G。持续失败找管理员查云函数</td></tr>
       <tr><td>📈 进客户页面时"自己往上拉 / 闪几下"？</td><td>v75 之前旧版的问题，已修复（后台刷新不再整页重画）。还遇到 = 手机缓存了旧版：无痕窗口打开一次，或强刷</td></tr>
-      <tr><td>🔢 怎么确认手机跑的是最新版？</td><td>客户页对话区右上角有 <code>v1.4.2</code> 小角标（当前最新版）。对不上就是缓存旧版，无痕窗口打开即可</td></tr>
+      <tr><td>🔢 怎么确认手机跑的是最新版？</td><td>客户页对话区右上角有 <code>v1.4.3</code> 小角标（当前最新版）。对不上就是缓存旧版，无痕窗口打开即可</td></tr>
+      <tr><td>⚠️ 客户页弹出「打开失败」错误卡？</td><td>说明该客户记录有数据异常，系统拦住了（v1.4.3 起页面出错不再静默卡死）。点「← 回买家列表」继续干活，把卡上的原因句发给 Phil 即可定位</td></tr>
       <tr><td>📷 发了照片，对话里怎么没有记录？</td><td>用「分享原图」且分享成功 → 系统自动记「📷 已分享照片×N」；用「预填照片链接」→ 发完必须手动「记我发」补一条。两个都做了还没有，检查当时是否真的发送成功</td></tr>
     </table>
   </section>
@@ -526,7 +527,7 @@
   </section>
 
   <footer>
-    谈单舱 DealPilot · 使用手册 v64（2026-10-22）· <a href="train.html" style="color:var(--amber)">🎓 业务员培训教程（话术与系统）</a><br/>
+    谈单舱 DealPilot · 使用手册 v65（2026-10-22）· <a href="train.html" style="color:var(--amber)">🎓 业务员培训教程（话术与系统）</a><br/>
     颜色即功能：<span class="k-amber">琥珀</span> = 主操作 · <span class="k-green">绿</span> = WhatsApp / 安全 · <span class="k-blue">蓝</span> = 提示 · <span class="k-red">红</span> = 警告 / 紧急<br/>
     有任何问题：先翻第 12 章 FAQ，再找管理员
   </footer>

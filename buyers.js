@@ -117,7 +117,9 @@
         });
       }
 
-      root.querySelector("#buyerSearch").addEventListener("input", function (e) {
+      /* 2026-10-22（「客户进不去了」防御）：空值守卫——元素缺失不能崩 init（崩了后面所有绑定都死，按钮全变死按钮） */
+      var bsInp = root.querySelector("#buyerSearch");
+      if (bsInp) bsInp.addEventListener("input", function (e) {
         state.q = e.target.value.trim();
         draw();
       });

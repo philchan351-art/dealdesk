@@ -197,7 +197,7 @@
        '<div class="cmp-intent">中文意图：' + escHtml(b.compare.intent) + "</div>" +
        '<div class="cmp-col bad"><div class="cmp-tag">直译 · 普通翻译软件</div><p>' + escHtml(b.compare.literal) + "</p></div>" +
        '<div class="cmp-col good"><div class="cmp-tag">本地化改写 · 谈单舱</div><p>' + escHtml(b.compare.local) + "</p></div>" +
-       '<div class="cmp-notes">' + b.compare.notes.map(function (n) { return "<div>· " + escHtml(n) + "</div>"; }).join("") + "</div>" +
+        '<div class="cmp-notes">' + (b.compare.notes || []).map(function (n) { return "<div>· " + escHtml(n) + "</div>"; }).join("") + "</div>" +
       "</div>";
   }
 
@@ -253,8 +253,9 @@
         "</div>";
 
       var msgHtml = b.messages.map(function (m, i) { return bubble(m, i); }).join("");
-      var optHtml = b.options
-        ? '<div class="wacard"><div class="wa-opt-label">编号选项触达 · 客户回一个数字即可，自动识别并沉淀</div>' +
+       /* 2026-10-22（「客户进不去了」）：老数据可能只有 options 没有 items，缺字段不能让 render 抛异常 */
+       var optHtml = b.options && b.options.items
+         ? '<div class="wacard"><div class="wa-opt-label">编号选项触达 · 客户回一个数字即可，自动识别并沉淀</div>' +
           b.options.items.map(function (it, i) {
             return '<button class="wa-opt" data-oi="' + i + '">' + escHtml(it.t) + "</button>";
           }).join("") + "</div>"
@@ -270,7 +271,7 @@
          '<div class="card d-info">' + U.avatar(b, true) +
          '<div><div class="d-name">' + escHtml(b.name) + "</div>" +
          '<div class="d-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + (b.amount ? " · " + U.money(b.amount, b.currency) : " · 待报价") + "</div>" +
-         '<div class="d-tags">' + b.tags.map(function (t) { return '<span class="tag">' + escHtml(t) + "</span>"; }).join("") + "</div></div>" +
+          '<div class="d-tags">' + (b.tags || []).map(function (t) { return '<span class="tag">' + escHtml(t) + "</span>"; }).join("") + "</div></div>" +
          '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
          "</div>" +
           outcomeHtml(b) +
@@ -475,9 +476,10 @@
          if (!b.wa) { App.toast("该买家暂无 WhatsApp 号码，先点右上角「✎ 编辑」补全"); return; }
         var ju = waLink(b.wa);
         if (!ju) { App.toast("号码格式不正确，请在档案里补全国际号码（含国家码）"); return; }
-        /* 2026-10-22（Phil「客户进不去了」）：微信 webview 拦截 window.open → 兜底当前窗口跳 wa.me 页 */
-        var fbJump = !U.openExternal(ju);
-        App.toast(fbJump ? "微信环境：如弹「离开微信打开 WhatsApp」请点允许 → " + b.name : "已打开官方 WhatsApp → " + b.name);
+        /* 2026-10-22（Phil「客户进不去了」，Chrome 复核）：window.open(_blank) 在 Chrome（尤其安卓）
+           默认开后台新标签——屏幕不动，看起来像死按钮。统一改当前窗口导航：可见跳转，返回键回客户页 */
+        location.href = ju;
+        App.toast("正在打开 WhatsApp → " + b.name);
       });
 
       var langBtn = root.querySelector('[data-act="lang"]');
@@ -946,9 +948,9 @@
         if (!su) { App.toast("号码格式不正确，无法打开 WhatsApp"); return false; }
         push({ from: "me", text: finalText, time: "刚刚", status: "handed", zh: zh || undefined });
         input.value = "";
-        /* 2026-10-22（Phil「客户进不去了」）：push 已 commit，微信兜底当前窗口导航不丢记录 */
-        var fbWa = !U.openExternal(su);
-        App.toast((fbWa ? "微信环境：如弹「离开微信」请点允许 · " : "") + (note || "已预填到 WhatsApp · 还没发送！你发送后回来点「✓ 已发」，没发/改了点「✕ 没发」"));
+        /* 2026-10-22（Phil「客户进不去了」）：push 已 commit；当前窗口导航（Chrome 下 window.open 是后台新标签像死按钮） */
+        location.href = su;
+        App.toast(note || "已预填到 WhatsApp · 还没发送！你发送后回来点「✓ 已发」，没发/改了点「✕ 没发」");
         return true;
       }
        function sendWa(text, zh) {
@@ -1109,9 +1111,9 @@
                   b.scriptProg = b.scriptProg || {};
                   b.scriptProg[d.key] = Math.max(Number(b.scriptProg[d.key] || 0), i + 1);
                   if (window.Store) Store.commit();
-                  /* 2026-10-22（Phil「客户进不去了」）：微信兜底当前窗口导航，commit 已先行不丢进度 */
-                  var fbStep = !U.openExternal(su);
-                  App.toast((fbStep ? "微信环境：如弹「离开微信」请点允许 · " : "") + "已打开第 " + (i + 1) + " 步 · 还没发送！发完回来点「✓ 已发」");
+                  /* 2026-10-22（Phil「客户进不去了」）：commit 已先行；当前窗口导航（Chrome 下 window.open 是后台新标签像死按钮） */
+                  location.href = su;
+                  App.toast("已打开第 " + (i + 1) + " 步 · 还没发送！发完回来点「✓ 已发」");
                   App.refresh();
                 });
             }
