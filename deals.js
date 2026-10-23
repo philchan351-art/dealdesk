@@ -34,8 +34,8 @@
   }
   function pri(b) {
     var f = fuOf(b);
-    if ((f && f.dueIn < 0) || b.unread > 0) return 0; /* 等你：逾期承诺 或 有新消息 */
-    if ((f && f.dueIn <= 3) || b.followIn <= 3) return 1; /* 今天/明天到期 */
+    if ((f && U.followDays(f) < 0) || b.unread > 0) return 0; /* 等你：逾期承诺 或 有新消息 */
+    if (U.buyerFollowDays(b) <= 3) return 1; /* 今天/明天到期（2026-10-22：按 dueDate 滚动计算） */
     if (lastMsg(b) && lastMsg(b).from === "me") return 3; /* 等客户 */
     return 2;
   }
@@ -44,9 +44,9 @@
   }
   function headTag(b) {
     var f = fuOf(b);
-    if (f && f.dueIn < 0) return U.dueBadge(f.dueIn);
+    if (f && U.followDays(f) < 0) return U.dueBadge(U.followDays(f));
     if (b.unread > 0) return '<span class="due due-hot">' + b.unread + " 条新消息</span>";
-    if (f && f.dueIn >= 0 && f.dueIn <= 3) return U.dueBadge(f.dueIn);
+    if (f) { var fd = U.followDays(f); if (fd >= 0 && fd <= 3) return U.dueBadge(fd); }
     return "";
   }
   function ctx(b, keys) {
@@ -64,7 +64,7 @@
   }
   function autoStatus(b) {
     var f = fuOf(b), out = [];
-    if (f && f.dueIn < 0) out.push("⚠ 欠他：" + trunc(f.action, 14));
+    if (f && U.followDays(f) < 0) out.push("⚠ 欠他：" + trunc(f.action, 14));
     var lm = lastMsg(b);
     if (lm) {
       var who = lm.from === "me" ? "你已回" : "他在等你的回复";
@@ -116,7 +116,7 @@
       '<div class="wstatus" data-act="w-edit" title="点一下改成你的备注">📌 ' + escHtml(b.warStatus || autoStatus(b)) + '</div>' +
       (lm ? '<div class="wmsg"><span class="wmsg-tag ' + (lm.from === "me" ? "me" : "in") + '">' + (lm.from === "me" ? "你 · " : "他 · ") + escHtml(lm.time || "") + "</span>" +
         '<p>' + escHtml(lm.from === "buyer" ? (lm.zh || lm.text) : lm.text) + "</p></div>" : "") +
-      (f && f.dueIn < 0 ? '<div class="wfu"><label><i data-act="w-done" data-fid="' + escHtml(f.id) + '"></i>承诺未兑现：' + escHtml(f.action) + "</label>" + U.dueBadge(f.dueIn) + "</div>" : "") +
+      (f && U.followDays(f) < 0 ? '<div class="wfu"><label><i data-act="w-done" data-fid="' + escHtml(f.id) + '"></i>承诺未兑现：' + escHtml(f.action) + "</label>" + U.dueBadge(U.followDays(f)) + "</div>" : "") +
       (d
         ? '<div class="wdraft"><div class="wdraft-top"><span class="wdraft-style">AI 草稿 · ' + escHtml(d.style) + '</span>' +
           '<div class="wdraft-btns">' +
@@ -189,7 +189,7 @@
   function render() {
     var all = Mock.buyers.filter(function (b) { return b.stage < 5; });
     var waitN = all.filter(function (b) { return pri(b) === 0; }).length;
-    var hotN = Mock.followups.filter(function (f) { return f.dueIn < 0 && !f.done; }).length;
+    var hotN = Mock.followups.filter(function (f) { return U.followDays(f) < 0 && !f.done; }).length;
     var tabs = SORTS.map(function (s) {
       return '<button class="wtab' + (s.k === sort ? " on" : "") + '" data-act="w-sort" data-sort="' + s.k + '">' + s.n + "</button>";
     }).join("");

@@ -117,12 +117,13 @@
         { label: "C · 低意向", color: "#8A968F", value: buyers.filter(function (b) { return U.grade(b.intent) === "C"; }).length }
       ];
 
+      /* 2026-10-22（Phil）：按有效天数（dueDate 逐日滚动）判断"今天/逾期"，静态 dueIn 不再参与 */
       var due = followups
-        .filter(function (f) { return f.dueIn <= 0 && !f.done && Mock.getBuyer(f.buyerId); })
-        .sort(function (a, b) { return a.dueIn - b.dueIn; })
+        .filter(function (f) { return U.followDays(f) <= 0 && !f.done && Mock.getBuyer(f.buyerId); })
+        .sort(function (a, b) { return U.followDays(a) - U.followDays(b); })
         .slice(0, 3);
 
-      var overdueCnt = followups.filter(function (f) { return f.dueIn < 0 && !f.done && Mock.getBuyer(f.buyerId); }).length;
+      var overdueCnt = followups.filter(function (f) { return U.followDays(f) < 0 && !f.done && Mock.getBuyer(f.buyerId); }).length;
 
       var kpiHtml = K.map(function (k) {
         return '<div class="card kpi' + (k.act ? " kpi-tap" : "") + '"' + (k.act ? ' data-act="' + k.act + '"' : "") + ">" +
@@ -136,7 +137,7 @@
         var b = Mock.getBuyer(f.buyerId);
         return '<div class="row-item" data-id="' + b.id + '">' + U.avatar(b) +
           '<div class="row-main"><b>' + escHtml(f.action) + '</b><div class="row-sub">' + escHtml(b.name) + " · " + Mock.STAGES[b.stage] + "</div></div>" +
-          U.dueBadge(f.dueIn) + "</div>";
+          U.dueBadge(U.followDays(f)) + "</div>";
       }).join("") || '<div class="empty">太棒了，暂无逾期或今日跟进</div>';
 
       var now = new Date();
@@ -171,10 +172,11 @@
              U.barChart(W.values, W.labels, W.todayIdx) + "</div>"
            : '<div class="card chart-card"><div class="chart-head"><b>还没有客户</b></div><div class="empty" style="padding:18px 0">去「买家」页点 ＋ 新增第一位客户；<br>或在客户详情里「导入过往聊天」，AI 自动建档</div></div>') +
         '<div class="card donut-card"><div class="chart-head"><b>意向分布</b></div>' +
-          U.donut(dist) +
-          '<div class="legend">' + dist.map(function (d) {
-            return "<div><i style='background:" + d.color + "'></i>" + d.label + "<b>" + d.value + "</b></div>";
-          }).join("") + "</div>" +
+           U.donut(dist) +
+           /* 2026-10-22（Phil：「意向分布是谁，哪个客户」）：点某档 → 买家页对应 A/B/C 筛选，直接看名单 */
+           '<div class="legend">' + dist.map(function (d) {
+             return "<div class='lg-tap' data-grade='" + d.label.charAt(0) + "' title='点一下看这批客户'><i style='background:" + d.color + "'></i>" + d.label + "<b>" + d.value + "</b><span class='lg-go'>›</span></div>";
+           }).join("") + "</div>" +
         "</div>" +
         "</div>" +
          '<div class="sec-title"><h2>今日待跟进</h2><span class="sec-more" data-act="goto-followup">全部跟进 ›</span></div>' +
@@ -193,6 +195,10 @@
       /* 2026-10-21（Phil）：「待我回复」卡片 → 买家列表「待回复」筛选（同一口径） */
       var wtap = root.querySelector('.kpi-tap[data-act="goto-waiting"]');
       if (wtap) wtap.addEventListener("click", function () { App.go("buyers", "waiting"); });
+      /* 2026-10-22（Phil）：意向分布图例 → 买家页 A/B/C 筛选，看清"这一档都是谁" */
+      root.querySelectorAll(".lg-tap").forEach(function (el) {
+        el.addEventListener("click", function () { App.go("buyers", el.dataset.grade); });
+      });
       var learnBtn = root.querySelector('[data-act="start-learn"]');
       if (learnBtn) learnBtn.addEventListener("click", function () { runLearn(learnBtn); });
       var gear = root.querySelector('[data-act="settings"]');

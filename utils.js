@@ -131,6 +131,39 @@
     return null;
   }
 
+  /* 2026-10-22（Phil：跟进到期日要每日滚动，"1 天后"不能永远是"1 天后"）：
+     到期以 dueDate（具体日历日）为准算"还差几天"，负数=已逾期；
+     老数据没有 dueDate 时回退静态 dueIn（store.js 启动时一次性迁移补 dueDate） */
+  function daysUntilDay(dayStr) {
+    if (!dayStr) return null;
+    var p = String(dayStr).split("-");
+    if (p.length !== 3) return null;
+    var t = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    if (isNaN(t.getTime())) return null;
+    var n = new Date();
+    var t0 = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+    return Math.round((t.getTime() - t0) / 86400000);
+  }
+
+  function followDays(f) {
+    if (f && f.dueDate) {
+      var d = daysUntilDay(f.dueDate);
+      if (d !== null) return d;
+    }
+    return f && typeof f.dueIn === "number" ? f.dueIn : 0;
+  }
+
+  /* 客户卡上的跟进徽章：取该客户未完成任务里最先到期的那条；没有任务才退回档案静态 followIn */
+  function buyerFollowDays(b) {
+    var best = null;
+    (Mock.followups || []).forEach(function (f) {
+      if (f.buyerId !== b.id || f.done) return;
+      var d = followDays(f);
+      if (best === null || d < best) best = d;
+    });
+    return best === null ? (b.followIn || 0) : best;
+  }
+
   function openPipeline() {
     return sum(Mock.buyers.filter(function (b) { return b.stage < 5; }).map(function (b) { return b.amount; }));
   }
@@ -142,6 +175,7 @@
     avatar: avatar, intentBadge: intentBadge,
     stageTracker: stageTracker, intentRing: intentRing,
     barChart: barChart, donut: donut, countUp: countUp,
-    unreadTotal: unreadTotal, getFollowupByBuyer: getFollowupByBuyer, openPipeline: openPipeline
+    unreadTotal: unreadTotal, getFollowupByBuyer: getFollowupByBuyer, openPipeline: openPipeline,
+    followDays: followDays, buyerFollowDays: buyerFollowDays
   };
 })();

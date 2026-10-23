@@ -17,7 +17,7 @@
   /* M2 修复：买家为空时 Mock.buyers[0] 是 undefined，取 .id 直接抛错，"记一条"打不开 */
   function defaultBuyer() {
     var open = Mock.followups.filter(function (f) { return !f.done; })
-      .sort(function (a, b) { return a.dueIn - b.dueIn; })[0];
+      .sort(function (a, b) { return U.followDays(a) - U.followDays(b); })[0];
     return open ? open.buyerId : (Mock.buyers[0] ? Mock.buyers[0].id : "");
   }
   function cur() { return Mock.getBuyer(state.buyerId); }

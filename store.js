@@ -62,6 +62,7 @@
     saveLocal();
   }
   purgeDemo();
+  migrateFollowDates();
 
   function saveLocal() {
     data.savedAt = new Date().toISOString();
@@ -91,6 +92,25 @@
 
   /* P0：updatedAt 统一 ISO 字符串（服务端按字符串比较新旧；毫秒数与 ISO 混用会比较错） */
   function stamp(b) { if (b) b.updatedAt = new Date().toISOString(); }
+
+  /* 2026-10-22（跟进到期日每日滚动）：dueDate 存本地日历日 YYYY-MM-DD（按用户时区算，不用 UTC 防跨天漂移） */
+  function dayISO(d) {
+    return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+  }
+  function addDaysISO(days) {
+    var d = new Date();
+    d.setDate(d.getDate() + (Number(days) || 0));
+    return dayISO(d);
+  }
+  /* 老跟进任务只有静态 dueIn（建完就不再变，"1 天后"永不进"今天/逾期"）→ 一次性迁移补 dueDate=今天+dueIn；
+     幂等：已迁移过的不碰；迁移结果随 saveLocal 落盘并随云同步共享给其他设备 */
+  function migrateFollowDates() {
+    var hit = false;
+    data.followups.forEach(function (f) {
+      if (!f.dueDate) { f.dueDate = addDaysISO(f.dueIn || 0); hit = true; }
+    });
+    if (hit) saveLocal();
+  }
   function tombAdd(id) {
     if (!id) return;
     if (data.deletedIds.indexOf(id) < 0) {
@@ -216,10 +236,29 @@
       data.buyers.unshift(b);
       data.followups.unshift({
         id: "f" + Date.now(), buyerId: b.id,
-        action: "首次跟进：发产品资料 + 确认核心需求", dueIn: 1, done: false, updatedAt: new Date().toISOString()
+        action: "首次跟进：发产品资料 + 确认核心需求", dueIn: 1, dueDate: addDaysISO(1),
+        done: false, updatedAt: new Date().toISOString()
       });
       save();
       return b;
+    },
+    /* 2026-10-22（Phil）：手动新建跟进任务——客户 + 要做什么 + 几天后到期（存具体日历日，之后逐日滚动） */
+    addFollowup: function (buyerId, action, dueInDays) {
+      var b = Mock.getBuyer(buyerId);
+      if (!b) return null;
+      var n = Math.round(Number(dueInDays) || 0);
+      var f = {
+        id: "f" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+        buyerId: buyerId,
+        action: String(action || "").trim().slice(0, 80),
+        dueIn: n,
+        dueDate: addDaysISO(n),
+        done: false,
+        updatedAt: new Date().toISOString()
+      };
+      data.followups.unshift(f);
+      save();
+      return f;
     },
     /* 编辑档案（2026-10-14 现场需求）：改姓名/WhatsApp/国家等基础信息；不触碰对话、意向、档案要点 */
     updateBuyer: function (id, f) {
@@ -343,9 +382,10 @@
         });
         data.persona.docs = merged;
       }
-       purge();
-       purgeDemo();
-       data.savedAt = snap.updatedAt || data.savedAt;
+        purge();
+        purgeDemo();
+        migrateFollowDates(); /* 云端快照可能来自旧版本设备，无 dueDate 的同样补一次（幂等） */
+        data.savedAt = snap.updatedAt || data.savedAt;
       /* 修复（审计 M3）：单独记录"已同步到的云端版本"，拉取判断用它而不是本机 savedAt（本机时钟漂移会导致永远不拉新数据） */
       if (snap.updatedAt) data.serverAt = String(snap.updatedAt);
       saveLocal();

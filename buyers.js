@@ -22,10 +22,12 @@
     },
 
     init: function (param, root) {
-      /* 2026-10-21（Phil）：看板「待我回复」→ #/buyers/waiting 深链，预选「待回复」筛选 */
-      var state = { k: param === "waiting" ? "unread" : "all", q: "" };
-      if (param === "waiting") {
-        root.querySelectorAll("#intentChips .chip").forEach(function (c) { c.classList.toggle("active", c.dataset.k === "unread"); });
+      /* 2026-10-21（Phil）深链：看板「待我回复」→ #/buyers/waiting；2026-10-22：意向分布图例 → #/buyers/A|B|C
+         统一预选对应筛选芯片 */
+      var preK = param === "waiting" ? "unread" : (param === "A" || param === "B" || param === "C" ? param : "all");
+      var state = { k: preK, q: "" };
+      if (preK !== "all") {
+        root.querySelectorAll("#intentChips .chip").forEach(function (c) { c.classList.toggle("active", c.dataset.k === preK); });
       }
       var listEl = root.querySelector("#buyerList");
       var newBtn = root.querySelector('[data-act="new"]');
@@ -49,7 +51,7 @@
             '<div class="bmid-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + (b.tags && b.tags.length ? " · " + escHtml(b.tags[0]) : "") + "</div>" +
             '<div class="bmid-meta"><span class="stage-tag">' + Mock.STAGES[b.stage] + '</span><span class="wa-badge">WhatsApp</span><span>' + escHtml(b.lastActive) + '</span></div>' +
             "</div>" +
-            '<div class="bright"><button class="bcard-del" data-act="del" data-id="' + escHtml(b.id) + '" data-name="' + escHtml(b.name) + '" title="删除客户">⋯</button><b>' + (b.amount ? U.money(b.amount, b.currency) : "待报价") + "</b>" + U.dueBadge(b.followIn) + "</div>" +
+            '<div class="bright"><button class="bcard-del" data-act="del" data-id="' + escHtml(b.id) + '" data-name="' + escHtml(b.name) + '" title="删除客户">⋯</button><b>' + (b.amount ? U.money(b.amount, b.currency) : "待报价") + "</b>" + U.dueBadge(U.buyerFollowDays(b)) + "</div>" +
            "</div>";
        }
 

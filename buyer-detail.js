@@ -175,7 +175,7 @@
   function remindHtml(b) {
     var fu = U.getFollowupByBuyer(b.id);
     if (!fu || fu.done) return "";
-    return '<div class="remind"><b>' + U.dueLabel(fu.dueIn).text + '</b><span>' + escHtml(fu.action) +
+    return '<div class="remind"><b>' + U.dueLabel(U.followDays(fu)).text + '</b><span>' + escHtml(fu.action) +
       '</span><button class="rbt" data-act="fu">去跟进</button></div>';
   }
 
@@ -341,7 +341,7 @@
        var back = root.querySelector('[data-act="back"]');
       if (back) back.addEventListener("click", function () { App.go("buyers"); });
       var fuBtn = root.querySelector('[data-act="fu"]');
-      if (fuBtn) fuBtn.addEventListener("click", function () { App.go("followup"); });
+      if (fuBtn) fuBtn.addEventListener("click", function () { App.go("followup", "new/" + b.id); });
 
       var langSel = root.querySelector("#langSel");
        /* 成交 / 流失标记（学习层的结果标签） */
