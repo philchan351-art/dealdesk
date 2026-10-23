@@ -5,10 +5,18 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.4.3",
+  v: "1.4.4",
   date: "2026-10-22",
-  note: "Chrome「客户进不去了」四层修复：页面报错可见卡 + 客户记录缺字段补形 + 跳 WhatsApp 改当前窗口 + 全局错误不再静默",
+  note: "修复「点客户进不去」真凶：详情页裸读 stageLog.length，没留痕记录的客户 render 必崩（浏览器真机复现+修复）",
   changelog: [
+    {
+      v: "1.4.4", date: "2026-10-22", items: [
+        "[修] 「点客户进不去」真凶（浏览器端到端复现定位）：详情页阶段留痕行 `(b.stageLog || [])[b.stageLog.length - 1]`——护栏护了数组，下标里却裸读 b.stageLog.length，没有 stageLog 字段的客户（新建客户、从未推进过阶段的客户）render 必抛 TypeError。v1.4.0 引入，所以有留痕的客户（如 Cherry）能开、没留痕的打不开，表现为时好时坏",
+        "[修] 新建客户（addBuyer）初始记录补 stageLog: [] / intentLog: []——新建档再也不会缺留痕字段",
+        "[守] 存量残缺记录由 v1.4.3 的 migrateBuyerShapes 在启动/云端快照时补形，与本条双保险",
+        "[验] 浏览器端到端复测通过：临时账号 → 新建客户 → 点卡片 → 详情页正常打开（此前稳定崩溃）"
+      ]
+    },
     {
       v: "1.4.3", date: "2026-10-22", items: [
         "[修] Chrome 真机「点客户没反应」的静默卡死：此前客户记录缺字段时 render 抛异常，页面停在原处、无任何提示（nav 无 try/catch）。现在渲染失败 → 可见错误卡（客户名+原因句+回买家列表按钮）；init 失败 → toast",

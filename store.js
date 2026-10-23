@@ -273,6 +273,10 @@
       context: [].concat(info.product ? [{ k: "需求", v: info.product }] : []).concat((info.extraContext || []).filter(function (x) { return x && x.k && String(x.v || "").trim(); }).slice(0, 6)),
         profile: cp,
         messages: [],
+        /* 2026-10-22（浏览器真机复现）：新建客户必须带全留痕数组——
+           此前缺 stageLog/intentLog，详情页 render 裸读 .length 直接崩，点不进客户 */
+        stageLog: [],
+        intentLog: [],
         updatedAt: new Date().toISOString()
       };
       data.buyers.unshift(b);

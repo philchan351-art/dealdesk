@@ -278,7 +278,10 @@
           /* 2026-10-22（Phil：阶段判定不能"表面"）：阶段卡 = 进度条 + 最近一次留痕 + 手动调阶段（六档芯片） */
            '<div class="card tracker st-card" style="margin-top:10px">' + U.stageTracker(b.stage) +
             (function () {
-              var lg = (b.stageLog || [])[b.stageLog.length - 1];
+              /* 2026-10-22（浏览器真机复现的崩溃点）：旧写法下标里裸读 b.stageLog.length，
+                 没有 stageLog 字段的客户（新建客户、从未推进过阶段的客户）render 直接抛异常 → 点不进客户 */
+              var _sl = b.stageLog || [];
+              var lg = _sl.length ? _sl[_sl.length - 1] : null;
               return lg ? '<div class="st-log">阶段留痕：' + Mock.STAGES[lg.from] + " → " + Mock.STAGES[lg.to] + (lg.why ? " · " + escHtml(lg.why) : "") + " · " + String(lg.at).slice(5, 10) + "</div>" : "";
             })() +
             (b.outcome ? "" : '<div class="st-adj" data-act="st-adj">调整阶段 ▾</div><div class="st-chips" style="display:none">' + Mock.STAGES.map(function (s, i) { return '<button type="button" class="st-chip' + (i === b.stage ? " active" : "") + '" data-si="' + i + '">' + s + "</button>"; }).join("") + "</div>") +
