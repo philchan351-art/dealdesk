@@ -5,10 +5,19 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.5.1",
+  v: "1.5.2",
   date: "2026-10-23",
-  note: "现场实锤修复：\"I've received your payment\"（已收到您的付款）此前漏判——received 后限定词只认 the 不认 your/a/my",
+  note: "B 端优先写入根定律：所有客户侧提示词强制带上，禁止再按 C 端方式讲产品",
   changelog: [
+    {
+      v: "1.5.2", date: "2026-10-23", items: [
+        "[根] 新增【根定律·B 端优先】六条，强制注入 read / suggest / expand 三条客户侧提示词；不是情境规则，不随客户切换",
+        "[根] 读意图的 concern 改为生意层面（怕卖不动 / 怕压资金 / 怕售后），不再写产品疑问（担心重量 / 想知道续航）",
+        "[根] 机械检验内置：这句话发给「自己买来用」的人是否同样成立？成立就是 C 端话术，必须重写",
+        "[根] 一次只答他下一步用得上的那一层；多出来的只能是生意判断，不能是更多产品参数",
+        "[改] 棋谱 v4 首条改为第零条根定律；局面 7 增「客户只提机场」的 C 端与 B 端答法对照"
+      ]
+    },
     {
       v: "1.5.1", date: "2026-10-23", items: [
         "[修] 现场实锤（Phil 抓到的 Amritpal 单）：我方记「I've received your payment. We're waiting for the courier」——最标准的收款表述，系统漏判。根因：received 后面的限定词只认 the，不认 your/a/my；测试只测过 \"received the payment\"，没测过 \"received your payment\"。现 the/your/a/my 全认",
