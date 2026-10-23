@@ -66,6 +66,7 @@
   /* 先补形再回填成交——缺 stage 的记录补成 0 后，成交回填才不会漏 */
   migrateBuyerShapes();
   migrateOutcomeStages();
+  rescanStages(); /* 启动回扫：store 先于 utils 加载时此处 U 未定义（自动跳过），由 app.js startApp 补跑 */
 
   /* 2026-10-22（Phil「业务员无法保存新客户」排查）：这里原来的空 catch 是"功能偶尔消失"的暗雷——
      本地存储写满（数据里有 base64 消息图片）时，所有本地保存静默失败，用户只看到"没保存上"。
@@ -149,6 +150,35 @@
     });
     if (hit) saveLocal();
   }
+  /* 2026-10-23（Phil「很多客户已经报过价、甚至成交了，还是待报价/停在旧阶段」）：存量对话全量回扫。
+     v1.4.0 起机械扫描只跑在"当时新记录"的消息上——存量对话里早就写着的报价/议价/样品/付款证据
+     从来没被读过，阶段就冻在旧值（且 index.html 里 store 先于 utils 加载，启动时 U 还没定义，
+     启动迁移在本地已同步数据上根本跑不了）。现在把每个客户的消息按时间顺序重放进同一个扫描：
+     1-4 走 applyStage（只进不退、已到档位返回 false → 天然幂等、不重复留痕）；
+     5 只挂"成交信号"卡、绝不自动成交（Phil 口径：成交=人工终裁）。
+     触发点：应用启动（app.js startApp）/ 云端快照 / 历史导入 / CSV 导入；无命中零写入 */
+  function rescanStages() {
+    if (!(window.U && U.stageScan && U.applyStage)) return 0;
+    var changed = 0;
+    data.buyers.forEach(function (b) {
+      if (b.outcome) return; /* 已成交（stage 已由回填保证=5）/已流失：不动 */
+      var s0 = b.stage, cs0 = !!b.closeSignal;
+      (b.messages || []).forEach(function (m) {
+        var t = m && m.text;
+        if (!t) return;
+        var sig = U.stageScan(b, t);
+        if (!sig) return;
+        if (sig.to >= 5) {
+          if (!b.closeSignal) b.closeSignal = { at: new Date().toISOString(), why: sig.why, evidence: String(t).slice(0, 80), src: "rescan" };
+        } else if (U.applyStage(b, sig.to, sig.why + "·补扫", "rescan", t)) {
+          /* 推进已写入 b.stage + stageLog（上限 20 条） */
+        }
+      });
+      if (b.stage !== s0 || !!b.closeSignal !== cs0) { stamp(b); changed++; }
+    });
+    if (changed) saveLocal();
+    return changed;
+  }
   /* 2026-10-22（Phil「客户进不去了」）：老版本建的客户记录可能缺 tags/messages/context 等字段，
      缺一个字段 render 就抛异常、页面卡死且无声无息。统一补形（幂等）；
      应用云端快照时也跑一遍——老设备可能推上来不完整记录 */
@@ -208,6 +238,7 @@
 
   var Store = {
     commit: save,
+    rescanStages: rescanStages, /* 2026-10-23 app.js startApp 启动时补跑（启动时 U 尚未加载）；应用快照/导入在内部自跑 */
     dataSizeMB: dataSizeMB, /* 2026-10-22 设置版本卡展示本地数据体量 */
     getSettings: function () {
       try { return JSON.parse(localStorage.getItem(SET_KEY)) || null; } catch (e) { return null; }
@@ -236,27 +267,35 @@
       data.buyers.forEach(function (b) { msgs += (b.messages || []).length; });
       return { buyers: data.buyers.length, messages: msgs, savedAt: data.savedAt };
     },
-    addMessage: function (buyerId, text, zh) {
+    /* 2026-10-23（Phil「整个客户状态系列都存在问题」）：全部消息写入的唯一入口——
+       记客户/记我发/记一条/话术步进/发 WhatsApp/照片/编号选项一律走这里，机械硬信号扫描
+       对每条消息生效，谁都不许再直接 b.messages.push 绕过（此前 8 条写入路径只有 1 条被扫，
+       业务员记"已报价 EXW 222"阶段纹丝不动，就是绕路造成的）。
+       opts: { from: "me"|"buyer"（默认 buyer）, time, imgs, sentAt, status, noSave: 只写入+扫描不落盘（调用方统一 commit）} */
+    addMessage: function (buyerId, text, zh, opts) {
       var b = Mock.getBuyer(buyerId);
-      if (!b || !text) return null;
+      var o = opts || {};
+      if (!b || (!text && !(o.imgs && o.imgs.length))) return null; /* 纯空记录不收；纯图片可 */
       b.messages = b.messages || [];
-      var m = { from: "buyer", time: "刚刚", text: text };
+      var m = { from: o.from === "me" ? "me" : "buyer", time: o.time || "刚刚", text: text || "" };
       if (zh) m.zh = zh;
+      if (o.imgs) m.imgs = o.imgs;
+      if (o.sentAt) m.sentAt = o.sentAt;
+      if (o.status) m.status = o.status;
       b.messages.push(m);
       b.lastActive = "刚刚";
       /* 2026-10-22（Phil：阶段判定不能"表面"）：每条记录消息都过机械硬信号扫描——
-         统一入口，"记客户/记我/记一条"三条路径全覆盖。1-4 档自动推进并留痕；
-         5 成交信号不自动标成交（Phil 口径：成交=人工终裁），只挂"成交信号"卡等一键确认 */
-      var sig = (window.U && U.stageScan) ? U.stageScan(b, text) : null;
+         1-4 档自动推进并留痕；5 成交信号不自动标成交（Phil 口径：成交=人工终裁），只挂"成交信号"卡等一键确认 */
+      var sig = (window.U && U.stageScan) ? U.stageScan(b, m.text) : null;
       if (sig && !b.outcome) {
         if (sig.to >= 5) {
-          if (!b.closeSignal) b.closeSignal = { at: new Date().toISOString(), why: sig.why, evidence: String(text || "").slice(0, 80), src: "rule" };
-        } else if (U.applyStage(b, sig.to, sig.why, "rule", text)) {
+          if (!b.closeSignal) b.closeSignal = { at: new Date().toISOString(), why: sig.why, evidence: String(m.text || "").slice(0, 80), src: "rule" };
+        } else if (U.applyStage(b, sig.to, sig.why, "rule", m.text)) {
           /* 推进已写入 b.stage + stageLog，随下方 save 同步 */
         }
       }
       stamp(b);
-      save();
+      if (!o.noSave) save();
       return m;
     },
     bumpIntent: function (buyerId, delta, reason) {
@@ -281,7 +320,7 @@
         cc: info.cc || (window.CountryProfiles ? CountryProfiles.cc(info.country) : "—"),
         product: info.product || "待确认",
         qty: info.qty || "待确认",
-        amount: 0,
+        amount: Number(info.amount) > 0 ? Number(info.amount) : 0, /* 2026-10-23：金额首次有了真实写入入口（建档/编辑表单） */
         currency: "$",
         intent: info.intent || 50,
         stage: 0,
@@ -340,6 +379,7 @@
       if (f.msgLang !== undefined) { if (f.msgLang) b.msgLang = f.msgLang; else delete b.msgLang; }
       if (f.product !== undefined) b.product = f.product || "待确认";
       if (f.qty !== undefined) b.qty = f.qty || "待确认";
+      if (f.amount !== undefined) { var amt = parseFloat(f.amount); b.amount = (isFinite(amt) && amt > 0) ? amt : 0; } /* 2026-10-23：报价/订单金额可录可清 */
       /* 产品线（2026-10-15）：决定客户页显示哪套公共资料/话术剧本 */
       if (f.scope !== undefined) b.scope = ["suitcase", "pet", "all"].indexOf(f.scope) >= 0 ? f.scope : "";
       if (f.note !== undefined) {
@@ -417,6 +457,7 @@
         b.memory = (b.memory ? b.memory + "\n\n" : "") + "（" + dateStr + " 导入）" + String(summary).slice(0, 1000);
       }
       b.updatedAt = new Date().toISOString();
+      rescanStages(); /* 导入的历史对话里若含报价/付款证据，阶段当场补正，不等下次启动 */
       save();
       return b;
     },
@@ -457,6 +498,7 @@
         migrateFollowDates(); /* 云端快照可能来自旧版本设备，无 dueDate 的同样补一次（幂等） */
         migrateBuyerShapes(); /* 同上：旧设备记录缺字段（tags 等）的，拉下来补形（幂等）；必须在成交回填之前 */
         migrateOutcomeStages(); /* 同上：旧设备标记成交但 stage 未进 5 的，拉下来同样补（幂等） */
+        rescanStages(); /* 同上：其他设备/旧版本没扫过的存量对话，拉下来同样补扫（幂等） */
         data.savedAt = snap.updatedAt || data.savedAt;
       /* 修复（审计 M3）：单独记录"已同步到的云端版本"，拉取判断用它而不是本机 savedAt（本机时钟漂移会导致永远不拉新数据） */
       if (snap.updatedAt) data.serverAt = String(snap.updatedAt);
@@ -525,6 +567,7 @@
             var dup = (b.messages || []).some(function (x) { return x.time === m.time && x.text === m.text; });
             if (!dup) { b.messages = b.messages || []; b.messages.push(m); added++; }
           });
+          rescanStages(); /* CSV 恢复的对话同样过一遍硬信号扫描（幂等） */
           save();
           cb && cb(added);
         } catch (e) {

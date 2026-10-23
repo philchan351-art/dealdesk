@@ -105,7 +105,7 @@
   }
   function card(b) {
     var p = pri(b), f = fuOf(b), lm = lastMsg(b), d = draftOf(b);
-    var amount = b.amount ? U.money(b.amount, b.currency) : "待报价";
+    var amount = U.quoteLabel(b); /* 2026-10-23：金额/已成交/已报价/未报价 按证据判（旧逻辑看恒为 0 的金额字段，永远"待报价"） */
     return '<div class="wcard card ' + (p === 3 ? "wcard-mute" : "") + '" data-id="' + escHtml(b.id) + '" data-p="' + p + '">' +
       '<div class="whead">' + U.avatar(b) +
       '<div class="wwho"><b>' + escHtml(b.name) + '</b><span>' + escHtml(b.company) + " · " + escHtml(b.country) + "</span></div>" +

@@ -212,6 +212,16 @@
     return sum(Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome; }).map(function (b) { return b.amount; }));
   }
 
+  /* 2026-10-23（Phil「很多客户已经报过价、甚至成交了，还显示待报价」）：报价状态按证据判，不再看金额字段。
+     旧逻辑 b.amount ? money : "待报价" —— 而 amount 没有任何录入入口、恒为 0，于是所有真实客户永远"待报价"。
+     新口径（三页统一）：有金额→金额；已成交→已成交；stage≥2（报价硬信号/AI 研判/手动调档都算报价证据）→已报价；否则→未报价 */
+  function quoteLabel(b) {
+    if (b.amount) return money(b.amount, b.currency);
+    if (b.outcome && b.outcome.status === "won") return "已成交";
+    if ((b.stage || 0) >= 2) return "已报价";
+    return "未报价";
+  }
+
   /* 2026-10-22（Phil「客户进不去了」微信真机）：微信内置浏览器静默拦截 window.open(_blank)，
      点「直达对话/发 WhatsApp」什么都没打开但 toast 还说"已打开"。先试新窗口，被拦截就当前窗口
      导航（wa.me 页引导打开 WhatsApp App；微信里弹"离开微信"确认，允许即跳）。返回 false=走了兜底 */
@@ -243,6 +253,8 @@
        （微信里弹"离开微信"确认，允许即跳转）。返回 false 表示走了兜底，调用方在 toast 里补提示 */
     openExternal: openExternal,
     /* 号码展示归一：录入多打的 "++86189…" / 没打 "+" 的 "86189…" → 统一显示单个 + */
-    waDisplay: waDisplay
+    waDisplay: waDisplay,
+    /* 2026-10-23：报价状态标签（金额/已成交/已报价/未报价）——替代恒为"待报价"的旧判断 */
+    quoteLabel: quoteLabel
   };
 })();

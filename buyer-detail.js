@@ -270,7 +270,7 @@
          '<div class="detail-body">' +
          '<div class="card d-info">' + U.avatar(b, true) +
          '<div><div class="d-name">' + escHtml(b.name) + "</div>" +
-         '<div class="d-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + (b.amount ? " · " + U.money(b.amount, b.currency) : " · 待报价") + "</div>" +
+          '<div class="d-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + " · " + U.quoteLabel(b) + "</div>" +
           '<div class="d-tags">' + (b.tags || []).map(function (t) { return '<span class="tag">' + escHtml(t) + "</span>"; }).join("") + "</div></div>" +
          '<div class="d-ring">' + U.intentRing(b.intent) + "<small>意向评分</small></div>" +
          "</div>" +
@@ -635,46 +635,46 @@
          /* 2026-10-18（阶段一 · 反应采集）：我方消息确认「已发」后计时，客户下一条记录到达时记下响应时长（ms）。
             纯后台数据，界面无任何显示、不影响现有流程——L5 小样本学习与信任账本的原料。
             基线口径：最近 N 条已盖 sentAt 的我方消息中，有 reactionMs 的比例=回应率，其均值=平均响应时长 */
-         function recordReaction() {
-           var ms = b.messages;
-           for (var i = ms.length - 2; i >= 0; i--) { /* 从倒数第二条起扫：末尾正是刚记的客户消息 */
-             var m = ms[i];
-             if (m.from === "buyer") break; /* 先碰到更早的客户消息 = 该待发项在采集期内无回应，保持原样计入未回 */
-             if (m.from === "me" && m.sentAt && !m.reactedAt) {
-               m.reactedAt = new Date().toISOString();
-               m.reactionMs = Date.now() - new Date(m.sentAt).getTime();
-               AIevt(b, "buyer_reaction", { ms: m.reactionMs });
-               break;
-             }
-           }
-         }
-         function doLogBuyer() {
-           var t = logIn && logIn.value.trim();
-           if (!t && !logImgs.length) { App.toast("先写客户说的内容，或点 📷 附图"); return; }
-           var msg = { from: "buyer", text: t, time: "刚刚" };
-           if (logImgs.length) msg.imgs = logImgs.slice();
-           b.messages.push(msg);
-           recordReaction();
-           AIevt(b, "reply", { via: "quicklog", text: t });
-           if (window.Store) Store.commit();
-           logImgs = []; logPrevRender();
-           App.refresh();
-           if (t) { autoZh(t); judgeIntent(t); }
-         }
+          function recordReaction() {
+            var ms = b.messages;
+            for (var i = ms.length - 2; i >= 0; i--) { /* 从倒数第二条起扫：末尾正是刚记的客户消息 */
+              var m = ms[i];
+              if (m.from === "buyer") return false; /* 先碰到更早的客户消息 = 该待发项在采集期内无回应，保持原样计入未回 */
+              if (m.from === "me" && m.sentAt && !m.reactedAt) {
+                m.reactedAt = new Date().toISOString();
+                m.reactionMs = Date.now() - new Date(m.sentAt).getTime();
+                AIevt(b, "buyer_reaction", { ms: m.reactionMs });
+                return true; /* 2026-10-23：只有真的改动了数据才需要调用方补一次落盘 */
+              }
+            }
+            return false;
+          }
+          function doLogBuyer() {
+            var t = logIn && logIn.value.trim();
+            if (!t && !logImgs.length) { App.toast("先写客户说的内容，或点 📷 附图"); return; }
+            AIevt(b, "reply", { via: "quicklog", text: t });
+            /* 2026-10-23：统一走 Store.addMessage——机械阶段扫描对"记客户"同样生效
+               （此前直接 push 进消息数组，绕过了扫描：客户说"已付定金"阶段也不动） */
+            Store.addMessage(b.id, t, null, { from: "buyer", imgs: logImgs.length ? logImgs.slice() : null });
+            if (recordReaction()) Store.commit(); /* 只有反应计时真改动了旧消息才补落盘，避免重复云推送 */
+            logImgs = []; logPrevRender();
+            App.refresh();
+            if (t) { autoZh(t); judgeIntent(t); }
+          }
         /* 2026-10-14 现场反馈：业务员在 WhatsApp 自己报了价，但记录里只有客户那句"多少钱"，
            看板就一直显示"他在等你的回复/待报价"。记我发 = 手动补记我方消息，最新一条变我方 → 状态立即翻成"你已回" */
-        function doLogMe() {
-            var t = logIn && logIn.value.trim();
-            if (!t && !logImgs.length) { App.toast("先写你发的内容，或点 📷 附图"); return; }
-            var msg = { from: "me", text: t, time: "刚刚", sentAt: new Date().toISOString() }; /* 2026-10-18（阶段一）：手动补记=已发出，直接盖发送时间戳 */
-            if (logImgs.length) msg.imgs = logImgs.slice();
-            b.messages.push(msg);
-            AIevt(b, "reply", { via: "quicklog-me", text: t });
-           if (window.Store) Store.commit();
-           logImgs = []; logPrevRender();
-           App.refresh();
-           if (t) autoZh(t); /* 2026-10-18（Phil）：我方发的英文也即时补中文对照，与加载时补翻口径一致 */
-         }
+         function doLogMe() {
+             var t = logIn && logIn.value.trim();
+             if (!t && !logImgs.length) { App.toast("先写你发的内容，或点 📷 附图"); return; }
+             AIevt(b, "reply", { via: "quicklog-me", text: t });
+             /* 2026-10-18（阶段一）：手动补记=已发出，直接盖发送时间戳。
+                2026-10-23：统一走 Store.addMessage（from="me"）——"记我发"从此也触发阶段扫描：
+                记「已报价 EXW 222」阶段立即进报价档并留痕（此前绕路直推数组，阶段纹丝不动） */
+             Store.addMessage(b.id, t, null, { from: "me", sentAt: new Date().toISOString(), imgs: logImgs.length ? logImgs.slice() : null });
+            logImgs = []; logPrevRender();
+            App.refresh();
+            if (t) autoZh(t); /* 2026-10-18（Phil）：我方发的英文也即时补中文对照，与加载时补翻口径一致 */
+          }
        var logMeBtn = root.querySelector('[data-act="log-me"]');
        if (logBtn) logBtn.addEventListener("click", doLogBuyer);
        if (logMeBtn) logMeBtn.addEventListener("click", doLogMe);
@@ -789,7 +789,13 @@
        });
 
        function push(msg) {
-        b.messages.push(msg);
+        /* 2026-10-23：统一走 Store.addMessage（noSave：调用方的 commit 一次性落盘）——
+           发 WhatsApp / 编号选项路径的阶段扫描不再被绕过 */
+        if (window.Store && Store.addMessage) {
+          Store.addMessage(b.id, msg.text, msg.zh, { from: msg.from, time: msg.time, status: msg.status, sentAt: msg.sentAt, imgs: msg.imgs, noSave: true });
+        } else {
+          b.messages.push(msg);
+        }
         if (window.Store) Store.commit();
         var div = document.createElement("div");
         div.innerHTML = bubble(msg, b.messages.length - 1);
@@ -1109,7 +1115,9 @@
                   var text = (window.DocExtract && DocExtract.fillVars) ? DocExtract.fillVars(st.text, cf, myName) : String(st.text || "");
                   var su = waLink(b.wa, text);
                   if (!su) { App.toast("号码格式不对，打不开 WhatsApp，请检查档案里的号码"); return; }
-                  b.messages.push({ from: "me", text: text, time: "刚刚", status: "handed" });
+                  /* 2026-10-23：统一走 Store.addMessage（noSave，下方 commit 一次性落盘）——
+                     话术步进文本也过阶段扫描（话术里含"已报价 EXW…"即进报价档） */
+                  Store.addMessage(b.id, text, null, { from: "me", status: "handed", noSave: true });
                   AIevt(b, "script", { doc: d.key, step: i, title: st.title || "" });
                   b.scriptProg = b.scriptProg || {};
                   b.scriptProg[d.key] = Math.max(Number(b.scriptProg[d.key] || 0), i + 1);
@@ -1207,7 +1215,7 @@
                   if (navigator.canShare && navigator.canShare({ files: files })) {
                     navigator.share({ files: files, title: items.length === 1 ? items[0].label : "产品照片 ×" + items.length }).then(function () {
                       /* 2026-10-18（A4）：原生分享是"已分享"，不是"预填 WhatsApp"——不带待确认按钮 */
-                      b.messages.push({ from: "me", text: "📷 已分享照片×" + items.length, time: "刚刚", status: "sent" });
+                      Store.addMessage(b.id, "📷 已分享照片×" + items.length, null, { from: "me", status: "sent", noSave: true }); /* 2026-10-23：统一走扫描入口 */
                       AIevt(b, "photo", { n: items.length, via: "native-share" });
                       if (window.Store) Store.commit();
                       App.refresh();

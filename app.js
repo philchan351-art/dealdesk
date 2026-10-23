@@ -187,6 +187,10 @@
     var p = phoneEl();
     if (p) p.classList.remove("auth-on");
     if (freshLogin && Store.wipeLocal) Store.wipeLocal();
+    /* 2026-10-23（Phil「整个客户状态系列都存在问题」）：启动补跑存量对话回扫。
+       index.html 里 store.js 先于 utils.js 加载，store 启动时的迁移此刻 U 尚未定义（自动跳过）；
+       这里所有脚本就绪后跑一次——已报价/已成交的存量客户阶段当场补正。幂等：无命中零写入 */
+    try { if (window.Store && Store.rescanStages) Store.rescanStages(); } catch (e) { console.warn("[启动回扫失败]", e); }
     /* 2026-10-17（Phil 反馈："我重新进入软件，一定会出现这个；然后会自动打开录音，这个就是bug了"）：
        移除"首次触摸自动预热麦克风"——进应用后第一次点按任何位置都会自动申请麦克风权限并真实开启录音，
        属于用户未预期的惊吓。现在麦克风只在真正按住「🎤 按住说话」时才申请；

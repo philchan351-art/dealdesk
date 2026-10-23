@@ -51,7 +51,7 @@
             '<div class="bmid-sub">' + escHtml(b.product) + " · " + escHtml(b.qty) + (b.tags && b.tags.length ? " · " + escHtml(b.tags[0]) : "") + "</div>" +
             '<div class="bmid-meta"><span class="stage-tag">' + Mock.STAGES[b.stage] + '</span><span class="wa-badge">WhatsApp</span><span>' + escHtml(b.lastActive) + '</span></div>' +
             "</div>" +
-            '<div class="bright"><button class="bcard-del" data-act="del" data-id="' + escHtml(b.id) + '" data-name="' + escHtml(b.name) + '" title="删除客户">⋯</button><b>' + (b.amount ? U.money(b.amount, b.currency) : "待报价") + "</b>" + U.dueBadge(U.buyerFollowDays(b)) + "</div>" +
+            '<div class="bright"><button class="bcard-del" data-act="del" data-id="' + escHtml(b.id) + '" data-name="' + escHtml(b.name) + '" title="删除客户">⋯</button><b>' + U.quoteLabel(b) + "</b>" + U.dueBadge(U.buyerFollowDays(b)) + "</div>" +
            "</div>";
        }
 

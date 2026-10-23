@@ -310,8 +310,11 @@
           editB.wa 等是字符串，list.map 抛 TypeError，面板渲染中断、点击无反应。值归位到第 6 参 val。 */
        field("nbCompany", "公司", "选填", null, null, isEdit ? (editB.company && editB.company !== "—" ? editB.company : "") : "") +
        field("nbWa", "WhatsApp / 电话", "+55 …（直达对话要填）", null, null, isEdit ? (editB.wa || "") : "") +
-       field("nbQty", "数量", "选填：如 500 件", null, null, isEdit ? (editB.qty != null ? String(editB.qty) : "") : "") +
-       field("nbProduct", "产品线 / 意向产品", "选填：如 电动行李箱", null, null, isEdit ? (editB.product && editB.product !== "待确认" ? editB.product : "") : "") +
+        field("nbQty", "数量", "选填：如 500 件", null, null, isEdit ? (editB.qty != null ? String(editB.qty) : "") : "") +
+        /* 2026-10-23（Phil「报过价还显示待报价」）：金额首次有真实录入入口——报价/订单金额可录可改，
+           客户卡/谈单页/详情优先显示金额，没录的按阶段证据显示"已报价/未报价" */
+        field("nbAmount", "金额（美元）", "选填：报价或订单金额，如 111000", null, null, isEdit && editB.amount ? String(editB.amount) : "") +
+        field("nbProduct", "产品线 / 意向产品", "选填：如 电动行李箱", null, null, isEdit ? (editB.product && editB.product !== "待确认" ? editB.product : "") : "") +
       '<label class="set-lbl">产品线（用于话术剧本 / 资料库隔离，可后补）</label>' +
       '<select class="set-inp" id="nbScope">' +
       '<option value="">通用（全部产品线）</option>' +
@@ -337,6 +340,7 @@
           company: v("nbCompany"),
           wa: String(v("nbWa") || "").trim().replace(/^\++/, "+"), /* 2026-10-22 录入多打的 + 折叠成一个 */
           qty: v("nbQty"),
+          amount: v("nbAmount"),
           product: v("nbProduct"),
           note: v("nbNote")
         });
@@ -355,6 +359,7 @@
         company: v("nbCompany"),
         wa: String(v("nbWa") || "").trim().replace(/^\++/, "+"), /* 2026-10-22 录入多打的 + 折叠成一个 */
         qty: v("nbQty"),
+        amount: v("nbAmount"),
         product: v("nbProduct"),
         intent: intent,
         note: v("nbNote"),
