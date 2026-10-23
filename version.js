@@ -5,10 +5,18 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.5.0",
+  v: "1.5.1",
   date: "2026-10-23",
-  note: "成交判定词表补齐（英文 paid 完成式族 + 中文打款/转账动词族）；客户列表一键 ✓ 标成交——App 外付款的单一条不漏",
+  note: "现场实锤修复：\"I've received your payment\"（已收到您的付款）此前漏判——received 后限定词只认 the 不认 your/a/my",
   changelog: [
+    {
+      v: "1.5.1", date: "2026-10-23", items: [
+        "[修] 现场实锤（Phil 抓到的 Amritpal 单）：我方记「I've received your payment. We're waiting for the courier」——最标准的收款表述，系统漏判。根因：received 后面的限定词只认 the，不认 your/a/my；测试只测过 \"received the payment\"，没测过 \"received your payment\"。现 the/your/a/my 全认",
+        "[修] funds 顺带兼容 fund 单数；AI 判定标准同步（received the/your/a payment 都算）",
+        "[测] 新增 4 项现场措辞用例（received your payment / received a payment / 回归 / receive 未完成时态不误报），共 100 项全过",
+        "[用] 已有记录的消息不用重记——重开一次应用，回扫会用新词表重放全部对话，该弹的成交信号卡自动补弹"
+      ]
+    },
     {
       v: "1.5.0", date: "2026-10-23", items: [
         "[加] 客户列表卡片一键 ✓ 标成交：付款发生在 App 之外（银行短信/ACH 通知/内部同步）的单，不进客户页也能一条不落——阶段进成交档、计入本月成交、留痕、标错可清除（此前唯一成交入口在客户详情页小按钮，业务员知道成了但来不及进页记，就是单被漏记的主因）",
