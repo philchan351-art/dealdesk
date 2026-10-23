@@ -22,7 +22,11 @@
     },
 
     init: function (param, root) {
-      var state = { k: "all", q: "" };
+      /* 2026-10-21（Phil）：看板「待我回复」→ #/buyers/waiting 深链，预选「待回复」筛选 */
+      var state = { k: param === "waiting" ? "unread" : "all", q: "" };
+      if (param === "waiting") {
+        root.querySelectorAll("#intentChips .chip").forEach(function (c) { c.classList.toggle("active", c.dataset.k === "unread"); });
+      }
       var listEl = root.querySelector("#buyerList");
       var newBtn = root.querySelector('[data-act="new"]');
       if (newBtn) newBtn.addEventListener("click", function () {
@@ -49,24 +53,43 @@
            "</div>";
        }
 
+      /* 2026-10-21（Phil）：「待回复」口径与看板「待我回复」完全一致——
+         进行中谈单（stage<5）且最后一条消息来自客户（旧口径 b.unread>0 在记一条时从不累加，实际恒为空） */
+      function waitingFor(b) {
+        if (b.stage >= 5) return false;
+        var ms = b.messages || [];
+        return ms.length && ms[ms.length - 1].from === "buyer";
+      }
+      /* 搜索分层：0=名字以 q 开头（am→amitat）1=名字含 q（tamrta）2=仅公司/产品/国家含 q；
+         名字首字母命中永远排在中间命中之前（Phil 10-21） */
+      function tierOf(b, q) {
+        var nm = String(b.name || "").toLowerCase();
+        if (nm.indexOf(q) === 0) return 0;
+        if (nm.indexOf(q) !== -1) return 1;
+        return 2;
+      }
+
       function draw() {
+        var q = state.q ? state.q.toLowerCase() : "";
         var arr = Mock.buyers.filter(function (b) {
-          if (state.k === "unread") return b.unread > 0;
+          if (state.k === "unread") return waitingFor(b);
           if (state.k === "A" || state.k === "B" || state.k === "C") return U.grade(b.intent) === state.k;
           return true;
         });
-         if (state.q) {
-          var q = state.q.toLowerCase();
+        if (q) {
           arr = arr.filter(function (b) {
             return (b.name + b.company + b.product + b.country).toLowerCase().indexOf(q) !== -1;
           });
         }
-         /* P2：默认按意向分 + 最近活跃排序，热的单永远在最上面 */
-          arr.sort(function (x, y) {
-            if (y.intent !== x.intent) return y.intent - x.intent;
-            /* P0：updatedAt 统一 ISO 字符串后不能数值相减（得 NaN），用 Date.parse */
-            return (Date.parse(y.updatedAt || 0) || 0) - (Date.parse(x.updatedAt || 0) || 0);
-          });
+        /* 2026-10-21（Phil）：自然顺序=对话时间先后（最近活跃在前）；搜索时先按命中层级，层内仍按对话时间 */
+        arr.sort(function (x, y) {
+          if (q) {
+            var tx = tierOf(x, q), ty = tierOf(y, q);
+            if (tx !== ty) return tx - ty;
+          }
+          /* P0：updatedAt 统一 ISO 字符串后不能数值相减（得 NaN），用 Date.parse */
+          return (Date.parse(y.updatedAt || 0) || 0) - (Date.parse(x.updatedAt || 0) || 0);
+        });
          listEl.innerHTML = arr.length ? arr.map(card).join("") : '<div class="empty">没有匹配的买家</div>';
          listEl.querySelectorAll(".bcard").forEach(function (el) {
            el.addEventListener("click", function () { App.go("buyer", el.dataset.id); });

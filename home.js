@@ -106,7 +106,7 @@
       var W = { labels: labels, values: values, todayIdx: 6 };
       var K = [
         { label: "客户总数", value: buyers.length, sub: weekN + " 位本周有动态" },
-        { label: "待我回复", value: waiting, sub: waiting ? "最后一条来自客户 · 尽快跟" : "都已跟到位，赞" },
+        { label: "待我回复", value: waiting, sub: waiting ? "点一下看这些客户 ›" : "都已跟到位，赞", act: "goto-waiting" },
         { label: "进行中谈单", value: open.length, sub: neg + " 笔谈判 · " + qte + " 笔报价" },
         { label: "本月成交", value: wonMonth.length, sub: wonAmt > 0 ? "金额 $" + wonAmt.toLocaleString() : "成交后在客户页标记" }
       ];
@@ -125,7 +125,7 @@
       var overdueCnt = followups.filter(function (f) { return f.dueIn < 0 && !f.done && Mock.getBuyer(f.buyerId); }).length;
 
       var kpiHtml = K.map(function (k) {
-        return '<div class="card kpi">' +
+        return '<div class="card kpi' + (k.act ? " kpi-tap" : "") + '"' + (k.act ? ' data-act="' + k.act + '"' : "") + ">" +
           '<div class="kpi-label">' + k.label + "</div>" +
           '<div class="kpi-value" data-count="' + k.value + '" data-prefix="' + (k.prefix || "") + '" data-suffix="' + (k.suffix || "") + '">0</div>' +
           (k.delta ? '<div class="kpi-delta up">' + k.delta + "</div>" : '<div class="kpi-delta sub">' + (k.sub || "") + "</div>") +
@@ -190,6 +190,9 @@
       });
       var more = root.querySelector('[data-act="goto-followup"]');
       if (more) more.addEventListener("click", function () { App.go("followup"); });
+      /* 2026-10-21（Phil）：「待我回复」卡片 → 买家列表「待回复」筛选（同一口径） */
+      var wtap = root.querySelector('.kpi-tap[data-act="goto-waiting"]');
+      if (wtap) wtap.addEventListener("click", function () { App.go("buyers", "waiting"); });
       var learnBtn = root.querySelector('[data-act="start-learn"]');
       if (learnBtn) learnBtn.addEventListener("click", function () { runLearn(learnBtn); });
       var gear = root.querySelector('[data-act="settings"]');

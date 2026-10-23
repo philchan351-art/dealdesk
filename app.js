@@ -15,7 +15,8 @@
   function parse() {
     var parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
     if (parts[0] === "buyer" && parts[1]) return { screen: "buyer-detail", param: parts[1] };
-    return TITLES[parts[0]] ? { screen: parts[0], param: null } : { screen: "home", param: null };
+    /* 2026-10-21（Phil）：其余页面也透传第二段（如 #/buyers/waiting 预选「待回复」筛选），页面不认就忽略 */
+    return TITLES[parts[0]] ? { screen: parts[0], param: parts[1] || null } : { screen: "home", param: null };
   }
 
   var lastKey = "";

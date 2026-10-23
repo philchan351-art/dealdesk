@@ -8,6 +8,8 @@
 .kpi-delta{font-size:11px;font-weight:700;margin-top:4px}
 .kpi-delta.up{color:var(--a)}
 .kpi-delta.sub{color:var(--ink-faint);font-weight:500}
+.kpi-tap{cursor:pointer;transition:transform .08s ease}
+.kpi-tap:active{transform:scale(.985)}
 
 .home-row{display:grid;grid-template-columns:1.5fr 1fr;gap:12px;margin-bottom:6px}
 .chart-card{padding:16px 14px 8px}
