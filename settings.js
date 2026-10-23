@@ -77,9 +77,11 @@
             }).join("<br><br>");
             return '<div class="card card-pad">' +
               '<div class="set-title">版本</div>' +
-              '<div class="set-sub" style="margin-top:2px">v' + esc(AV.v) + ' · ' + esc(AV.date) + (AV.note ? " — " + esc(AV.note) : "") + "</div>" +
-              '<div class="set-sub" style="margin-top:8px;line-height:1.7">' + cl + "</div>" +
-              "</div>";
+               '<div class="set-sub" style="margin-top:2px">v' + esc(AV.v) + ' · ' + esc(AV.date) + (AV.note ? " — " + esc(AV.note) : "") + "</div>" +
+               '<div class="set-sub" style="margin-top:6px">本地数据体量：' + (window.Store && Store.dataSizeMB ? Store.dataSizeMB().toFixed(1) : "—") + ' MB' +
+               (window.Store && Store.dataSizeMB && Store.dataSizeMB() > 4 ? ' <span style="color:#C0392B">（接近上限，新保存可能不生效——先清理旧对话里的大图）</span>' : "") + "</div>" +
+               '<div class="set-sub" style="margin-top:8px;line-height:1.7">' + cl + "</div>" +
+               "</div>";
           })() +
           '<div class="card card-pad">' +
           '<div class="set-title">当前账号</div>' +

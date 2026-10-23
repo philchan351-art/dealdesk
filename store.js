@@ -67,11 +67,34 @@
   migrateBuyerShapes();
   migrateOutcomeStages();
 
+  /* 2026-10-22（Phil「业务员无法保存新客户」排查）：这里原来的空 catch 是"功能偶尔消失"的暗雷——
+     本地存储写满（数据里有 base64 消息图片）时，所有本地保存静默失败，用户只看到"没保存上"。
+     现在：失败必 toast（15 秒限流，带当前数据体量）+ console 留原始错误，永不静默 */
+  var _saveWarnAt = 0;
   function saveLocal() {
     data.savedAt = new Date().toISOString();
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
-    } catch (e) {}
+      return true;
+    } catch (e) {
+      console.error("[saveLocal 失败]", e);
+      var now = Date.now();
+      if (now - _saveWarnAt > 15000) {
+        _saveWarnAt = now;
+        if (window.App) App.toast("⚠ 本地存储已满（约 " + dataSizeMB().toFixed(1) + "MB），本次保存可能没保住；设置→版本卡 看数据体量", 5000);
+      }
+      return false;
+    }
+  }
+  function dataSizeMB() {
+    try {
+      var all = 0;
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        all += (localStorage.getItem(k) || "").length;
+      }
+      return all / 1024 / 1024;
+    } catch (e) { return 0; }
   }
   /* 用户真实改动才上云；wipeLocal/applySnapshot 这类"本地整理"绝不能触发推送（空数据上云会盖掉真数据） */
   var pushWarnAt = {};
@@ -185,6 +208,7 @@
 
   var Store = {
     commit: save,
+    dataSizeMB: dataSizeMB, /* 2026-10-22 设置版本卡展示本地数据体量 */
     getSettings: function () {
       try { return JSON.parse(localStorage.getItem(SET_KEY)) || null; } catch (e) { return null; }
     },
