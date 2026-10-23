@@ -565,6 +565,15 @@
              b.lastRead = { posture: o.posture, concern: o.concern || "", warm: o.warm || "", evidence: o.evidence || "", at: new Date().toISOString() };
              Store.commit();
            }
+           /* 2026-10-22 阶段严格判定：速记路径（记客户/记我发）同样吃 AI 阶段层——
+              机械硬信号已在 addMessage 应用，这里与机械取高、单调推进；5 只挂成交信号卡 */
+           if (o.stage !== null && o.stage > b.stage && !b.outcome) {
+             if (o.stage >= 5) {
+               if (!b.closeSignal) { b.closeSignal = { at: new Date().toISOString(), why: o.stageWhy || "AI 判成交信号", evidence: String(t || "").slice(0, 80), src: "ai" }; Store.commit(); }
+             } else if (U.applyStage(b, o.stage, o.stageWhy || "AI 阶段研判", "ai", t)) {
+               Store.commit();
+             }
+           }
            App.refresh();
          }).catch(function () {});
        }
