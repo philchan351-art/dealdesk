@@ -5,10 +5,17 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.6.0",
+  v: "1.7.0",
   date: "2026-10-23",
-  note: "新增「案例复盘」页：真实对话 × 谈单舱实时出招 × 吴总真话 三栏对照，可判对/差/改、算直接命中率",
+  note: "报告页内置「下载 Word 版」按钮：word-export.js 通用组件，当前屏幕内容（含 AI 出招与判定批注）一键导出 .doc",
   changelog: [
+    {
+      v: "1.7.0", date: "2026-10-23", items: [
+        "[新] word-export.js 通用 Word 导出组件：当前页面可见内容（含已生成的 AI 出招、对/差/改判定与批注）一键导出 .doc，Word/WPS 直接打开",
+        "[新] review.html 顶栏「📥 下载 Word 版」按钮；CSP 加 download-src blob:",
+        "[约定] 以后所有报告页内置该按钮；对话里交付的 HTML 报告同时给 Word 文件"
+      ]
+    },
     {
       v: "1.6.0", date: "2026-10-23", items: [
         "[新] review.html 案例复盘页（独立页，复用线上 brain + 登录态，仅依赖 prompts.js）：真实对话时间线 + 进度阶段 + 每个关键节点",

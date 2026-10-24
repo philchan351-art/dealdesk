@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; download-src 'self' blob:"/>
 <title>案例复盘 · 谈单舱</title>
 <meta name="theme-color" content="#EFB530"/>
 <style>
@@ -66,6 +66,7 @@
     <div class="mk">TD</div>
     <div><h1>案例复盘</h1><div class="sub">真实对话 × 谈单舱实时出招 × 吴总真话 对照</div></div>
     <a href="index.html">← 回主界面</a>
+    <button onclick="exportWord({filename:'案例复盘-' + (window.CASES && window.cur ? cur.id : 'case'), area:'#app'})" style="border:0;background:var(--brand);color:#1a1d24;font-weight:700;font-size:12px;border-radius:8px;padding:8px 12px;cursor:pointer">📥 下载 Word 版</button>
   </div>
   <div id="login" class="login" hidden>
     <h2>登录账号</h2>
@@ -83,7 +84,8 @@
   </div>
 </div>
 <div class="sum" id="sum" hidden></div>
-<script src="prompts.js?v=1.6.0"></script>
+<script src="word-export.js?v=1.7.0"></script>
+<script src="prompts.js?v=1.7.0"></script>
 <script>
 /* ===== 复盘页：自包含。只依赖 prompts.js + 线上 /llm ===== */
 var FC_DEFAULT = "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run";
