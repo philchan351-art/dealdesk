@@ -7,3 +7,4 @@
 /manual.html  Cache-Control: no-cache, must-revalidate
 /train.html   Cache-Control: no-cache, must-revalidate
 /pitch.html   Cache-Control: no-cache, must-revalidate
+/review.html  Cache-Control: no-cache, must-revalidate

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<title>案例复盘 · 谈单舱</title>
+<meta name="theme-color" content="#EFB530"/>
+<style>
+  :root{--ink:#1a1d24;--mut:#6b7280;--line:#e6e8ec;--cust:#2563eb;--sell:#0f766e;--card:#fff;--bg:#f5f6f8;--stage:#7c3aed;--warn:#b45309;--good:#15803d;--brand:#EFB530;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+  .wrap{max-width:820px;margin:0 auto;padding:14px 12px 90px}
+  .top{display:flex;align-items:center;gap:10px;background:#111827;color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:14px}
+  .top .mk{background:var(--brand);color:#1a1d24;font-weight:900;border-radius:8px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .top h1{font-size:16px;margin:0}
+  .top .sub{font-size:11px;color:#cbd5e1}
+  .top a{margin-left:auto;color:#93c5fd;text-decoration:none;font-size:13px}
+  .login{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .login h2{font-size:15px;margin:0 0 4px}
+  .login p{font-size:12px;color:var(--mut);margin:0 0 12px}
+  .login input{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;margin-bottom:8px}
+  .login button{width:100%;padding:11px;border:0;border-radius:9px;background:var(--brand);font-size:14px;font-weight:700;color:#1a1d24}
+  .err{color:#b91c1c;font-size:12px;margin-top:8px}
+  select.case{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:#fff;margin-bottom:10px}
+  .meta{font-size:13px;color:var(--mut);background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+  .stat{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .stat div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:11px;flex:1;min-width:70px;text-align:center}
+  .stat div b{display:block;font-size:16px;color:var(--stage)}
+  .stage{background:var(--stage);color:#fff;font-size:12px;font-weight:700;border-radius:999px;padding:4px 12px;display:inline-block;margin:16px 4px 8px}
+  .msg{border:1px solid var(--line);border-radius:12px;background:#fff;padding:9px 12px;margin:8px 0}
+  .msg .who{font-size:11px;font-weight:700;margin-bottom:3px}
+  .msg.c .who{color:var(--cust)} .msg.m .who{color:var(--sell)}
+  .msg .t{font-size:11px;color:var(--mut);font-weight:400;margin-left:6px}
+  .msg .txt{font-size:14px;white-space:pre-wrap;word-break:break-word}
+  .node{border:2px solid #a5b4fc;background:#f8faff;border-radius:14px;padding:12px 14px;margin:12px 0}
+  .node .rh{font-size:13px;font-weight:800;color:var(--stage);margin-bottom:8px}
+  .row{font-size:13px;margin:8px 0}
+  .row .lb{font-weight:700;font-size:11px;color:var(--mut);display:block;margin-bottom:3px;letter-spacing:.3px}
+  .row.gt{background:#f0fdf4;border-radius:8px;padding:8px 10px}
+  .row.gt .lb{color:var(--sell)}
+  .row.nt{color:#7c2d12;background:#fffbeb;border-radius:8px;padding:8px 10px}
+  .row.nt .lb{color:var(--warn)}
+  .ai{background:#eef7ff;border:1px solid #7dd3fc;border-radius:8px;padding:8px 10px;color:#0c4a6e}
+  .ai .lb{font-weight:700;font-size:11px;color:#0369a1;display:block;margin-bottom:4px}
+  .ai .mv{font-size:11px;color:#0e7490;margin-bottom:5px}
+  .ai .en{font-size:13px;white-space:pre-wrap}
+  .ai .zh{font-size:12px;color:#64748b;margin-top:5px;border-top:1px dashed #bae6fd;padding-top:5px}
+  .run{margin:8px 0;padding:9px 14px;border:0;border-radius:9px;background:var(--stage);color:#fff;font-size:13px;font-weight:700}
+  .run:disabled{background:#c4b5fd;cursor:default}
+  .judge{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;align-items:center}
+  .judge button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700}
+  .judge button.on-good{background:#dcfce7;border-color:#86efac;color:var(--good)}
+  .judge button.on-bad{background:#fee2e2;border-color:#fca5a5;color:#b91c1c}
+  .judge button.on-fix{background:#fef9c3;border-color:#fde047;color:#854d0e}
+  .judge input{flex:1;min-width:120px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px}
+  .sum{position:fixed;bottom:0;left:0;right:0;background:#111827;color:#fff;padding:10px 16px;font-size:12px;display:flex;gap:14px;align-items:center;max-width:820px;margin:0 auto;border-radius:12px 12px 0 0}
+  .sum b{font-size:15px}
+  .sum .g{color:#4ade80}.sum .b{color:#f87171}.sum .f{color:#fde047}
+  .loading{color:var(--mut);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="mk">TD</div>
+    <div><h1>案例复盘</h1><div class="sub">真实对话 × 谈单舱实时出招 × 吴总真话 对照</div></div>
+    <a href="index.html">← 回主界面</a>
+  </div>
+  <div id="login" class="login" hidden>
+    <h2>登录账号</h2>
+    <p>用你日常登录谈单舱的账号。登录态复用，跑的是线上同一个 brain。</p>
+    <input id="lu" type="text" placeholder="账号名（如 philchan）"/>
+    <input id="lp" type="password" placeholder="密码"/>
+    <button id="lb" onclick="doLogin()">登录并进入复盘</button>
+    <div id="lerr" class="err"></div>
+  </div>
+  <div id="app" hidden>
+    <select class="case" id="caseSel" onchange="renderCase()"></select>
+    <div id="meta"></div>
+    <div class="stat" id="stat"></div>
+    <div id="tl"></div>
+  </div>
+</div>
+<div class="sum" id="sum" hidden></div>
+<script src="prompts.js?v=1.6.0"></script>
+<script>
+/* ===== 复盘页：自包含。只依赖 prompts.js + 线上 /llm ===== */
+var FC_DEFAULT = "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run";
+var AUTH_KEY = "dealdesk.auth.v1";
+var SET_KEY = "dealdesk.settings";
+var STAGES = ["询盘","需求确认","报价","谈判","样品确认","成交"];
+function authGet(){ try{ return JSON.parse(localStorage.getItem(AUTH_KEY))||null; }catch(e){ return null; } }
+function proxyUrl(){
+  try{ var s=JSON.parse(localStorage.getItem(SET_KEY)); if(s&&s.cloud&&s.cloud.proxyUrl) return s.cloud.proxyUrl; }catch(e){}
+  return FC_DEFAULT;
+}
+function factRule(){ return "\n【参数红线（最高优先级，压过其他所有要求）】\n1. 产品参数（续航/电池/充电/认证/重量/容量/MOQ/价格/产能/交货期等）只能引用【资料】或客户档案里明确写过的内容。\n2. 没写明的参数：禁止写具体数值，禁止编造认证、奖项、合作客户、成立年份、收款人身份。只允许：①不提该参数 ②反问客户需要什么规格/数量 ③说“具体需与研发/QC 确认后发你”。"; }
+function ctx(b){ var l=(b.messages||[]).slice(-5).map(function(m){return (m.from==="me"?"卖家":"客户")+":"+m.text;}).join("\n"); var rl=(b.lastRead&&b.lastRead.posture)?("\n最近研判:"+b.lastRead.posture+(b.lastRead.concern?"｜在意:"+b.lastRead.concern:"")):""; return "客户:"+b.name+"（"+b.country+"，"+b.company+"）｜谈单阶段:"+STAGES[b.stage]+"｜意向分:"+b.intent+rl+"\n档案:"+(b.context||[]).map(function(c){return c.k+"="+c.v;}).join("；")+"\n最近对话:\n"+l; }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function parseSuggest(raw){ var t=String(raw); var g=function(k){var m=t.match(new RegExp(k+String.fromCharCode(58,65307).replace(String.fromCharCode(65307),"[:：]")+"\\s*([^\\n]+)")); return m?m[1].trim():"";};
+  var o=null; try{ var tt=t.trim().replace(/^```json\s*/i,"").replace(/```\s*$/,""); var a=tt.indexOf("{"),b2=tt.lastIndexOf("}"); if(a>=0&&b2>0) o=JSON.parse(tt.slice(a,b2+1)); }catch(e){}
+  var diag=(o&&o.diagnosis)||{}, sug=(o&&o.suggestions&&o.suggestions[0])||null;
+  return { reply: sug?sug.text:t.trim(), zh: sug&&sug.zh?sug.zh:"", move: diag.move||"", nextGoal: diag.nextGoal||"", blocker: (diag.blocker&&diag.blocker!=="无"&&diag.blocker!=="none")?diag.blocker:"" }; }
+/* ===== 案例数据（blocks 顺序渲染：msg/stage/node）===== */
+var CASES = [
+ {
+  id:"amritpal", title:"Amritpal Singh · 澳洲 · 广交会现场", sub:"买家 / 跑展采购 · 目标：先拿 2 台样品",
+  owner:{name:"Amritpal Singh",country:"澳大利亚",company:"广交会跑展采购"},
+  stats:[["24h","首询到付款"],["2 台","成交（银色）"],["3,080 RMB","最终价"]],
+  blocks:[
+   {k:"stage",l:"阶段① 首询"},
+   {k:"msg",w:"c",t:"10/21 03:03",x:"How much for one"},
+   {k:"node",id:1,label:"节点1 · 首询「How much for one」",cust:"零售式问法，想知道单个多少钱",
+     gt:"「你是自己用，还是做生意？」（反问定性）",nt:"直接报 222/236 就会被拿 Amazon 599 比“一个多少钱”。反问把零售询价改成样品单，后面 MOQ/批量价/返样才立得住。",
+     stage:0,intent:2,context:[{k:"用途",v:"尚未明确，首询"}],lastRead:{},msgs:[]},
+   {k:"msg",w:"c",t:"10/21 03:58",x:"At the moment as a sample"},
+   {k:"msg",w:"c",t:"10/21 04:01",x:"Right now im in china guangzhou"},
+   {k:"stage",l:"阶段② 报价（澳洲→广州切换）"},
+   {k:"msg",w:"m",t:"10/21 04:02",x:"澳洲 DDP $316（样品$236+海运$80，含税清关）· 零售 Amazon $599.99 · 海运比空运省"},
+   {k:"msg",w:"m",t:"10/21 04:03",x:"人在广州 → 直接送到酒店，总共 $240"},
+   {k:"node",id:2,label:"节点2 · 报价三件套 + 位置一变价立刻变",cust:"“at the moment as a sample” + “right now im in china guangzhou”",
+     gt:"① 澳洲 DDP $316 ② 零售锚 $599.99 ③ 海运更省 ④ 人在广州 → 立刻改报 $240 送到酒店",nt:"落地价+零售锚+更省方案。位置一变就整单重算（$316→$240），不是打折，是去掉不存在的运费。",
+     stage:2,intent:3,context:[{k:"用途",v:"先拿样品"},{k:"位置",v:"广州 Swissôtel"},{k:"渠道",v:"广交会"}],lastRead:{posture:"推进",concern:"想知道落地成本"},msgs:[{f:"c",t:"How much for one"},{f:"me",t:"自用还是做生意?"},{f:"c",t:"As a sample. I'm in China Guangzhou now."}]},
+   {k:"msg",w:"c",t:"10/21 04:03",x:"Ok · Send me a catalogue if possible please"},
+   {k:"stage",l:"阶段③ 信息包"},
+   {k:"msg",w:"m",t:"10/21 04:09",x:"四连发：规格(93.6Wh可拆/8.4kg/120-150kg) + 6条卖点 + 价格/MOQ/颜色 + 零售参考价"},
+   {k:"node",id:3,label:"节点3 · “给我目录”",cust:"“Send me a catalogue”——要评估资料",
+     gt:"不发 PDF，连发四条结构化信息包：规格+卖点+完整价格/MOQ/颜色+零售参考价",nt:"“给目录”=要决策依据，不是要收藏。一次性给全=“我没有隐藏价”。挤牙膏式回复会让人怀疑还有更低价。",
+     stage:2,intent:4,context:[{k:"用途",v:"先拿样品"},{k:"位置",v:"广州 Swissôtel"},{k:"已报",v:"澳洲$316/广州$240"}],lastRead:{posture:"推进",concern:"要评估产品"},msgs:[{f:"me",t:"澳洲$316; 人在广州可$240送到酒店"},{f:"c",t:"Ok. Send me a catalogue if possible please."}]},
+   {k:"msg",w:"c",t:"10/21 18:09",x:"What will be the price if I order a sample here in guangzhou · Swissôtel, next 3 days at Canton Fair"},
+   {k:"node",id:4,label:"节点4 · 再问广州样品价",cust:"再问广州价格 + 交代位置与行程",
+     gt:"① 诚实：广州没实体店，深圳有经销商 ② 工厂直发酒店 ③ $240 送到酒店 ④ 要收件人信息 ⑤ 问 RMB/USD ⑥ 预判：跑展会不会换酒店",nt:"诚实（没店）+立刻给替代（直发）；主动铺支付路（先问币种）；预判他会换酒店，避免发错地址。",
+     stage:2,intent:4,context:[{k:"位置",v:"广州 Swissôtel，接下来三天跑广交会"},{k:"已报",v:"广州 $240 送到酒店"}],lastRead:{posture:"推进",concern:"确认最终落地价"},msgs:[{f:"c",t:"What will be the price if I order a sample here in guangzhou? I'm at Swissotel, next three days at Canton Fair."}]},
+   {k:"msg",w:"c",t:"10/21 20:45",x:"I'll pay in rmb and how much · How this go in plane · We stay same hotel · Give me battery details"},
+   {k:"node",id:5,label:"节点5 · 一口气连问 4 个",cust:"付 RMB / 能否登机 / 住同酒店 / 电池细节",
+     gt:"先答钱：1,580 RMB（最急的放最前），再答登机，再答电池；颜色单独一条问",nt:"连发多问时，按“他最急拍板的那条”排序，不按发送顺序——先答钱。",
+     stage:2,intent:5,context:[{k:"已报",v:"广州 $240 / 1,580 RMB"},{k:"付款",v:"客户要付 RMB"}],lastRead:{posture:"推进",concern:"确认能否用/合规"},msgs:[{f:"c",t:"I'll pay in RMB and how much that will be. How this go in plane as luggage or handbag? Give me details for battery please."}]},
+   {k:"node",id:6,label:"节点6 · 机场问题（C端vsB端那类）",cust:"“能不能当行李/手提带上飞机”",
+     gt:"20寸登机；部分航司7kg限重、超重拆电池托运；电池93.6Wh<100Wh可手提、可当充电宝；有UN38.3/MSDS",nt:"这单他自己要带，给登机信息合理。若他是纯卖家、没说要带，应收成一句：“这是品类第一道销售门槛，93.6Wh可拆能带上飞机，你可直接写进产品页。”",
+     stage:2,intent:5,context:[{k:"合规",v:"电池 93.6Wh 可拆"}],lastRead:{posture:"追问",concern:"怕过不了安检/退货"},msgs:[{f:"c",t:"How this go in plane as a luggage or as a handbag?"}]},
+   {k:"msg",w:"c",t:"10/22 01:49",x:"Will you negotiate · I'll take 2"},
+   {k:"stage",l:"阶段⑤ 砍价（已决定）"},
+   {k:"node",id:7,label:"节点7 · “Will you negotiate”（他先说“I'll take 2”）",cust:"“能谈吗？” + “我要2台”——已决定，只差面子",
+     gt:"“样品价按MOQ 100台价定的，单价不能谈；不过运费可更好”→ 2台1,560/台共3,120；再送“下次大货多1台抵样机”",nt:"已决定买的砍价→单价不让、换运费维度让1.3%、加“下次大货送1台”锁下一单。与Tushar（还没决定）一分不让形成对照。",
+     stage:3,intent:5,context:[{k:"意向",v:"已说要2台"},{k:"已报",v:"2台1,560/台共3,120"}],lastRead:{posture:"砍价",concern:"想再省一点/确认没被宰"},msgs:[{f:"c",t:"Will you negotiate? I'll take 2."}]},
+   {k:"msg",w:"c",t:"10/22 01:56",x:"Make 3000 for 2 please"},
+   {k:"node",id:8,label:"节点8 · “Make 3000 for 2”（砍3.8%）",cust:"还价 3,000（比3,120少3.8%）",
+     gt:"“各让一步”→3,080（只让1.3%），并给运费成本理由（浙江到广州约200元、24kg）",nt:"让幅不超过对方要求的一半（他3.8%，让1.3%）；让价带物理理由，不凭空让。",
+     stage:3,intent:5,context:[{k:"意向",v:"已决定2台"},{k:"已报",v:"3,120（2台）"}],lastRead:{posture:"砍价",concern:"压到心理价"},msgs:[{f:"me",t:"单价不能谈，但运费可更好。2台1,560/台共3,120"},{f:"c",t:"Make 3000 for 2 please."}]},
+   {k:"msg",w:"c",t:"10/22 02:09",x:"If you send now how long it will take · my friend leaves Sunday morning, bag arrives Saturday"},
+   {k:"stage",l:"阶段⑥ 交付与时间压力"},
+   {k:"node",id:9,label:"节点9 · 时间压力（朋友周日5点飞机）",cust:"周六必须到，朋友周日早上5点起飞",
+     gt:"① 诚实：今天发不了（快递5点已取件）② 明天发→后天下午/最晚大后天早上 ③ 我去问最快快递 ④ 真实原因：广交会+双11次日达不可靠 ⑤ 建议今天就发、确认颜色，工厂直送快递站点 ⑥ “工人快下班，我还要去仓库拿澳洲插头”",nt:"全程没拍胸脯；“澳洲插头”他没说、我们想到了（客户当场开始问付款）。可信度来自前面承认过多少次“不确定”。",
+     stage:4,intent:6,context:[{k:"时间",v:"朋友周日早上5点飞，周六必须到"},{k:"意向",v:"决定买2台银色"}],lastRead:{posture:"推进",concern:"赶时间怕迟到"},msgs:[{f:"c",t:"If you send now how long it will take? My friend is leaving Sunday morning, if bag arrives Saturday only then he can buy."}]},
+   {k:"msg",w:"c",t:"10/22 02:27",x:"Okok send 2 silver color · And let me know if I alipay you"},
+   {k:"node",id:10,label:"节点10 · 发货前纠错（颜色）",cust:"“send 2 silver color”",
+     gt:"发图指出“这是深灰不是银，第三个才是银”，确认后再发",nt:"发货前主动纠错=省一次售后。与Naseer邮编纠错同一动作模式。",
+     stage:4,intent:6,context:[{k:"意向",v:"下单2台银色"},{k:"颜色",v:"银色"}],lastRead:{posture:"推进",concern:"确认无误"},msgs:[{f:"me",t:"工厂直发，今天发最快。确认颜色"},{f:"c",t:"Okok send 2 silver color. And let me know if I alipay you."}]},
+   {k:"msg",w:"m",t:"10/22 02:38",x:"吴秋平（收款户名）"},
+   {k:"node",id:12,label:"节点11 · 收款户名（客户看到“吴秋平”发了“?”）",cust:"客户看到收款户名，发了个问号",
+     gt:"不慌，一句话解释“银行转账要核对户名，复制粘贴即可”；收款后主动汇报“已收到，等快递取件”",nt:"支付摩擦要提前一步铺好：币种→账户→户名→用途说明。别把“?”当成不信任。",
+     stage:5,intent:6,context:[{k:"状态",v:"已付款，等快递取件"},{k:"场景",v:"客户看到收款户名吴秋平，发了个问号"}],lastRead:{posture:"正常",concern:"确认户名用途"},msgs:[{f:"me",t:"吴秋平"},{f:"c",t:"?"}]},
+   {k:"msg",w:"c",t:"10/22 05:08",x:"🤣 Wow · Didn't knew dear · Hi cherry How are you"},
+   {k:"stage",l:"阶段⑦ 关系升级"},
+   {k:"node",id:11,label:"节点12 · 关系升级（成交后纠正称呼）",cust:"客户一路叫 brother",
+     gt:"钱到账、货发出后，才说“我是女的，叫Cherry”；客户🤣→改口“dear / Hi cherry How are you”",nt:"时机是全部：成交前纠正会生分，成交后纠正变成玩笑。零成本把称呼从bro升到dear。",
+     stage:5,intent:6,context:[{k:"状态",v:"已付款发货"},{k:"称呼",v:"客户一直叫 brother"}],lastRead:{posture:"正常",concern:"关系维护"},msgs:[{f:"me",t:"I've received your payment"},{f:"c",t:"Ok bro."}]}
+  ]
+ }
+];
+/* ===== 渲染 + 实时调用 + 判定 ===== */
+var MARK_KEY = "review.marks.v1";
+function marks(){ try{ return JSON.parse(localStorage.getItem(MARK_KEY))||{}; }catch(e){ return {}; } }
+function saveMarks(m){ localStorage.setItem(MARK_KEY, JSON.stringify(m)); }
+var cur = null;
+function fillCaseSel(){ var s=document.getElementById("caseSel"); s.innerHTML=""; CASES.forEach(function(c){ var o=document.createElement("option"); o.value=c.id; o.textContent=c.title; s.appendChild(o); }); }
+function renderCase(){
+  var sel=document.getElementById("caseSel"); var id=sel.value||(CASES[0]&&CASES[0].id);
+  if(sel&&CASES[0]&&!id) sel.value=CASES[0].id;
+  cur=CASES.filter(function(c){return c.id===id;})[0]; if(!cur) return;
+  document.getElementById("meta").innerHTML='<div class="meta">'+esc(cur.sub)+'</div>';
+  document.getElementById("stat").innerHTML=cur.stats.map(function(s){return '<div>'+esc(s[0])+'<span style="color:var(--mut)">'+esc(s[1])+'</span></div>';}).join("");
+  var tl="";
+  cur.blocks.forEach(function(b){
+    if(b.k==="stage") tl+='<div class="stage">'+esc(b.l)+'</div>';
+    else if(b.k==="msg") tl+='<div class="msg '+(b.w==="c"?"c":"m")+'"><div class="who">'+(b.w==="c"?"客户":"吴总")+'<span class="t">'+esc(b.t)+'</span></div><div class="txt">'+esc(b.x)+'</div></div>';
+    else if(b.k==="node") tl+=nodeHtml(b);
+  });
+  document.getElementById("tl").innerHTML=tl;
+  updateSum();
+}
+function nodeHtml(n){
+  var mk=marks()[(cur.id+":"+n.id)]||{};
+  return '<div class="node" id="n'+n.id+'">'
+    +'<div class="rh">'+esc(n.label)+'</div>'
+    +'<div class="row"><span class="lb">客户在试探什么</span>'+esc(n.cust)+'</div>'
+    +'<button class="run" id="r'+n.id+'" onclick="runNode('+n.id+')">▶ 跑 谈单舱（线上 brain 实时生成）</button>'
+    +'<div id="a'+n.id+'"></div>'
+    +'<div class="row gt"><span class="lb">✅ 吴总当时实际怎么回</span>'+esc(n.gt)+'</div>'
+    +'<div class="row nt"><span class="lb">差异点 / 为什么</span>'+esc(n.nt)+'</div>'
+    +'<div class="judge">'
+      +'<button id="g'+n.id+'" onclick="judge('+n.id+',\'good\')">对</button>'
+      +'<button id="b'+n.id+'" onclick="judge('+n.id+',\'bad\')">差</button>'
+      +'<button id="x'+n.id+'" onclick="judge('+n.id+',\'fix\')">改</button>'
+      +'<input id="note'+n.id+'" placeholder="一句话：错在哪 / 吴总会怎么说" value="'+esc(mk.note||"")+'" onchange="saveNote('+n.id+')" />'
+    +'</div></div>';
+}
+function buyerOf(n){
+  var o=(cur&&cur.owner)||{name:"—",country:"—",company:"—"};
+  return { name:o.name, country:o.country, company:o.company, scope:"suitcase",
+    stage:n.stage, intent:n.intent, context:n.context, lastRead:n.lastRead,
+    messages:(n.msgs||[]).map(function(m){ return { from:(m.f==="me"?"me":"buyer"), text:m.t }; }) };
+}
+function runNode(nid){
+  var n=cur.blocks.filter(function(b){return b.k==="node"&&b.id===nid;})[0];
+  var btn=document.getElementById("r"+nid), box=document.getElementById("a"+nid);
+  btn.disabled=true; btn.textContent="生成中…";
+  box.innerHTML='<div class="ai"><span class="lb">🤖 谈单舱</span><div class="loading">线上 brain 生成中，约 2–4 秒…</div></div>';
+  var au=authGet(); var sess=au&&au.session;
+  if(!sess){ box.innerHTML='<div class="ai"><span class="lb">未登录</span>请先登录。</div>'; btn.disabled=false; btn.textContent="▶ 跑 谈单舱"; return; }
+  var b=buyerOf(n);
+  fetch(proxyUrl()+"/llm",{method:"POST",headers:{"Content-Type":"application/json","x-dealdesk-session":sess,"x-dealdesk-scope":"suitcase"},
+    body:JSON.stringify({model:"qwen-flash",messages:[{role:"system",content:ctx(b)+factRule()},{role:"user",content:window.Prompts.suggest(b)}],max_tokens:600,temperature:0.4})})
+   .then(function(r){return r.json();})
+   .then(function(j){ var c=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||j.content||JSON.stringify(j); var s=parseSuggest(c);
+     box.innerHTML='<div class="ai"><span class="lb">🤖 谈单舱真实生成（qwen-flash + 线上资料）</span>'
+       +'<div class="mv">出招：'+esc(s.move)+(s.nextGoal?' ｜ 目标：'+esc(s.nextGoal):"")+(s.blocker?' ｜ 卡点：'+esc(s.blocker):"")+'</div>'
+       +'<div class="en">'+esc(s.reply)+'</div>'+(s.zh?'<div class="zh">'+esc(s.zh)+'</div>':"")+'</div>';
+     btn.disabled=false; btn.textContent="↻ 再跑一次";
+   })
+   .catch(function(e){ box.innerHTML='<div class="ai"><span class="lb">调用失败</span>'+esc(e.message)+'</div>'; btn.disabled=false; btn.textContent="▶ 跑 谈单舱"; });
+}
+function saveNote(nid){
+  var m=marks(); var key=cur.id+":"+nid; if(!m[key]) m[key]={};
+  var inp=document.getElementById("note"+nid); if(inp) m[key].note=inp.value;
+  saveMarks(m);
+}
+function judge(nid,v){
+  var m=marks(); var key=cur.id+":"+nid;
+  if(!m[key]) m[key]={};
+  m[key].v=v;
+  var inp=document.getElementById("note"+nid); if(inp){ m[key].note=inp.value; }
+  if(v==="good"){ toggle("g"+nid,"on-good"); toggle("b"+nid,""); toggle("x"+nid,""); }
+  if(v==="bad"){ toggle("b"+nid,"on-bad"); toggle("g"+nid,""); toggle("x"+nid,""); }
+  if(v==="fix"){ toggle("x"+nid,"on-fix"); toggle("g"+nid,""); toggle("b"+nid,""); }
+  saveMarks(m); updateSum();
+}
+function toggle(id,cls){ var el=document.getElementById(id); if(!el) return; ["on-good","on-bad","on-fix"].forEach(function(c){el.classList.remove(c);}); if(cls) el.classList.add(cls); }
+function updateSum(){
+  var m=marks(), g=0,b=0,x=0;
+  cur.blocks.forEach(function(bl){ if(bl.k!=="node") return; var mk=m[cur.id+":"+bl.id]; if(!mk||!mk.v) return; if(mk.v==="good")g++; else if(mk.v==="bad")b++; else if(mk.v==="fix")x++; });
+  var done=g+b+x, total=cur.blocks.filter(function(b){return b.k==="node";}).length;
+  var rate=done? Math.round(g/done*100):0;
+  var el=document.getElementById("sum"); el.hidden=false;
+  el.innerHTML='<span>已判定 <b>'+done+'/'+total+'</b></span><span class="g">对 <b>'+g+'</b></span><span class="b">差 <b>'+b+'</b></span><span class="f">改 <b>'+x+'</b></span>'+(done?'<span style="margin-left:auto">直接命中率 <b style="color:#4ade80">'+rate+'%</b></span>':"");
+}
+function doLogin(){
+  var u=document.getElementById("lu").value.trim(), p=document.getElementById("lp").value, e=document.getElementById("lerr");
+  if(!u||!p){ e.textContent="请输入账号和密码"; return; }
+  fetch(proxyUrl()+"/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:u,password:p,mode:"login"})})
+   .then(function(r){return r.json();})
+   .then(function(j){ if(j&&j.session){ localStorage.setItem(AUTH_KEY,JSON.stringify({session:j.session,name:j.name||u,role:j.role||"admin"})); boot(); } else { e.textContent=(j&&(j.message||j.error))||"登录失败"; } })
+   .catch(function(err){ e.textContent="连接失败："+err.message; });
+}
+function boot(){
+  var au=authGet();
+  if(au&&au.session){ document.getElementById("login").hidden=true; document.getElementById("app").hidden=false; fillCaseSel(); renderCase(); }
+  else { document.getElementById("app").hidden=true; document.getElementById("login").hidden=false; }
+}
+boot();
+</script>
+</body>
+</html>
