@@ -41,6 +41,8 @@
   .row.gt .lb{color:var(--sell)}
   .row.nt{color:#7c2d12;background:#fffbeb;border-radius:8px;padding:8px 10px}
   .row.nt .lb{color:var(--warn)}
+  .row.bb{color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px}
+  .row.bb .lb{color:#b91c1c}
   .ai{background:#eef7ff;border:1px solid #7dd3fc;border-radius:8px;padding:8px 10px;color:#0c4a6e}
   .ai .lb{font-weight:700;font-size:11px;color:#0369a1;display:block;margin-bottom:4px}
   .ai .mv{font-size:11px;color:#0e7490;margin-bottom:5px}
@@ -84,8 +86,8 @@
   </div>
 </div>
 <div class="sum" id="sum" hidden></div>
-<script src="word-export.js?v=1.7.0"></script>
-<script src="prompts.js?v=1.7.0"></script>
+<script src="word-export.js?v=1.7.1"></script>
+<script src="prompts.js?v=1.7.1"></script>
 <script>
 /* ===== 复盘页：自包含。只依赖 prompts.js + 线上 /llm ===== */
 var FC_DEFAULT = "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run";
@@ -114,7 +116,7 @@ var CASES = [
    {k:"stage",l:"阶段① 首询"},
    {k:"msg",w:"c",t:"10/21 03:03",x:"How much for one"},
    {k:"node",id:1,label:"节点1 · 首询「How much for one」",cust:"零售式问法，想知道单个多少钱",
-     gt:"「你是自己用，还是做生意？」（反问定性）",nt:"直接报 222/236 就会被拿 Amazon 599 比“一个多少钱”。反问把零售询价改成样品单，后面 MOQ/批量价/返样才立得住。",
+     gt:"「你是自己用，还是做生意？」（反问定性）",nt:"直接报 222/236 就会被拿 Amazon 599 比“一个多少钱”。反问把零售询价改成样品单，后面 MOQ/批量价/返样才立得住。",boss:"是在判断是 B 端还是 C 端客户，所以这样问；如果是自己用就是 C 端，做生意就是 B 端；你的回答太啰嗦。",
      stage:0,intent:2,context:[{k:"用途",v:"尚未明确，首询"}],lastRead:{},msgs:[]},
    {k:"msg",w:"c",t:"10/21 03:58",x:"At the moment as a sample"},
    {k:"msg",w:"c",t:"10/21 04:01",x:"Right now im in china guangzhou"},
@@ -122,13 +124,13 @@ var CASES = [
    {k:"msg",w:"m",t:"10/21 04:02",x:"澳洲 DDP $316（样品$236+海运$80，含税清关）· 零售 Amazon $599.99 · 海运比空运省"},
    {k:"msg",w:"m",t:"10/21 04:03",x:"人在广州 → 直接送到酒店，总共 $240"},
    {k:"node",id:2,label:"节点2 · 报价三件套 + 位置一变价立刻变",cust:"“at the moment as a sample” + “right now im in china guangzhou”",
-     gt:"① 澳洲 DDP $316 ② 零售锚 $599.99 ③ 海运更省 ④ 人在广州 → 立刻改报 $240 送到酒店",nt:"落地价+零售锚+更省方案。位置一变就整单重算（$316→$240），不是打折，是去掉不存在的运费。",
+     gt:"① 澳洲 DDP $316 ② 零售锚 $599.99 ③ 海运更省 ④ 人在广州 → 立刻改报 $240 送到酒店",nt:"落地价+零售锚+更省方案。位置一变就整单重算（$316→$240），不是打折，是去掉不存在的运费。",boss:"先告诉客户我们这个产品的市场价，澳洲的和零售价，让客户知道我们的产品定位；第二，捕捉到了客户在广州，因此瞬间抓住机会，运费很便宜；你的没有前面的价格的铺垫，直接说不收运费，客户是没感觉的。",
      stage:2,intent:3,context:[{k:"用途",v:"先拿样品"},{k:"位置",v:"广州 Swissôtel"},{k:"渠道",v:"广交会"}],lastRead:{posture:"推进",concern:"想知道落地成本"},msgs:[{f:"c",t:"How much for one"},{f:"me",t:"自用还是做生意?"},{f:"c",t:"As a sample. I'm in China Guangzhou now."}]},
    {k:"msg",w:"c",t:"10/21 04:03",x:"Ok · Send me a catalogue if possible please"},
    {k:"stage",l:"阶段③ 信息包"},
    {k:"msg",w:"m",t:"10/21 04:09",x:"四连发：规格(93.6Wh可拆/8.4kg/120-150kg) + 6条卖点 + 价格/MOQ/颜色 + 零售参考价"},
    {k:"node",id:3,label:"节点3 · “给我目录”",cust:"“Send me a catalogue”——要评估资料",
-     gt:"不发 PDF，连发四条结构化信息包：规格+卖点+完整价格/MOQ/颜色+零售参考价",nt:"“给目录”=要决策依据，不是要收藏。一次性给全=“我没有隐藏价”。挤牙膏式回复会让人怀疑还有更低价。",
+     gt:"不发 PDF，连发四条结构化信息包：规格+卖点+完整价格/MOQ/颜色+零售参考价",nt:"“给目录”=要决策依据，不是要收藏。一次性给全=“我没有隐藏价”。挤牙膏式回复会让人怀疑还有更低价。",boss:"客户现在基本不收邮箱邮件了，通过 WhatsApp 直接发给他产品资料，他会看，让他进一步了解产品；你的后一句“如果你希望确认样品订单或讨论颜色选项，请告诉我”相当于废话，因为客户在不了解你和你产品的情况下，永远不会下订单。",
      stage:2,intent:4,context:[{k:"用途",v:"先拿样品"},{k:"位置",v:"广州 Swissôtel"},{k:"已报",v:"澳洲$316/广州$240"}],lastRead:{posture:"推进",concern:"要评估产品"},msgs:[{f:"me",t:"澳洲$316; 人在广州可$240送到酒店"},{f:"c",t:"Ok. Send me a catalogue if possible please."}]},
    {k:"msg",w:"c",t:"10/21 18:09",x:"What will be the price if I order a sample here in guangzhou · Swissôtel, next 3 days at Canton Fair"},
    {k:"node",id:4,label:"节点4 · 再问广州样品价",cust:"再问广州价格 + 交代位置与行程",
@@ -201,6 +203,7 @@ function nodeHtml(n){
     +'<div id="a'+n.id+'"></div>'
     +'<div class="row gt"><span class="lb">✅ 吴总当时实际怎么回</span>'+esc(n.gt)+'</div>'
     +'<div class="row nt"><span class="lb">差异点 / 为什么</span>'+esc(n.nt)+'</div>'
+    +(n.boss?'<div class="row bb"><span class="lb">📌 老板判词（Phil 红笔 2026-10-24）</span>'+esc(n.boss)+'</div>':"")
     +'<div class="judge">'
       +'<button id="g'+n.id+'" onclick="judge('+n.id+',\'good\')">对</button>'
       +'<button id="b'+n.id+'" onclick="judge('+n.id+',\'bad\')">差</button>'
