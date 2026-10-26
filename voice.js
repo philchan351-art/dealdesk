@@ -213,7 +213,9 @@
           fetch(String(cc.proxyUrl).replace(/\/+$/, "") + "/stt", pd)
             .then(function (r2) { return r2.json(); })
             .then(function (j2) {
-              P.state = (j2 && j2.text) ? "done" : "empty";
+              /* 2026-10-25（Phil：长语音只记录前几秒）：错误响应（解不开/限流/故障）必须计失败——
+                 此前当"静音空"处理，拼接会把只有前几秒的文字当成全文交出去 */
+              P.state = (j2 && j2.error) ? "failed" : ((j2 && j2.text) ? "done" : "empty");
               P.text = (j2 && j2.text) || "";
             })
             .catch(function () { if (P.state === "sending") P.state = "failed"; })
@@ -309,11 +311,37 @@
             try { rec = mime ? new MediaRec(stream, { mimeType: mime }) : new MediaRec(stream); }
             catch (err2) { stopStream(); resetUI(); App.toast("没听清你的声音：" + err2.message); return; }
           }
+           /* 2026-10-25（Phil：长语音只记录前几秒）：webm 的 timeslice 切片里只有第一片带文件头，
+             后续片单独解码会失败（云端报错/幻觉）。修：把第一片头部的头（到第一个 Cluster 之前）
+             拼到每片前面，让每片可独立解码。chunks[] 保持原始片不动（整段兜底用）。 */
+          var webmHeader = null, partSeq = 0;
+          function webmPartBlob(evData, isFirst) {
+            if (recFmt !== "webm") return evData;
+            if (isFirst) {
+              var fr = new FileReader();
+              fr.onload = function () {
+                var u8 = new Uint8Array(fr.result);
+                for (var k = 0; k + 4 < u8.length; k++) {
+                  if (u8[k] === 0x1F && u8[k + 1] === 0x43 && u8[k + 2] === 0xB6 && u8[k + 3] === 0x75) {
+                    webmHeader = u8.slice(0, k);
+                    break;
+                  }
+                }
+              };
+              fr.readAsArrayBuffer(evData);
+              return evData;
+            }
+            return webmHeader ? new Blob([webmHeader, evData]) : evData;
+          }
           rec.ondataavailable = function (ev) {
             if (!ev.data || !ev.data.size) return;
             chunks.push(ev.data);
-            /* 2026-10-25：边录边识别——每满一片立刻后台送 /stt（并发 4），不等松手 */
-            if (ev.data.size > 4000) { partJobs.push({ blob: ev.data, state: "queued", text: "" }); partPump(); }
+            /* 边录边识别：每满一片立刻后台送 /stt（并发 4），不等松手 */
+            if (ev.data.size > 4000) {
+              partSeq++;
+              partJobs.push({ blob: webmPartBlob(ev.data, partSeq === 1), state: "queued", text: "" });
+              partPump();
+            }
           };
           rec.onstop = function () {
             stopCountdown();
@@ -402,7 +430,14 @@
                   else if (P.state === "failed") fail++;
                 });
                 if (done + fail === partJobs.length) {
-                  if (txt >= 2 && fail * 4 <= partJobs.length) { finishFastText(out.replace(/\s+/g, " ").trim()); return; }
+                  /* 2026-10-25：有文字之后连续 ≥2 片空 = 疑似切片链路异常（不是正常停顿），放弃拼接回退整段 */
+                  var run = 0, bad = false, seenTxt = false;
+                  partJobs.forEach(function (P) {
+                    if (P.state === "done") { run = 0; seenTxt = true; }
+                    else if (P.state === "empty" && seenTxt) { run++; if (run >= 2) bad = true; }
+                    else if (P.state === "failed") { run = 0; }
+                  });
+                  if (!bad && txt >= 2 && fail * 4 <= partJobs.length) { finishFastText(out.replace(/\s+/g, " ").trim()); return; }
                   finishFull(); return;
                 }
                 if (Date.now() - fastT0 > 20000) { finishFull(); return; }
