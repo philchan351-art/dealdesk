@@ -183,7 +183,7 @@
     function disarmStartWatch() { if (startWatch) { clearTimeout(startWatch); startWatch = null; } }
     /* 2026-10-25（Phil：识别速度还是很慢）：录音期间每 6 秒一片、后台并行送 /stt（并发 4）——
        松手时大部分文字已回来，只等最后 1~2 片。服务端零改动（每片就是一次普通 /stt 调用）。 */
-    var partJobs = [], partInFlight = 0, partAborts = [], sttTick = null, sttAcRef = null, sttUserAbort = false, recFmt = "webm";
+    var partJobs = [], partInFlight = 0, partAborts = [], sttTick = null, sttAcRef = null, sttUserAbort = false, recFmt = "webm", fastMode = false;
     function partPump() {
       for (var i = 0; i < partJobs.length; i++) {
         if (partInFlight >= 4) return;
@@ -362,7 +362,17 @@
             phase = "stt"; setCls(true, "busy"); setLabel(busyText);
             /* 2026-10-25（Phil：长语音识别时间长、没有任何反馈）：转写中每秒显示已耗时，让说话的人知道还在干活 */
             var sttT0 = Date.now();
-            sttTick = setInterval(function () { if (phase === "stt") setLabel("正在转成文字… " + Math.round((Date.now() - sttT0) / 1000) + "s"); }, 1000);
+            sttTick = setInterval(function () {
+              if (phase !== "stt") return;
+              if (fastMode) {
+                /* 2026-10-25（Phil：依然只有前几秒）：按钮上显示片进度——排查时直接可见几片回了、几片有字 */
+                var settled = 0, withTxt = 0;
+                partJobs.forEach(function (P) { if (P.state === "done" || P.state === "empty" || P.state === "failed") settled++; if (P.state === "done") withTxt++; });
+                setLabel("转写 " + settled + "/" + partJobs.length + "片·有字" + withTxt + "… " + Math.round((Date.now() - sttT0) / 1000) + "s");
+              } else {
+                setLabel("正在转成文字… " + Math.round((Date.now() - sttT0) / 1000) + "s");
+              }
+            }, 1000);
             function deliverText(t) {
               if (opts.onResult) opts.onResult(t, target);
               else if (target && "value" in target) {
@@ -374,6 +384,8 @@
               }
             }
             function finishFull() {
+              fastMode = false;
+              setLabel("整段识别中…（已自动回退）");
               b64(blob, function (b64v) {
                 if (phase !== "stt") return;
                 var s2 = Store.getSettings() || {};
@@ -420,7 +432,13 @@
                松手后片回齐即拼接出文字（要求：有效片 ≥2 且失败率 ≤25%）；
                不满足或 20s 未回齐 → 回退整段识别（老路线，结果不降级） */
             if (partJobs.length >= 2) {
+              fastMode = true;
               var fastT0 = Date.now();
+              /* 2026-10-25（Phil：依然只有前几秒）：通用保险——正常语速每分钟 180~240 字，
+                 拼接结果字数明显低于音频时长的下限（按 3 字/秒，封顶 160）＝大片音频丢失
+                 （空/幻觉/丢片，不管哪种原因），放弃拼接回退整段。最坏 = 老路线，全文完整。 */
+              var recDurSec = Math.max(1, Math.round((Date.now() - recT0) / 1000));
+              var minLen = Math.min(160, recDurSec * 3);
               (function pollFast() {
                 if (phase !== "stt") return;
                 var done = 0, fail = 0, txt = 0, out = "";
@@ -430,14 +448,16 @@
                   else if (P.state === "failed") fail++;
                 });
                 if (done + fail === partJobs.length) {
-                  /* 2026-10-25：有文字之后连续 ≥2 片空 = 疑似切片链路异常（不是正常停顿），放弃拼接回退整段 */
+                  fastMode = false;
+                  /* 有文字之后连续 ≥2 片空 = 疑似切片链路异常（不是正常停顿），放弃拼接回退整段 */
                   var run = 0, bad = false, seenTxt = false;
                   partJobs.forEach(function (P) {
                     if (P.state === "done") { run = 0; seenTxt = true; }
                     else if (P.state === "empty" && seenTxt) { run++; if (run >= 2) bad = true; }
                     else if (P.state === "failed") { run = 0; }
                   });
-                  if (!bad && txt >= 2 && fail * 4 <= partJobs.length) { finishFastText(out.replace(/\s+/g, " ").trim()); return; }
+                  var outClean = out.replace(/\s+/g, " ").trim();
+                  if (!bad && txt >= 2 && fail * 4 <= partJobs.length && outClean.length >= minLen) { finishFastText(outClean); return; }
                   finishFull(); return;
                 }
                 if (Date.now() - fastT0 > 20000) { finishFull(); return; }
