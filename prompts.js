@@ -67,6 +67,8 @@
       var kbBlock = window.KB ? KB.blockFor(b, lastBuyer) : "";
       var trustBlock = window.KB ? KB.trustBlock(b, lastBuyer) : "";
       var skillBlock = window.SKILLS ? "【当前技能】" + SKILLS.text(SKILLS.pick(b)) + "\n（参考句式只学结构与口吻，其中的数字/事实/认证一律以客户档案和对话为准）\n" : "";
+      /* v1.8.0 回合库：最相似真实回合（吴总原思路）作为底稿参考；无命中 → 强制通用草案标注 */
+      var turnBlock = window.TURNS ? TURNS.blockFor(b, lastBuyer) : "";
       return BEND + CONCRETE + "背景：你代表中国的出口供应商/工厂，正在 WhatsApp 上跟采购商「" + b.name + "」谈单。当前阶段：" + (stage || "询盘") + "。\n" +
         "任务：先诊断这单、定好出招，再生成 3 条可以直接发给客户的回复。\n" +
         "诊断规则：nextGoal＝把这单往前推一步的最关键动作（不超过 10 个汉字，如：推动样品确认 / 拿到目标数量 / 确认付款条件）；blocker＝当前卡点（不超过 12 个汉字，没有则写\"无\"）；move＝这一轮用什么招（不超过 8 个汉字，从谈判动作里选：以量换价 / 给台阶不催 / 先答再推 / 守价亮专业 / 追问换承诺 / 亮案例降风险 / 小步试探）。\n" +
