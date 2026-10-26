@@ -181,6 +181,56 @@
       return tok;
     }
     function disarmStartWatch() { if (startWatch) { clearTimeout(startWatch); startWatch = null; } }
+    /* 2026-10-25（Phil：识别速度还是很慢）：录音期间每 6 秒一片、后台并行送 /stt（并发 4）——
+       松手时大部分文字已回来，只等最后 1~2 片。服务端零改动（每片就是一次普通 /stt 调用）。 */
+    var partJobs = [], partInFlight = 0, partAborts = [], sttTick = null, sttAcRef = null, sttUserAbort = false, recFmt = "webm";
+    function partPump() {
+      for (var i = 0; i < partJobs.length; i++) {
+        if (partInFlight >= 4) return;
+        var P = partJobs[i];
+        if (P.state !== "queued") continue;
+        P.state = "sending"; partInFlight++;
+        var pc = window.AbortController ? new AbortController() : null;
+        partAborts.push(pc);
+        var pT = setTimeout(function () { if (pc) { try { pc.abort(); } catch (e2) {} } }, 25000);
+        b64(P.blob, function (pb) {
+          if (P.state !== "sending") return; /* 已取消 */
+          var s2 = Store.getSettings() || {};
+          var cc = s2.llm || {}, cl = s2.cloud || {};
+          if (!cc.proxyUrl && cl.proxyUrl) cc.proxyUrl = cl.proxyUrl;
+          var au = window.Auth && Auth.get();
+          if (!cc.proxyUrl || !au || !au.session) {
+            /* 未配置/未登录：整段路径会给可见提示，片这里静默失败（触发整段兜底） */
+            P.state = "failed"; clearTimeout(pT); partInFlight = Math.max(0, partInFlight - 1); partPump();
+            return;
+          }
+          var pd = {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session },
+            body: JSON.stringify({ audio: pb, format: recFmt })
+          };
+          if (pc) pd.signal = pc.signal;
+          fetch(String(cc.proxyUrl).replace(/\/+$/, "") + "/stt", pd)
+            .then(function (r2) { return r2.json(); })
+            .then(function (j2) {
+              P.state = (j2 && j2.text) ? "done" : "empty";
+              P.text = (j2 && j2.text) || "";
+            })
+            .catch(function () { if (P.state === "sending") P.state = "failed"; })
+            .then(function () {
+              clearTimeout(pT);
+              partInFlight = Math.max(0, partInFlight - 1);
+              partPump();
+            });
+        });
+      }
+    }
+    function killParts() {
+      partAborts.forEach(function (pc) { if (pc) { try { pc.abort(); } catch (e2) {} } });
+      partAborts = [];
+      partJobs.forEach(function (P) { if (P.state === "queued" || P.state === "sending") P.state = "failed"; });
+      partInFlight = 0;
+    }
     function setLabel(t) { if (btn) btn.textContent = t; }
     function setCls(on, which) {
       if (!btn) return;
@@ -198,7 +248,7 @@
         if (phase === "listening") setLabel(LISTEN + " · " + remain + "s");
       }, 1000);
     }
-    function resetUI() { stopCountdown(); phase = "idle"; setCls(false); setLabel(DEFAULT); }
+    function resetUI() { stopCountdown(); phase = "idle"; setCls(false); setLabel(DEFAULT); killParts(); if (sttTick) { clearInterval(sttTick); sttTick = null; } sttAcRef = null; }
     function stopStream() {
       if (rec && rec.stream) {
         if (rec.stream === warmStream) return; /* 保温流由页面级统一管理（TTL/切后台释放），每次录完不停——停了下次又要弹授权 */
@@ -231,6 +281,7 @@
       graceStop = false;
       wasWarm = warmLive();
       var startTok = armStartWatch();
+      partJobs = []; partInFlight = 0; partAborts = []; /* 每次录音前清空上一次的切片任务 */
       setCls(true, "rec"); setLabel("正在开启麦克风…");
       micState().then(function (st) {
         if (st === "denied") { resetUI(); showDeniedPanel(); return; }
@@ -242,11 +293,12 @@
           if (phase !== "starting") { releaseWarm(); return; } /* 看门狗已复位：丢弃迟开的流，别让麦克风指示标漏亮 */
           disarmStartWatch();
           noteGrant(repeat);
-          var mime = "";
-          for (var i = 0; i < MIME_PREF.length; i++) {
-            if (MediaRec.isTypeSupported && MediaRec.isTypeSupported(MIME_PREF[i])) { mime = MIME_PREF[i]; break; }
-          }
-          var chunks = [], recT0 = 0, acRef = null, userAbort = false;
+           var mime = "";
+           for (var i = 0; i < MIME_PREF.length; i++) {
+             if (MediaRec.isTypeSupported && MediaRec.isTypeSupported(MIME_PREF[i])) { mime = MIME_PREF[i]; break; }
+           }
+           recFmt = fmtOf(mime); /* 后台切片与整段必须同一容器格式 */
+          var chunks = [], recT0 = 0;
           /* 2026-10-20（Phil「15 秒语音等 10 秒以上」）：实测热实例识别仅 1.2-1.4s、冷启动也只 +1.2s，
              大头是手机上传——默认 AAC 码率下 15s 音频 b64 后约 200KB，上行 200kbps 就要 8s。
              压到 32kbps 单声道（语音识别足够，模型内部还会重采样）→ 上传量约 1/3。
@@ -257,7 +309,12 @@
             try { rec = mime ? new MediaRec(stream, { mimeType: mime }) : new MediaRec(stream); }
             catch (err2) { stopStream(); resetUI(); App.toast("没听清你的声音：" + err2.message); return; }
           }
-          rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
+          rec.ondataavailable = function (ev) {
+            if (!ev.data || !ev.data.size) return;
+            chunks.push(ev.data);
+            /* 2026-10-25：边录边识别——每满一片立刻后台送 /stt（并发 4），不等松手 */
+            if (ev.data.size > 4000) { partJobs.push({ blob: ev.data, state: "queued", text: "" }); partPump(); }
+          };
           rec.onstop = function () {
             stopCountdown();
             if (activeRec === rec) activeRec = null;
@@ -277,51 +334,83 @@
             phase = "stt"; setCls(true, "busy"); setLabel(busyText);
             /* 2026-10-25（Phil：长语音识别时间长、没有任何反馈）：转写中每秒显示已耗时，让说话的人知道还在干活 */
             var sttT0 = Date.now();
-            var sttTick = setInterval(function () { if (phase === "stt") setLabel("正在转成文字… " + Math.round((Date.now() - sttT0) / 1000) + "s"); }, 1000);
-            b64(blob, function (b64v) {
-              var s2 = Store.getSettings() || {};
-              var c = s2.llm || {}, cl = s2.cloud || {};
-              if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
-              if (!c.proxyUrl) { resetUI(); App.toast("先在设置里配置云代理地址"); return; }
-              var au = window.Auth && Auth.get();
-              if (!au || !au.session) { resetUI(); App.toast("请先登录后再使用语音"); return; }
-              var p = {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session },
-                body: JSON.stringify({ audio: b64v, format: fmt })
-              };
-              /* 2026-10-20（Phil「生成不出来」）：手机信号差时上传会卡死——原来 fetch 无超时，
-                 按钮永远停在"正在转成文字…"。加 45s 熔断：超时报错并复位按钮，可立刻重说 */
-               var ac = (window.AbortController ? new AbortController() : null);
-               acRef = ac; userAbort = false;
-               /* 2026-10-25（Phil：长语音识别时间过长）：熔断预算随音频时长加长——60s 长音频的上传+识别合法地会超过 45s，不能误杀 */
-               var sttBudget = recT0 ? Math.min(120000, 45000 + (Date.now() - recT0)) : 45000;
-               var sttTimer = ac ? setTimeout(function () { ac.abort(); }, sttBudget) : null;
-               function unarmStt() { if (sttTimer) { clearTimeout(sttTimer); sttTimer = null; } clearInterval(sttTick); acRef = null; }
-              fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", ac ? Object.assign(p, { signal: ac.signal }) : p)
-                .then(function (r) { return r.json(); })
-                .then(function (j) {
-                  unarmStt();
-                  resetUI();
-                  if (j && j.text) {
-                    if (opts.onResult) opts.onResult(j.text, target);
-                    else if (target && "value" in target) {
-                      var v = target.value || "";
-                      target.value = v ? v.replace(/\s+$/, "") + " " + j.text : j.text;
-                      /* 2026-10-18（Phil「语音转化的文字，AI 没有自动扩充」）：程序改 value 不触发 input 事件
-                         → 买家页「停笔 2 秒自动扩充」监听器永远不启动。补发 input 事件，与手敲完全同一条链路 */
-                      target.dispatchEvent(new Event("input", { bubbles: true }));
-                    }
-                  } else {
-                    App.toast((j && j.error ? j.error : "没识别到内容，再按一下说一次").slice(0, 80));
-                  }
-                })
-                 .catch(function (err) {
-                   unarmStt();
-                   resetUI();
-                   App.toast(userAbort ? "已停止，再按一下说一次" : (err && err.name === "AbortError" ? "识别超时了，信号可能不好——再按一下说一次" : "识别失败：" + (err && err.message)), 5000);
-                 });
-            });
+            sttTick = setInterval(function () { if (phase === "stt") setLabel("正在转成文字… " + Math.round((Date.now() - sttT0) / 1000) + "s"); }, 1000);
+            function deliverText(t) {
+              if (opts.onResult) opts.onResult(t, target);
+              else if (target && "value" in target) {
+                var v = target.value || "";
+                target.value = v ? v.replace(/\s+$/, "") + " " + t : t;
+                /* 2026-10-18（Phil「语音转化的文字，AI 没有自动扩充」）：程序改 value 不触发 input 事件
+                   → 买家页「停笔 2 秒自动扩充」监听器永远不启动。补发 input 事件，与手敲完全同一条链路 */
+                target.dispatchEvent(new Event("input", { bubbles: true }));
+              }
+            }
+            function finishFull() {
+              b64(blob, function (b64v) {
+                if (phase !== "stt") return;
+                var s2 = Store.getSettings() || {};
+                var c = s2.llm || {}, cl = s2.cloud || {};
+                if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
+                if (!c.proxyUrl) { resetUI(); App.toast("先在设置里配置云代理地址"); return; }
+                var au = window.Auth && Auth.get();
+                if (!au || !au.session) { resetUI(); App.toast("请先登录后再使用语音"); return; }
+                var p = {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session },
+                  body: JSON.stringify({ audio: b64v, format: fmt })
+                };
+                /* 2026-10-20（Phil「生成不出来」）：手机信号差时上传会卡死——fetch 无超时的话按钮永远停在"正在转成文字…" */
+                var ac = (window.AbortController ? new AbortController() : null);
+                sttAcRef = ac; sttUserAbort = false;
+                /* 2026-10-25（Phil：长语音识别时间过长）：熔断预算随音频时长加长——60s 长音频的上传+识别合法地会超过 45s，不能误杀 */
+                var sttBudget = recT0 ? Math.min(120000, 45000 + (Date.now() - recT0)) : 45000;
+                var sttTimer = ac ? setTimeout(function () { ac.abort(); }, sttBudget) : null;
+                function unarmStt() { if (sttTimer) { clearTimeout(sttTimer); sttTimer = null; } sttAcRef = null; }
+                fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", ac ? Object.assign(p, { signal: ac.signal }) : p)
+                  .then(function (r) { return r.json(); })
+                  .then(function (j) {
+                    unarmStt();
+                    if (sttUserAbort) return; /* 用户已取消（取消时已复位并提示），丢弃迟到结果 */
+                    resetUI();
+                    if (j && j.text) deliverText(j.text);
+                    else App.toast((j && j.error ? j.error : "没识别到内容，再按一下说一次").slice(0, 80));
+                  })
+                  .catch(function (err) {
+                    unarmStt();
+                    if (sttUserAbort) return; /* 取消时已提示，不重复 */
+                    resetUI();
+                    App.toast(err && err.name === "AbortError" ? "识别超时了，信号可能不好——再按一下说一次" : "识别失败：" + (err && err.message), 5000);
+                  });
+              });
+            }
+            function finishFastText(t) {
+              resetUI();
+              if (t) deliverText(t);
+              else App.toast("没识别到内容，再按一下说一次");
+            }
+            /* 2026-10-25（Phil：识别速度还是很慢）：录音中已后台识别的 6s 切片——
+               松手后片回齐即拼接出文字（要求：有效片 ≥2 且失败率 ≤25%）；
+               不满足或 20s 未回齐 → 回退整段识别（老路线，结果不降级） */
+            if (partJobs.length >= 2) {
+              var fastT0 = Date.now();
+              (function pollFast() {
+                if (phase !== "stt") return;
+                var done = 0, fail = 0, txt = 0, out = "";
+                partJobs.forEach(function (P) {
+                  if (P.state === "done") { done++; txt++; out += P.text; }
+                  else if (P.state === "empty") done++;
+                  else if (P.state === "failed") fail++;
+                });
+                if (done + fail === partJobs.length) {
+                  if (txt >= 2 && fail * 4 <= partJobs.length) { finishFastText(out.replace(/\s+/g, " ").trim()); return; }
+                  finishFull(); return;
+                }
+                if (Date.now() - fastT0 > 20000) { finishFull(); return; }
+                setTimeout(pollFast, 500);
+              })();
+            } else {
+              finishFull();
+            }
           };
           rec.onerror = function () {
             stopCountdown();
@@ -332,7 +421,7 @@
           };
           try {
             recT0 = Date.now();
-            rec.start();
+            rec.start(6000); /* 2026-10-25：6s 一片，边录边后台识别（不支持 timeslice 的内核退化为整段，无副作用） */
             activeRec = rec;
             if (rec.stream === warmStream) { warmUsers++; refreshWarm(); }
             if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} return; }
@@ -359,7 +448,16 @@
     btn.addEventListener("dragstart", function (e) { e.preventDefault(); });
     btn.addEventListener("click", function (e) {
       e.preventDefault();
-      if (phase === "stt") { if (acRef) { userAbort = true; try { acRef.abort(); } catch (e) {} } return; } /* 转文字中：再按=取消（此前按键被静默吞掉，用户视角＝"一点没反应"） */
+      if (phase === "stt") {
+        /* 2026-10-25：转文字中再按 = 取消。修 1.7.2 的作用域 bug（acRef/userAbort 声明在录音闭包里，
+           点击处理器根本看不到，一按就 ReferenceError 白屏静默）→ 统一用 attach 层的 sttAcRef/sttUserAbort */
+        sttUserAbort = true;
+        killParts();
+        if (sttAcRef) { try { sttAcRef.abort(); } catch (e2) {} }
+        resetUI();
+        App.toast("已停止，再按一下说一次", 2500);
+        return;
+      }
       if (phase === "starting" || phase === "listening") { stopMic(); return; } /* 第 2 下 = 结束 */
       startMic(); /* 第 1 下 = 开始 */
     });
