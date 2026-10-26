@@ -154,6 +154,21 @@
      "按住说话"改"点按开关"——第 1 下=开始聆听（按钮转绿+提示音），第 2 下=结束并转成文字；
      转文字期间再按无效；单次录入硬上限 60 秒（绿色按钮上实时倒计时，说话的人看得见进度）；
      保温流/权限恢复面板/只转写不存录音 全部沿用。 */
+  /* 2026-10-26（Phil 要求：设立机制）——语音转化失败反馈铁律：
+     任何失败出口必须给出「原因类别 + 人话 + 下一步动作」，禁止静默失败、禁止甩技术黑话 */
+  function sttFailReason(err, j) {
+    if (err) {
+      if (err.name === "AbortError") return "⏱ 识别超时：可能信号弱或语音太长。再按一下，说短一点，或换 Wi‑Fi 重试";
+      return "📡 网络异常，识别请求没送到云端（" + String(err.message || "未知错误").slice(0, 40) + "）。检查手机信号后再按一下";
+    }
+    var e = j && j.error ? String(j.error) : "";
+    if (!e) return "🔇 没识别到内容。请靠近手机、说大声一点，再试一次";
+    if (/无有效语音|为空|empty/i.test(e)) return "🔇 没识别到有效语音（可能没采到声音或背景太吵）。到安静处、靠近麦克风再试一次";
+    if (/超时|耗时|timeout/i.test(e)) return "⏱ 云端识别超时/耗时过长（信号弱或语音太长）。再按一下说短一点，或换 Wi‑Fi 重试";
+    if (/内部错误|响应异常|HTTP/i.test(e)) return "⚠ 云服务暂时异常（" + e.slice(0, 40) + "）。请过几分钟再试";
+    return "⚠ 识别失败：" + e.slice(0, 60);
+  }
+
   function attach(btn, target, opts) {
     opts = opts || {};
     /* 2026-10-18 文案（Phil："我只是想让系统听到我说话，把我的话翻译为文字，而不是录音"；
@@ -404,19 +419,22 @@
                 var sttTimer = ac ? setTimeout(function () { ac.abort(); }, sttBudget) : null;
                 function unarmStt() { if (sttTimer) { clearTimeout(sttTimer); sttTimer = null; } sttAcRef = null; }
                 fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", ac ? Object.assign(p, { signal: ac.signal }) : p)
-                  .then(function (r) { return r.json(); })
+                  .then(function (r) {
+                    /* 2026-10-26：网关 502/504 返回非 JSON 时也要翻译成人话原因，不能抛原始错误 */
+                    return r.json().catch(function () { return { error: "云服务响应异常（HTTP " + r.status + "），请稍后重试" }; });
+                  })
                   .then(function (j) {
                     unarmStt();
                     if (sttUserAbort) return; /* 用户已取消（取消时已复位并提示），丢弃迟到结果 */
                     resetUI();
                     if (j && j.text) deliverText(j.text);
-                    else App.toast((j && j.error ? j.error : "没识别到内容，再按一下说一次").slice(0, 80));
+                    else App.toast(sttFailReason(null, j), 6000);
                   })
                   .catch(function (err) {
                     unarmStt();
                     if (sttUserAbort) return; /* 取消时已提示，不重复 */
                     resetUI();
-                    App.toast(err && err.name === "AbortError" ? "识别超时了，信号可能不好——再按一下说一次" : "识别失败：" + (err && err.message), 5000);
+                    App.toast(sttFailReason(err, null), 6000);
                   });
               });
             }
