@@ -198,7 +198,7 @@
     function disarmStartWatch() { if (startWatch) { clearTimeout(startWatch); startWatch = null; } }
     /* 2026-10-25（Phil：识别速度还是很慢）：录音期间每 6 秒一片、后台并行送 /stt（并发 4）——
        松手时大部分文字已回来，只等最后 1~2 片。服务端零改动（每片就是一次普通 /stt 调用）。 */
-    var partJobs = [], partInFlight = 0, partAborts = [], sttTick = null, sttAcRef = null, sttUserAbort = false, recFmt = "webm", fastMode = false;
+    var partJobs = [], partInFlight = 0, partAborts = [], sttTick = null, sttAcRef = null, sttUserAbort = false, recFmt = "webm", fastMode = false, recCounter = 0;
     function partPump() {
       for (var i = 0; i < partJobs.length; i++) {
         if (partInFlight >= 4) return;
@@ -298,6 +298,7 @@
       graceStop = false;
       wasWarm = warmLive();
       var startTok = armStartWatch();
+      var myRecId = ++recCounter; /* 本轮录音编号：异步预检回来时若已开始新一轮录音，旧流程作废 */
       partJobs = []; partInFlight = 0; partAborts = []; /* 每次录音前清空上一次的切片任务 */
       setCls(true, "rec"); setLabel("正在开启麦克风…");
       micState().then(function (st) {
@@ -351,9 +352,19 @@
            rec.ondataavailable = function (ev) {
              if (!ev.data || !ev.data.size) return;
              chunks.push(ev.data);
-             /* 2026-10-26 决策（60s 长音频打线上 /stt 实测：整段 2.9s 完整转写 304 字、无截断）：
-                切片路线收益归零，而它是"只出前几秒"的根源（1.7.3~1.7.5 连修未根除）——停用，回归整段识别。
-                webmPartBlob/partPump 代码保留备查，待切片解码验证通过后再启用。 */
+             /* 2026-10-26：录音中顺手提取 webm 文件头（异步、无网络）——
+                长语音自动分段时用：第二半段前补头即可独立解码、不重复内容 */
+             if (recFmt === "webm" && !webmHeader && partSeq === 0) {
+               partSeq = 1;
+               var fr = new FileReader();
+               fr.onload = function () {
+                 var u8 = new Uint8Array(fr.result);
+                 for (var k = 0; k + 4 < u8.length; k++) {
+                   if (u8[k] === 0x1F && u8[k + 1] === 0x43 && u8[k + 2] === 0xB6 && u8[k + 3] === 0x75) { webmHeader = u8.slice(0, k); break; }
+                 }
+               };
+               fr.readAsArrayBuffer(ev.data);
+             }
            };
           rec.onstop = function () {
             stopCountdown();
@@ -371,20 +382,6 @@
               App.toast(graceStop ? "这次停得有点快，还没收到声音——按一下开始，说完再按一下" : "没听到声音，再按一下说一次", 4000);
               return;
             }
-            phase = "stt"; setCls(true, "busy"); setLabel(busyText);
-            /* 2026-10-25（Phil：长语音识别时间长、没有任何反馈）：转写中每秒显示已耗时，让说话的人知道还在干活 */
-            var sttT0 = Date.now();
-            sttTick = setInterval(function () {
-              if (phase !== "stt") return;
-              if (fastMode) {
-                /* 2026-10-25（Phil：依然只有前几秒）：按钮上显示片进度——排查时直接可见几片回了、几片有字 */
-                var settled = 0, withTxt = 0;
-                partJobs.forEach(function (P) { if (P.state === "done" || P.state === "empty" || P.state === "failed") settled++; if (P.state === "done") withTxt++; });
-                setLabel("转写 " + settled + "/" + partJobs.length + "片·有字" + withTxt + "… " + Math.round((Date.now() - sttT0) / 1000) + "s");
-              } else {
-                setLabel("正在转成文字… " + Math.round((Date.now() - sttT0) / 1000) + "s");
-              }
-            }, 1000);
             function deliverText(t) {
               if (opts.onResult) opts.onResult(t, target);
               else if (target && "value" in target) {
@@ -395,58 +392,107 @@
                 target.dispatchEvent(new Event("input", { bubbles: true }));
               }
             }
-            function finishFull() {
-              fastMode = false;
-              setLabel("整段识别中…（已自动回退）");
-              b64(blob, function (b64v) {
+            /* 2026-10-26（两次实测的发现）：
+               ① 模型对无语音音频会幻觉出假文字（纯音 → 3 段不同乱码）→ 上传前本地测音量，没声音根本不上传；
+               ② omni 对 >~60s 音频会截断（3 分钟实测只回开头两句）→ 长语音自动切两半顺序上传、拼接文字。
+               probe={peak,dur}；peak<0 = 预检跳过（解码失败），dur=0 = 不做分段 */
+            function startSttFlow(probe) {
+              if (recCounter !== myRecId) return; /* 用户已开始新一轮录音，这条旧流程作废 */
+              if (probe && probe.peak >= 0 && probe.peak < 0.01) {
+                resetUI();
+                App.toast("🔇 没有采到声音（音量太低或麦克风没工作）。靠近手机再按一下说一次", 6000);
+                return;
+              }
+              phase = "stt"; setCls(true, "busy"); setLabel(busyText);
+              /* 2026-10-25（Phil：长语音没有任何反馈）：转写中每秒显示已耗时 + 当前阶段 */
+              var sttT0 = Date.now();
+              var sttStage = "正在转成文字";
+              sttTick = setInterval(function () {
                 if (phase !== "stt") return;
-                var s2 = Store.getSettings() || {};
-                var c = s2.llm || {}, cl = s2.cloud || {};
-                if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
-                if (!c.proxyUrl) { resetUI(); App.toast("先在设置里配置云代理地址"); return; }
-                var au = window.Auth && Auth.get();
-                if (!au || !au.session) { resetUI(); App.toast("请先登录后再使用语音"); return; }
-                var p = {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session },
-                  body: JSON.stringify({ audio: b64v, format: fmt })
-                };
-                /* 2026-10-20（Phil「生成不出来」）：手机信号差时上传会卡死——fetch 无超时的话按钮永远停在"正在转成文字…" */
-                var ac = (window.AbortController ? new AbortController() : null);
-                sttAcRef = ac; sttUserAbort = false;
-                /* 2026-10-25（Phil：长语音识别时间过长）：熔断预算随音频时长加长——60s 长音频的上传+识别合法地会超过 45s，不能误杀 */
-                var sttBudget = recT0 ? Math.min(120000, 45000 + (Date.now() - recT0)) : 45000;
-                var sttTimer = ac ? setTimeout(function () { ac.abort(); }, sttBudget) : null;
-                function unarmStt() { if (sttTimer) { clearTimeout(sttTimer); sttTimer = null; } sttAcRef = null; }
-                fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", ac ? Object.assign(p, { signal: ac.signal }) : p)
-                  .then(function (r) {
-                    /* 2026-10-26：网关 502/504 返回非 JSON 时也要翻译成人话原因，不能抛原始错误 */
-                    return r.json().catch(function () { return { error: "云服务响应异常（HTTP " + r.status + "），请稍后重试" }; });
-                  })
-                  .then(function (j) {
-                    unarmStt();
-                    if (sttUserAbort) return; /* 用户已取消（取消时已复位并提示），丢弃迟到结果 */
+                setLabel(sttStage + "… " + Math.round((Date.now() - sttT0) / 1000) + "s");
+              }, 1000);
+              function sttUpload(bX, stage, onJ, onErr) {
+                sttStage = stage;
+                b64(bX, function (b64v) {
+                  if (phase !== "stt") return;
+                  var s2 = Store.getSettings() || {};
+                  var c = s2.llm || {}, cl = s2.cloud || {};
+                  if (!c.proxyUrl && cl.proxyUrl) c.proxyUrl = cl.proxyUrl;
+                  if (!c.proxyUrl) { resetUI(); App.toast("先在设置里配置云代理地址"); return; }
+                  var au = window.Auth && Auth.get();
+                  if (!au || !au.session) { resetUI(); App.toast("请先登录后再使用语音"); return; }
+                  var p = { method: "POST", headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session }, body: JSON.stringify({ audio: b64v, format: fmt }) };
+                  var ac = (window.AbortController ? new AbortController() : null);
+                  sttAcRef = ac; sttUserAbort = false;
+                  /* 熔断预算随分段大小：40s 底 + 每 40KB 加 1s（2 分钟音频 ≈ 480KB → 52s），不超 90s */
+                  var sttBudget = Math.min(90000, 40000 + Math.floor(bX.size / 40000) * 1000);
+                  var sttTimer = ac ? setTimeout(function () { ac.abort(); }, sttBudget) : null;
+                  function unarmStt() { if (sttTimer) { clearTimeout(sttTimer); sttTimer = null; } sttAcRef = null; }
+                  fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", ac ? Object.assign(p, { signal: ac.signal }) : p)
+                    .then(function (r) {
+                      /* 2026-10-26（Phil 要求的反馈机制）：网关 502/504 返回非 JSON 时也翻译成人话原因 */
+                      return r.json().catch(function () { return { error: "云服务响应异常（HTTP " + r.status + "），请稍后重试" }; });
+                    })
+                    .then(function (j) { unarmStt(); if (sttUserAbort) return; onJ(j); })
+                    .catch(function (err) { unarmStt(); if (sttUserAbort) return; onErr(err); });
+                });
+              }
+              function finishFull() {
+                sttUpload(blob, "整段识别中", function (j) {
+                  resetUI();
+                  if (j && j.text) deliverText(j.text);
+                  else App.toast(sttFailReason(null, j), 6000);
+                }, function (err) {
+                  resetUI();
+                  App.toast(sttFailReason(err, null), 6000);
+                });
+              }
+              /* ② 长语音自动分段：webm 且 >50s → 两半顺序上传（每半 <50s，在 omni 可靠区间内），文字拼接 */
+              if (probe && probe.dur > 50 && recFmt === "webm" && chunks.length >= 6) {
+                var half = Math.ceil(chunks.length / 2);
+                var bA = new Blob(chunks.slice(0, half), { type: blob.type });
+                /* 第二半段前补文件头（只补头不带音频）→ 独立解码且不重复内容；头没提取到时退化为补整个第一片（开头多 ~1s，可接受） */
+                var bB = new Blob((webmHeader ? [webmHeader] : [chunks[0]]).concat(chunks.slice(half)), { type: blob.type });
+                sttUpload(bA, "长语音·第1/2段", function (jA) {
+                  if (sttUserAbort) return;
+                  var tA = (jA && jA.text) || "";
+                  sttUpload(bB, "长语音·第2/2段", function (jB) {
+                    if (sttUserAbort) return;
                     resetUI();
-                    if (j && j.text) deliverText(j.text);
-                    else App.toast(sttFailReason(null, j), 6000);
-                  })
-                  .catch(function (err) {
-                    unarmStt();
-                    if (sttUserAbort) return; /* 取消时已提示，不重复 */
+                    var tB = (jB && jB.text) || "";
+                    if (tA && tB) { deliverText(tA + " " + tB); return; }
+                    if (tA || tB) { deliverText((tA + " " + tB).trim()); App.toast("只识别到一部分——再按一下补说缺失的部分", 6000); return; }
+                    App.toast(sttFailReason(null, jB), 6000);
+                  }, function (errB) {
+                    if (sttUserAbort) return;
                     resetUI();
-                    App.toast(sttFailReason(err, null), 6000);
+                    if (tA) { deliverText(tA); App.toast("第二段识别失败，只拿到前半——再按一下补说后半", 6000); }
+                    else App.toast(sttFailReason(errB, null), 6000);
                   });
-              });
+                }, function (errA) {
+                  if (sttUserAbort) return;
+                  resetUI();
+                  App.toast(sttFailReason(errA, null) + "（也可以说短一点再试）", 6000);
+                });
+              } else {
+                finishFull();
+              }
             }
-            function finishFastText(t) {
-              resetUI();
-              if (t) deliverText(t);
-              else App.toast("没识别到内容，再按一下说一次");
-            }
-            /* 2026-10-26 决策：60s 长音频打线上 /stt 实测——整段 2.9s 完整转写 304 字、无截断。
-               服务端本来就快，切片拼接路线收益归零且是"只出前几秒"的根源 → 停用，一律整段识别。
-               保留 finishFastText/pollFast 代码于 1.7.3~1.7.5 提交历史，切片解码验证通过后再启用。 */
-            finishFull();
+            /* 预检：本地解码一次，两用——测峰值（①静音幻觉拦截）+ 测时长（②长语音分段）。
+               解码失败（老内核）跳过预检，按原样整段发送，不挡功能 */
+            (function () {
+              var AC = window.AudioContext || window.webkitAudioContext;
+              if (!AC) { startSttFlow({ peak: -1, dur: 0 }); return; }
+              var actx = new AC();
+              blob.arrayBuffer().then(function (ab) { return actx.decodeAudioData(ab); })
+                .then(function (aud) {
+                  var ch = aud.getChannelData(0), peak = 0;
+                  for (var i = 0; i < ch.length; i += 64) { var a = Math.abs(ch[i]); if (a > peak) peak = a; }
+                  try { actx.close(); } catch (e2) {}
+                  startSttFlow({ peak: peak, dur: aud.duration });
+                })
+                .catch(function () { try { actx.close(); } catch (e2) {} startSttFlow({ peak: -1, dur: 0 }); });
+            })();
           };
           rec.onerror = function () {
             stopCountdown();
