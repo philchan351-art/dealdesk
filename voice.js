@@ -199,6 +199,7 @@
     /* 2026-10-25（Phil：识别速度还是很慢）：录音期间每 6 秒一片、后台并行送 /stt（并发 4）——
        松手时大部分文字已回来，只等最后 1~2 片。服务端零改动（每片就是一次普通 /stt 调用）。 */
     var partJobs = [], partInFlight = 0, partAborts = [], sttTick = null, sttAcRef = null, sttUserAbort = false, recFmt = "webm", fastMode = false, recCounter = 0;
+    var lastVoiceValue = null; /* 2026-10-26（Phil：第二条语音没覆盖第一条）：记录上次语音写入后的完整内容，用于判断"用户动没动过" */
     function partPump() {
       for (var i = 0; i < partJobs.length; i++) {
         if (partInFlight >= 4) return;
@@ -386,7 +387,12 @@
               if (opts.onResult) opts.onResult(t, target);
               else if (target && "value" in target) {
                 var v = target.value || "";
-                target.value = v ? v.replace(/\s+$/, "") + " " + t : t;
+                /* 2026-10-26（Phil：第二条语音没覆盖第一条）：
+                   框里内容 = 上次语音刚写入且用户没动过 → 覆盖（重说一次 = 换新结果）；
+                   用户改过 / 框里本来有手敲内容 → 追加（不毁掉已有文字，1.7.2 原行为） */
+                if (lastVoiceValue !== null && v === lastVoiceValue) target.value = t;
+                else target.value = v ? v.replace(/\s+$/, "") + " " + t : t;
+                lastVoiceValue = target.value;
                 /* 2026-10-18（Phil「语音转化的文字，AI 没有自动扩充」）：程序改 value 不触发 input 事件
                    → 买家页「停笔 2 秒自动扩充」监听器永远不启动。补发 input 事件，与手敲完全同一条链路 */
                 target.dispatchEvent(new Event("input", { bubbles: true }));
