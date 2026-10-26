@@ -163,6 +163,24 @@
     var busyText = opts.busyText || "听到了，正在转成文字…";
     var MAX_MS = 60000; /* 2026-10-19（Phil）：语音录入硬上限 60 秒，绿色按钮上实时倒计时让说话的人知道进度 */
     var rec = null, phase = "idle", pendingStop = false, graceStop = false, wasWarm = false, maxTimer = null, remain = 0;
+    /* 2026-10-25（Phil：长语音后"第二次按，一点都没反应"）：开麦阶段（phase=starting）
+       此前无超时——permissions.query/getUserMedia 卡住时按钮永久停在"正在开启麦克风…"，
+       之后每次按键都落进 stopMic 分支被静默吞掉。加 12s 看门狗：超时自动复位并给出可操作提示 */
+    var startSeq = 0, startWatch = null;
+    function armStartWatch() {
+      startSeq++;
+      var tok = startSeq;
+      if (startWatch) clearTimeout(startWatch);
+      startWatch = setTimeout(function () {
+        startWatch = null;
+        if (phase === "starting") {
+          resetUI();
+          App.toast("麦克风没打开（系统授权框可能卡住了）。再按一下重试；若一直如此，检查浏览器的麦克风权限", 6000);
+        }
+      }, 12000);
+      return tok;
+    }
+    function disarmStartWatch() { if (startWatch) { clearTimeout(startWatch); startWatch = null; } }
     function setLabel(t) { if (btn) btn.textContent = t; }
     function setCls(on, which) {
       if (!btn) return;
@@ -212,6 +230,7 @@
       pendingStop = false;
       graceStop = false;
       wasWarm = warmLive();
+      var startTok = armStartWatch();
       setCls(true, "rec"); setLabel("正在开启麦克风…");
       micState().then(function (st) {
         if (st === "denied") { resetUI(); showDeniedPanel(); return; }
@@ -219,12 +238,15 @@
         try { repeat = st === "prompt" && !!localStorage.getItem("dd_mic_ever_granted"); } catch (e) {}
         beep(880, 0.12);
         acquireStream().then(function (stream) {
+          if (startSeq !== startTok) return; /* 已有新一轮点按接手（看门狗复位后用户重按），这条迟到结果作废 */
+          if (phase !== "starting") { releaseWarm(); return; } /* 看门狗已复位：丢弃迟开的流，别让麦克风指示标漏亮 */
+          disarmStartWatch();
           noteGrant(repeat);
           var mime = "";
           for (var i = 0; i < MIME_PREF.length; i++) {
             if (MediaRec.isTypeSupported && MediaRec.isTypeSupported(MIME_PREF[i])) { mime = MIME_PREF[i]; break; }
           }
-          var chunks = [];
+          var chunks = [], recT0 = 0, acRef = null, userAbort = false;
           /* 2026-10-20（Phil「15 秒语音等 10 秒以上」）：实测热实例识别仅 1.2-1.4s、冷启动也只 +1.2s，
              大头是手机上传——默认 AAC 码率下 15s 音频 b64 后约 200KB，上行 200kbps 就要 8s。
              压到 32kbps 单声道（语音识别足够，模型内部还会重采样）→ 上传量约 1/3。
@@ -253,6 +275,9 @@
               return;
             }
             phase = "stt"; setCls(true, "busy"); setLabel(busyText);
+            /* 2026-10-25（Phil：长语音识别时间长、没有任何反馈）：转写中每秒显示已耗时，让说话的人知道还在干活 */
+            var sttT0 = Date.now();
+            var sttTick = setInterval(function () { if (phase === "stt") setLabel("正在转成文字… " + Math.round((Date.now() - sttT0) / 1000) + "s"); }, 1000);
             b64(blob, function (b64v) {
               var s2 = Store.getSettings() || {};
               var c = s2.llm || {}, cl = s2.cloud || {};
@@ -267,9 +292,12 @@
               };
               /* 2026-10-20（Phil「生成不出来」）：手机信号差时上传会卡死——原来 fetch 无超时，
                  按钮永远停在"正在转成文字…"。加 45s 熔断：超时报错并复位按钮，可立刻重说 */
-              var ac = (window.AbortController ? new AbortController() : null);
-              var sttTimer = ac ? setTimeout(function () { ac.abort(); }, 45000) : null;
-              function unarmStt() { if (sttTimer) { clearTimeout(sttTimer); sttTimer = null; } }
+               var ac = (window.AbortController ? new AbortController() : null);
+               acRef = ac; userAbort = false;
+               /* 2026-10-25（Phil：长语音识别时间过长）：熔断预算随音频时长加长——60s 长音频的上传+识别合法地会超过 45s，不能误杀 */
+               var sttBudget = recT0 ? Math.min(120000, 45000 + (Date.now() - recT0)) : 45000;
+               var sttTimer = ac ? setTimeout(function () { ac.abort(); }, sttBudget) : null;
+               function unarmStt() { if (sttTimer) { clearTimeout(sttTimer); sttTimer = null; } clearInterval(sttTick); acRef = null; }
               fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", ac ? Object.assign(p, { signal: ac.signal }) : p)
                 .then(function (r) { return r.json(); })
                 .then(function (j) {
@@ -288,11 +316,11 @@
                     App.toast((j && j.error ? j.error : "没识别到内容，再按一下说一次").slice(0, 80));
                   }
                 })
-                .catch(function (err) {
-                  unarmStt();
-                  resetUI();
-                  App.toast(err && err.name === "AbortError" ? "识别超时了，信号可能不好——再按一下说一次" : "识别失败：" + (err && err.message), 5000);
-                });
+                 .catch(function (err) {
+                   unarmStt();
+                   resetUI();
+                   App.toast(userAbort ? "已停止，再按一下说一次" : (err && err.name === "AbortError" ? "识别超时了，信号可能不好——再按一下说一次" : "识别失败：" + (err && err.message)), 5000);
+                 });
             });
           };
           rec.onerror = function () {
@@ -303,6 +331,7 @@
             App.toast("聆听被打断，再试一次");
           };
           try {
+            recT0 = Date.now();
             rec.start();
             activeRec = rec;
             if (rec.stream === warmStream) { warmUsers++; refreshWarm(); }
@@ -315,6 +344,7 @@
             App.toast("没听清你的声音：" + err.message);
           }
         }).catch(function (err) {
+          if (startSeq !== startTok) return; /* 新一轮点按已接手，这条迟到的错误不覆盖新状态 */
           resetUI();
           if (/NotAllowed|Permission|Security/i.test(String(err.message || err.name))) showDeniedPanel();
           else App.toast("打不开麦克风：" + err.message);
@@ -329,7 +359,7 @@
     btn.addEventListener("dragstart", function (e) { e.preventDefault(); });
     btn.addEventListener("click", function (e) {
       e.preventDefault();
-      if (phase === "stt") return; /* 转文字中：等文字进输入框，别乱按 */
+      if (phase === "stt") { if (acRef) { userAbort = true; try { acRef.abort(); } catch (e) {} } return; } /* 转文字中：再按=取消（此前按键被静默吞掉，用户视角＝"一点没反应"） */
       if (phase === "starting" || phase === "listening") { stopMic(); return; } /* 第 2 下 = 结束 */
       startMic(); /* 第 1 下 = 开始 */
     });
