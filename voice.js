@@ -333,16 +333,13 @@
             }
             return webmHeader ? new Blob([webmHeader, evData]) : evData;
           }
-          rec.ondataavailable = function (ev) {
-            if (!ev.data || !ev.data.size) return;
-            chunks.push(ev.data);
-            /* 边录边识别：每满一片立刻后台送 /stt（并发 4），不等松手 */
-            if (ev.data.size > 4000) {
-              partSeq++;
-              partJobs.push({ blob: webmPartBlob(ev.data, partSeq === 1), state: "queued", text: "" });
-              partPump();
-            }
-          };
+           rec.ondataavailable = function (ev) {
+             if (!ev.data || !ev.data.size) return;
+             chunks.push(ev.data);
+             /* 2026-10-26 决策（60s 长音频打线上 /stt 实测：整段 2.9s 完整转写 304 字、无截断）：
+                切片路线收益归零，而它是"只出前几秒"的根源（1.7.3~1.7.5 连修未根除）——停用，回归整段识别。
+                webmPartBlob/partPump 代码保留备查，待切片解码验证通过后再启用。 */
+           };
           rec.onstop = function () {
             stopCountdown();
             if (activeRec === rec) activeRec = null;
@@ -428,44 +425,10 @@
               if (t) deliverText(t);
               else App.toast("没识别到内容，再按一下说一次");
             }
-            /* 2026-10-25（Phil：识别速度还是很慢）：录音中已后台识别的 6s 切片——
-               松手后片回齐即拼接出文字（要求：有效片 ≥2 且失败率 ≤25%）；
-               不满足或 20s 未回齐 → 回退整段识别（老路线，结果不降级） */
-            if (partJobs.length >= 2) {
-              fastMode = true;
-              var fastT0 = Date.now();
-              /* 2026-10-25（Phil：依然只有前几秒）：通用保险——正常语速每分钟 180~240 字，
-                 拼接结果字数明显低于音频时长的下限（按 3 字/秒，封顶 160）＝大片音频丢失
-                 （空/幻觉/丢片，不管哪种原因），放弃拼接回退整段。最坏 = 老路线，全文完整。 */
-              var recDurSec = Math.max(1, Math.round((Date.now() - recT0) / 1000));
-              var minLen = Math.min(160, recDurSec * 3);
-              (function pollFast() {
-                if (phase !== "stt") return;
-                var done = 0, fail = 0, txt = 0, out = "";
-                partJobs.forEach(function (P) {
-                  if (P.state === "done") { done++; txt++; out += P.text; }
-                  else if (P.state === "empty") done++;
-                  else if (P.state === "failed") fail++;
-                });
-                if (done + fail === partJobs.length) {
-                  fastMode = false;
-                  /* 有文字之后连续 ≥2 片空 = 疑似切片链路异常（不是正常停顿），放弃拼接回退整段 */
-                  var run = 0, bad = false, seenTxt = false;
-                  partJobs.forEach(function (P) {
-                    if (P.state === "done") { run = 0; seenTxt = true; }
-                    else if (P.state === "empty" && seenTxt) { run++; if (run >= 2) bad = true; }
-                    else if (P.state === "failed") { run = 0; }
-                  });
-                  var outClean = out.replace(/\s+/g, " ").trim();
-                  if (!bad && txt >= 2 && fail * 4 <= partJobs.length && outClean.length >= minLen) { finishFastText(outClean); return; }
-                  finishFull(); return;
-                }
-                if (Date.now() - fastT0 > 20000) { finishFull(); return; }
-                setTimeout(pollFast, 500);
-              })();
-            } else {
-              finishFull();
-            }
+            /* 2026-10-26 决策：60s 长音频打线上 /stt 实测——整段 2.9s 完整转写 304 字、无截断。
+               服务端本来就快，切片拼接路线收益归零且是"只出前几秒"的根源 → 停用，一律整段识别。
+               保留 finishFastText/pollFast 代码于 1.7.3~1.7.5 提交历史，切片解码验证通过后再启用。 */
+            finishFull();
           };
           rec.onerror = function () {
             stopCountdown();
@@ -476,7 +439,7 @@
           };
           try {
             recT0 = Date.now();
-            rec.start(6000); /* 2026-10-25：6s 一片，边录边后台识别（不支持 timeslice 的内核退化为整段，无副作用） */
+            rec.start(); /* 2026-10-26：切片路线停用，回归默认分片（整段识别用） */
             activeRec = rec;
             if (rec.stream === warmStream) { warmUsers++; refreshWarm(); }
             if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} return; }
