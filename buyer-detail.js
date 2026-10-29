@@ -1033,15 +1033,15 @@
            var au0 = window.Auth && Auth.get();
            var myName = st0.name || (au0 && au0.name) || "";
            var cf = String(b.name || "").trim().split(/\s+/)[0] || "";
-              /* 2026-10-17 话术换版（五步→六步，插入「三 未报价收尾」）：旧 key 进度带进新 key，
-                 cap=2 —— 插入点在第 3 步，旧的第 3 步起都是没发过的新内容，✓ 只保留到新第 2 步。
-                 当天二次修正换版（标题改回 Phil 指定「未报价收尾」、正文恢复原文弯引号）→ key 98ba0e2f 也视为旧 key，
-                 多个旧 key 取 max（不 break），业务员在新版再发任一步后新 key 进度接管。
-                 2026-10-28 修复：此表一直停在 10/17 旧映射（目标 31eedc36 已失效）——10/19–10/21 剧本换版
-                 （16722a14/f0daad5c → 5c1906c4 → 80d486f0 → ca06b323）迁移全部落空，客户播放器「x/6」被重置为 0。
-                 现与 llm.js SCRIPT_KEY_MIGRATION 对齐：6 个历史 key → ca06b323；f47eb318/98ba0e2f cap=2（插入位移），
-                 其余 cap=3（第四步文案变，已发一/二/三 步仍算数） */
-              var PROG_MIGRATION = { "f47eb318-mvazd29i": { to: "ca06b323-mvj32bx1", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "ca06b323-mvj32bx1", cap: 2 }, "31eedc36-mvc6xdi7": { to: "ca06b323-mvj32bx1", cap: 3 }, "369246e3-mvg5888z": { to: "ca06b323-mvj32bx1", cap: 3 }, "16722a14-mvga8l75": { to: "ca06b323-mvj32bx1", cap: 3 }, "f0daad5c-mvgbye8l": { to: "ca06b323-mvj32bx1", cap: 3 } };
+               /* 2026-10-17 话术换版（五步→六步，插入「三 未报价收尾」）：旧 key 进度带进新 key，
+                  cap=2 —— 插入点在第 3 步，旧的第 3 步起都是没发过的新内容，✓ 只保留到新第 2 步。
+                  当天二次修正换版（标题改回 Phil 指定「未报价收尾」、正文恢复原文弯引号）→ key 98ba0e2f 也视为旧 key，
+                  多个旧 key 取 max（不 break），业务员在新版再发任一步后新 key 进度接管。
+                  2026-10-28 修复：此表一直停在 10/17 旧映射（目标 31eedc36 已失效）——10/19–10/21 剧本换版
+                  （16722a14/f0daad5c → 5c1906c4 → 80d486f0 → ca06b323）迁移全部落空，客户播放器「x/6」被重置为 0。
+                  现与 llm.js SCRIPT_KEY_MIGRATION 对齐：8 个历史 key → 75ecc8d1（10/28 变色款 200 台换版）；
+                  f47eb318/98ba0e2f cap=2（插入位移），其余 cap=3（第四步文案变，已发一/二/三 步仍算数） */
+               var PROG_MIGRATION = { "f47eb318-mvazd29i": { to: "75ecc8d1-mvszghst", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "75ecc8d1-mvszghst", cap: 2 }, "31eedc36-mvc6xdi7": { to: "75ecc8d1-mvszghst", cap: 3 }, "369246e3-mvg5888z": { to: "75ecc8d1-mvszghst", cap: 3 }, "16722a14-mvga8l75": { to: "75ecc8d1-mvszghst", cap: 3 }, "f0daad5c-mvgbye8l": { to: "75ecc8d1-mvszghst", cap: 3 }, "ca06b323-mvj32bx1": { to: "75ecc8d1-mvszghst", cap: 3 }, "e5645418-mvszfxn9": { to: "75ecc8d1-mvszghst", cap: 3 } };
              function progOf(d) {
                var prog = b.scriptProg || {};
                var p = Number(prog[d.key] || 0);

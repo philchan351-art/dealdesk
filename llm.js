@@ -52,9 +52,11 @@
       10-20 夜间乱码排查核实：云端现行 key 为 f0daad5c（内容与 16722a14 完全一致，均为新第四步干净文本）
       → 全部旧 key 改指向 f0daad5c：f47eb318/98ba0e2f cap=2（插入位移）；31eedc36 cap=3（第四步文案分歧）；
       369246e3/16722a14 cap=6（内容一致）。 */
-  /* 2026-10-21 第四次换版：第四步颜色 MOQ 统一 500 台（Phil 最终定夺；感光变色款与定制色同为 500 台，1,000/100 口径均作废）。
-     第四步正文变化 → 所有历史 key 一律 cap=3（一/二/三 三步已发仍算数，第四步起需按新文案重发）。 */
-  var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "ca06b323-mvj32bx1", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "ca06b323-mvj32bx1", cap: 2 }, "31eedc36-mvc6xdi7": { to: "ca06b323-mvj32bx1", cap: 3 }, "369246e3-mvg5888z": { to: "ca06b323-mvj32bx1", cap: 3 }, "16722a14-mvga8l75": { to: "ca06b323-mvj32bx1", cap: 3 }, "f0daad5c-mvgbye8l": { to: "ca06b323-mvj32bx1", cap: 3 } };
+   /* 2026-10-21 第四次换版：第四步颜色 MOQ 统一 500 台（Phil 最终定夺；感光变色款与定制色同为 500 台，1,000/100 口径均作废）。
+      第四步正文变化 → 所有历史 key 一律 cap=3（一/二/三 三步已发仍算数，第四步起需按新文案重发）。 */
+   /* 2026-10-28 第五次换版：变色款对外起订 500 → 200 台（Phil 补充表裁定；定制色维持 500）。
+      第四步正文再次变化 → 全部历史 key（含 ca06b323 / e5645418）指向 75ecc8d1，cap 维持原值（cap=2 的两把保持 2）。 */
+   var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "75ecc8d1-mvszghst", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "75ecc8d1-mvszghst", cap: 2 }, "31eedc36-mvc6xdi7": { to: "75ecc8d1-mvszghst", cap: 3 }, "369246e3-mvg5888z": { to: "75ecc8d1-mvszghst", cap: 3 }, "16722a14-mvga8l75": { to: "75ecc8d1-mvszghst", cap: 3 }, "f0daad5c-mvgbye8l": { to: "75ecc8d1-mvszghst", cap: 3 }, "ca06b323-mvj32bx1": { to: "75ecc8d1-mvszghst", cap: 3 }, "e5645418-mvszfxn9": { to: "75ecc8d1-mvszghst", cap: 3 } };
   function scriptProgOf(buyer, d) {
     var prog = buyer.scriptProg || {};
     var p = Number(prog[d.key] || 0);
