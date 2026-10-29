@@ -1039,9 +1039,9 @@
                   多个旧 key 取 max（不 break），业务员在新版再发任一步后新 key 进度接管。
                   2026-10-28 修复：此表一直停在 10/17 旧映射（目标 31eedc36 已失效）——10/19–10/21 剧本换版
                   （16722a14/f0daad5c → 5c1906c4 → 80d486f0 → ca06b323）迁移全部落空，客户播放器「x/6」被重置为 0。
-                  现与 llm.js SCRIPT_KEY_MIGRATION 对齐：8 个历史 key → 75ecc8d1（10/28 变色款 200 台换版）；
+                  现与 llm.js SCRIPT_KEY_MIGRATION 对齐：9 个历史 key → a2ae39b8（10/29 MOQ 细化换版；此前 10/28 变色款 200 台 → 75ecc8d1）；
                   f47eb318/98ba0e2f cap=2（插入位移），其余 cap=3（第四步文案变，已发一/二/三 步仍算数） */
-               var PROG_MIGRATION = { "f47eb318-mvazd29i": { to: "75ecc8d1-mvszghst", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "75ecc8d1-mvszghst", cap: 2 }, "31eedc36-mvc6xdi7": { to: "75ecc8d1-mvszghst", cap: 3 }, "369246e3-mvg5888z": { to: "75ecc8d1-mvszghst", cap: 3 }, "16722a14-mvga8l75": { to: "75ecc8d1-mvszghst", cap: 3 }, "f0daad5c-mvgbye8l": { to: "75ecc8d1-mvszghst", cap: 3 }, "ca06b323-mvj32bx1": { to: "75ecc8d1-mvszghst", cap: 3 }, "e5645418-mvszfxn9": { to: "75ecc8d1-mvszghst", cap: 3 } };
+               var PROG_MIGRATION = { "f47eb318-mvazd29i": { to: "a2ae39b8-mvtdwpnl", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "a2ae39b8-mvtdwpnl", cap: 2 }, "31eedc36-mvc6xdi7": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "369246e3-mvg5888z": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "16722a14-mvga8l75": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "f0daad5c-mvgbye8l": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "ca06b323-mvj32bx1": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "e5645418-mvszfxn9": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "75ecc8d1-mvszghst": { to: "a2ae39b8-mvtdwpnl", cap: 3 } };
              function progOf(d) {
                var prog = b.scriptProg || {};
                var p = Number(prog[d.key] || 0);
