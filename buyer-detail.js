@@ -1272,8 +1272,9 @@
             (loading
               ? '<div class="pending-text pending-loading">' + (isExp ? "正在把你的意图补成一条完整消息…" : "正在把中文改写为符合客户习惯的表达…") + "</div>"
               : (pending.brain ? '<div class="pending-brain" style="font-size:12px;color:#8a7f6d;padding:2px 0 6px;line-height:1.5">🧠 ' + escHtml(pending.brain) + "</div>" : "") +
-                '<div class="pending-text">' + escHtml(pending.en) + "</div>" +
-                (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + escHtml(limitWarn(b, pending.en)) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
+                 '<div class="pending-text">' + escHtml(pending.en) + "</div>" +
+                 (pending.wrongLang ? '<div class="pending-warn">⛔ 语言未生效：' + escHtml(pending.wrongLang) + " · 点「不满意 · 再来一条」重试，或手动改完再发</div>" : "") +
+                 (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + escHtml(limitWarn(b, pending.en)) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
                 '<div class="pending-zh">' + (isExp ? "这条消息的意思：" : "你写的中文：") + escHtml(pending.zh) + "</div>" +
                '<div class="pending-btns">' +
                '<button class="p-send" data-act="p-send">发到 WhatsApp</button>' +
@@ -1322,7 +1323,7 @@
          if (!t) return;
          if (!window.LLM || !LLM.configured()) { App.toast("请先在设置里配置 AI（智能引擎）"); return; }
          var isExp = mtMode === "expand";
-         pending = { raw: t, zh: t, en: "", mode: mtMode, lang: (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语", loading: true };
+          pending = { raw: t, zh: t, en: "", mode: mtMode, lang: (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语", wrongLang: "", loading: true };
          renderPending();
          var call = isExp
            ? LLM.expand(t, b)
@@ -1330,10 +1331,11 @@
          call.then(function (o) {
            var en = String(o.text || "").trim();
            if (!en) throw new Error("结果为空");
-            pending.loading = false;
-            pending.en = en;
-            pending.zh = isExp ? (String(o.zh || "").trim() || t) : t;
-            pending.brain = isExp ? String(o.brain || "").trim() : "";
+             pending.loading = false;
+             pending.en = en;
+             pending.zh = isExp ? (String(o.zh || "").trim() || t) : t;
+             pending.brain = isExp ? String(o.brain || "").trim() : "";
+             pending.wrongLang = o.wrongLang ? String(o.wrongLang) : ""; /* F5 语言闸门：重试仍错 → 红字提示，改完再发 */
             renderPending();
            App.toast(isExp ? "已按你的意图扩充 · 检查满意再点\"发到 WhatsApp\"" : "已翻译 · 检查一下，满意再点\"发到 WhatsApp\"");
          }).catch(function (e) {

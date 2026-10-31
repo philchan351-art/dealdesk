@@ -469,9 +469,40 @@
       "\n最近对话：\n" + last5 + personaLine();
   }
 
+  /* ===== F5 语言闸门（2026-10-30 Phil「选了葡萄牙语依然出英语」·整个修复） =====
+     提示词铁律A 只"要求"目标语言，模型被英语对话史+英语回合底稿锚住会照吐英语，
+     而旧纠正只查中文泄漏——英语输出无声通过。现加机械闸门：
+     ① 确定性检测：目标非英语而输出是英语（无变音符号+英语功能词≥2）/ 目标文字系统缺失（日韩俄阿土）
+     ② 命中 → 强纠正重试一次（对话与底稿逐句翻译成目标语言）
+     ③ 仍错 → suggest/expand 打 ⛔ 标（人工改完再发）、localize 显式报错——绝不静默放行英语 */
+  var LATIN_DIACRITICS = /[àáâãäçèéêëìíîïðñòóôõöøùúûüýœ]/;
+  var EN_FUNC = /\b(the|you|your|we|our|is|are|was|were|for|with|can|will|would|that|this|these|it|its|if|not|please|thank|thanks|hello|ok|okay|fine|good|sure|right|now|price|units?|order|sample|factory|shipping|delivery|product|start|need|want|get)\b/i;
+  function isEnglishLike(t) {
+    t = String(t || "");
+    if (!/[a-zA-Z]/.test(t)) return false;
+    if (LATIN_DIACRITICS.test(t)) return false; /* 带变音符号 ≠ 纯英语 */
+    var hits = t.match(new RegExp(EN_FUNC.source, "gi")) || [];
+    return hits.length >= 2; /* 阈值 2：单词误伤（如葡语里的 "ok"）不算英语 */
+  }
+  function wrongLang(text, target) {
+    target = String(target || "").replace(/（[^）]*）/g, ""); /* 归一：葡萄牙语（巴西）→ 葡萄牙语 */
+    if (!target || target === "英语") return false; /* 英语=兜底语言，不拦 */
+    var t = String(text || "");
+    if (!t.trim()) return false;
+    if (isEnglishLike(t)) return true; /* 目标非英语却输出英语——Phil 实锤场景（含目标中文出英语） */
+    if (target === "日语" && !/[\u3040-\u30ff]/.test(t)) return true;
+    if (target === "韩语" && !/[\uac00-\ud7a3]/.test(t)) return true;
+    if (target === "阿拉伯语" && !/[\u0600-\u06ff]/.test(t)) return true;
+    if (target === "俄语" && !/[\u0400-\u04ff]/.test(t)) return true;
+    if (target === "土耳其语" && !/[ığşöüİĞŞ]/.test(t)) return true;
+    return false; /* 西/法/德/意：拉丁语系互混无法机械区分，isEnglishLike 是主闸 */
+  }
+
   window.LLM = {
     MODELS: MODELS,
     chat: chat, /* 2026-10-17 导出：供 FB 表单识别等轻量结构化任务复用 */
+    wrongLang: wrongLang, /* 2026-10-30 导出：F5 语言闸门，测试回归用 */
+    isEnglishLike: isEnglishLike,
     situationScan: situationScan, /* 2026-10-30 导出：考试回归用（F1 局面路由） */
     scanLineOf: scanLineOf, /* 2026-10-30 导出：考试回归用（F1 扫描行文本） */
     postcheck: postcheck, /* 2026-10-30 导出：考试回归用（F4 后置校验） */
@@ -575,51 +606,80 @@
             return r;
           });
        }
-      return call(Prompts.suggest(buyer)).then(function (r) {
-        if (leak(r.list)) {
-          return call(Prompts.suggest(buyer) + "\n\n[纠正] 上一次输出的 text 字段里出现了中文，这是错误的。text 必须是纯" + lang + "，只有 zh 字段允许中文。").then(function (r2) {
-            return leak(r2.list) ? r : r2;
-          });
-        }
-        return r;
-      });
+       /* F5（2026-10-30）：语言闸门——中文泄漏与"该 X 语却出英语"同闸处理：
+          命中强纠正重试一次；重试仍错 → 逐条打 ⛔ 标（界面出原因，人工改完再发），不静默放行 */
+       function badReasons(list) {
+         var r = [];
+         if (leak(list)) r.push("text 字段出现了中文");
+         if (list) for (var i = 0; i < list.length; i++) if (wrongLang(list[i].text, lang)) { r.push("输出仍是英语（应为" + lang + "）"); break; }
+         return r;
+       }
+       return call(Prompts.suggest(buyer)).then(function (r) {
+         var bad = badReasons(r.list);
+         if (!bad.length) return r;
+         return call(Prompts.suggest(buyer) + "\n\n[纠正] " + bad.join("，") + "，都是错误的。text 必须全部用" + lang + "书写——对话记录和底稿如果是英语，必须逐句翻译成" + lang + "再改写，严禁保留任何英语句子；只有 zh 字段允许中文。").then(function (r2) {
+           if (r2 && r2.list) for (var i = 0; i < r2.list.length; i++) {
+             var it = r2.list[i];
+             var probs = [];
+             if (leak([it])) probs.push("含中文");
+             if (wrongLang(it.text, lang)) probs.push("仍是英语（应" + lang + "）");
+             if (probs.length) { it.blocked = true; it.blockReasons = (it.blockReasons || []).concat(probs); }
+           }
+           return r2;
+         });
+       });
     },
     localize: function (text, buyer) {
       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
       var needForeign = lang !== "中文";
       var user = Prompts.localize(buyer) + "\n\n中文原文：" + text;
+      /* F5（2026-10-30）：直译也过语言闸门——仍错显式报错（toast 出原因），不静默给英语 */
+      function settled(t) {
+        if (needForeign && /[一-龥]/.test(String(t || ""))) throw new Error("语言未生效：译文含中文（目标" + lang + "）");
+        if (wrongLang(t, lang)) throw new Error("语言未生效：输出仍是英语（目标" + lang + "），点重试或换按意图扩充");
+        return t;
+      }
       return fullSystem(buyer).then(function (sys) {
         return chat(sys, user, { max_tokens: 400, temp: 0.3, scope: buyer.scope })
           .then(function (t) {
-            if (needForeign && /[一-龥]/.test(String(t || ""))) {
-              return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】上一次输出含中文，错误。正文必须为纯" + lang + "，不得出现任何中文。\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2, scope: buyer.scope });
+            try { return settled(t); } catch (e) {
+              var why = String(e.message).indexOf("含中文") >= 0 ? "上一次输出含中文" : "上一次输出仍是英语";
+              return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】" + why + "，错误。正文必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），不得出现中文。\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2, scope: buyer.scope })
+                .then(settled);
             }
-            return t;
           });
       });
     },
-    /* 按意图扩充：返回 {text, zh}；text 含中文时纠正重试一次 */
-    expand: function (text, buyer) {
-      var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
-      var needForeign = lang !== "中文";
-      var base = Prompts.expand(buyer) + "\n\n卖家写的意图：" + text;
-      return fullSystem(buyer).then(function (sys) {
-        return chat(sys, base, { max_tokens: 500, temp: 0.4, scope: buyer.scope })
-          .then(function (t) {
-            var o = parseJSON(t);
-            if (!o || !o.text) throw new Error("扩充结果无法解析");
-            if (needForeign && /[一-龥]/.test(String(o.text))) {
-              return chat(sys, base + "\n\n【纠正】上一次 text 字段含中文，错误。text 必须为纯" + lang + "，只有 zh 允许中文。", { max_tokens: 500, temp: 0.2, scope: buyer.scope })
-              .then(function (t2) {
-                var o2 = parseJSON(t2);
-                if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
-                return o2;
-              });
-          }
-          return o;
-        });
-      });
-    }
+     /* 按意图扩充：返回 {text, zh}；F5 语言闸门——重试仍错打 wrongLang 标（界面红字，人工改完再发） */
+     expand: function (text, buyer) {
+       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
+       var needForeign = lang !== "中文";
+       var base = Prompts.expand(buyer) + "\n\n卖家写的意图：" + text;
+       function settle(o) {
+         if (!o || !o.text) throw new Error("扩充结果无法解析");
+         if (needForeign && /[一-龥]/.test(String(o.text))) throw new Error("含中文");
+         if (wrongLang(o.text, lang)) throw new Error("仍是英语");
+         return o;
+       }
+       return fullSystem(buyer).then(function (sys) {
+         return chat(sys, base, { max_tokens: 500, temp: 0.4, scope: buyer.scope })
+           .then(function (t) {
+             var o = parseJSON(t);
+             try { return settle(o); } catch (e1) {
+               var why = String(e1.message) === "含中文" ? "上一次 text 字段含中文" : (String(e1.message) === "仍是英语" ? "上一次输出仍是英语" : "");
+               if (!why) throw e1; /* 解析类错误不重试，直接抛 */
+               return chat(sys, base + "\n\n【纠正】" + why + "，错误。text 必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），只有 zh 允许中文。", { max_tokens: 500, temp: 0.2, scope: buyer.scope })
+               .then(function (t2) {
+                 var o2 = parseJSON(t2);
+                 if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
+                 if (needForeign && /[一-龥]/.test(String(o2.text))) o2.wrongLang = "含中文";
+                 else if (wrongLang(o2.text, lang)) o2.wrongLang = "仍是英语（应" + lang + "）";
+                 return o2;
+               });
+             }
+           });
+       });
+     }
   };
 })();
 
