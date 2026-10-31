@@ -22,8 +22,221 @@
     var s = "\n【参数红线（最高优先级，压过其他所有要求）】";
     s += "\n1. 产品参数（续航/电池/充电/认证/重量/容量/MOQ/价格/产能/交货期等）只能引用【资料】或客户档案/长期记忆里明确写过的内容。";
     s += "\n2. 资料与档案里没写明的参数：禁止写任何具体数值，禁止编造认证、奖项、合作客户、成立年份。只允许三种处理：①不提该参数；②反问客户他需要什么规格/数量；③说\"具体参数需与研发/QC 确认后发你\"。";
-    if (!hasDocs) s += "\n3. 当前账号还没有上传任何训练资料：涉及具体产品参数时，一律用\"省略/反问/确认后回复\"，绝不允许用行业常见值填充。宁可回复短一点，也不准编。";
+    s += "\n3. 币种与状态卡优先（10/30 裁定）：客户档案/对话里已报给该客户的数字（样品价、运费、总额等）优先于资料的默认数字；档案写 RMB 就按 RMB 答、写 USD 就按 USD 答，严禁跨币种折算（RMB→USD 或反向自折合）。";
+    if (!hasDocs) s += "\n4. 当前账号还没有上传任何训练资料：涉及具体产品参数时，一律用\"省略/反问/确认后回复\"，绝不允许用行业常见值填充。宁可回复短一点，也不准编。";
     return s;
+  }
+
+  /* ===== 2026-10-30 考题病灶修复：确定性闸门层（F1 局面路由 / F3 跟进钩子 / F4 后置校验） =====
+     Prompt 层红线（CONCRETE/铁律）已有但靠模型自觉；10/29 考题 13 节点要求确定性闸门：
+     F1 生成前机械判局面（棋谱 v11 十四局面识别行，机制同 U.stageScan），模型只用命中局面的招 → 治「招移植」；
+     F3 跟进必须带新信息钩子，否则 HOLD → 治纯催问（Philip 9 次跟进 5 次纯问候的历史病灶）；
+     F4 后置校验：数字白名单 + 红线词 + MOQ 共现 + ≥1,000 台档位措辞，命中打标拦截 → 治数字失配与作废数字复犯。 */
+  var SITUATIONS = [
+    { n: 14, name: "时间压力 / 急单", rx: /\bflight|leaving on|need it by|by (next )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)|can it (reach|arrive)[^.]{0,20}(monday|tuesday|wednesday|thursday|friday|saturday|sunday)|how long it will take|when will.*arrive|urgent|asap/i },
+    { n: 12, name: "大单 / 整柜", rx: /container|40hq|20gp|big order|full load|\b(4,?000|5,?000|10,?000)\s*units/i },
+    { n: 9, name: "设计与合规冲突", rx: /battery cover|logo on the (wheels|bottom|frame)|change (the )?structure|replace (the )?battery|add (some )?decor|lighter (version|model|one)|reduce (the )?weight|make (it )?lighter/i },
+    { n: 6, name: "客户在中国 / 有代理", rx: /i'?m (in|coming to|arriving) (china|guangzhou|shenzhen)|my agent|friend in (guangzhou|shenzhen)/i },
+    { n: 7, name: "认证 / 资质 / 工厂核验", rx: /\bce\b|un38\.3|msds|reach|\bfcc\b|rohs|certific|factory or trading|are you (a )?factory/i },
+    { n: 8, name: "定制色 / 变色款", rx: /photochromic|color.?chang|custom color/i },
+    { n: 5, name: "样品费 / 运费争议", rx: /sample (fee|cost|price)|shipping (cost|fee|too expensive)|free sample|delivery free|shipping.*how much|how much.*shipping/i },
+    { n: 3, name: "砍价 / 比价", rx: /too expensive|discount|best (price|rate)|lower (the )?price|price lower|another (supplier|factory)|similar rates|try to arrange|\$1[0-9]{2}\b|rmb\s*1[,.]?[0-9]{3}|\bcheaper\b|for less|why should i pay/i },
+    { n: 4, name: "小量试单 / 砍 MOQ", rx: /start (small|with)|trial order|lower (the )?moq|small (quantity|batch|order)|first order/i },
+    { n: 2, name: "OEM / 自有品牌", rx: /own (brand|luggage)|private label|\boem\b|my logo|our logo/i },
+    { n: 11, name: "客户进展通报", rx: /new warehouse|exhibition|canton fair|fundrais|got married|my son|we (are |will )?(open|launch)/i },
+    { n: 13, name: "关系升级", rx: /\bbro(ther)?\b|\bdear\b|my friend/i },
+    { n: 1, name: "首询 / 即问价", rx: /how much|\bprice\b|\bmoq\b|quote|catalog(ue)?|enquir|interested in/i }
+  ];
+  function lastBuyerMsg(buyer) {
+    var ms = ((buyer && buyer.messages) || []).filter(function (m) { return m.from === "buyer"; });
+    return ms.length ? String(ms[ms.length - 1].text || "") : "";
+  }
+  function situationScan(buyer, text) {
+    var isFollow = false;
+    if (text == null) {
+      var ms0 = (buyer.messages || []).filter(function (m) { return m.from === "buyer"; });
+      var allMs = buyer.messages || [];
+      var lastAny = allMs.length ? allMs[allMs.length - 1] : null;
+      /* 客户无新消息、且对话最后一条是我方发的 = 跟进回合（2026-10-30 考题 N12 修复：
+         原实现只认「客户从没发过消息」，真实跟进形态「我发过问候、客户沉默」被当普通回合漏掉） */
+      if (ms0.length && lastAny && lastAny.from !== "buyer") isFollow = true;
+      text = ms0.length ? String(ms0[ms0.length - 1].text || "") : "";
+    }
+    if (!String(text).trim() || isFollow) {
+      /* 跟进回合：按沉默时长 + 状态卡分档（F3 触发条件） */
+      var ms2 = (buyer.messages || []).filter(function (m) { return m.from === "buyer"; });
+      var lastM = ms2.length ? ms2[ms2.length - 1] : null;
+      var t0 = lastM ? Number(lastM.time || 0) : 0;
+      var days = t0 ? (Date.now() - t0) / 864e5 : 7; /* 无时间戳按 7 天（温）处理，不误判冷 */
+      var facts = (buyer.context || []).map(function (c) { return c.k + " " + c.v; }).join(" ") + " " + String(buyer.memory || "");
+      if (/(sample|shipped|tracking|paid|payment|样品|付款)/i.test(facts) && days <= 3) return { n: null, follow: "hot", why: "样品/付款在途，客户沉默 " + Math.max(0, Math.round(days)) + " 天" };
+      if (days > 14) return { n: null, follow: "cold", why: "客户超过 2 周无回复（" + Math.round(days) + " 天）" };
+      return { n: null, follow: "warm", why: "客户 3–14 天无回复（" + Math.round(days) + " 天）" };
+    }
+    var hits = [];
+    for (var i = 0; i < SITUATIONS.length; i++) if (SITUATIONS[i].rx.test(text)) hits.push(SITUATIONS[i]);
+    if (!hits.length) return { n: null, why: "无硬信号" };
+    return { n: hits[0].n, name: hits[0].name, all: hits.map(function (h) { return "局面 " + h.n; }).join("、") };
+  }
+  function scanLineOf(scan, buyer) { /* buyer（可选）：费用争议纪律行需读最近对话判「客户是否明确索要免费」 */
+    if (!scan) return "";
+    var s = "\n【机械扫描·局面路由（确定性硬信号，命中即成立）】";
+    if (scan.follow) {
+      s += "客户无新消息，本回合是跟进回合（" + scan.follow + "：" + scan.why + "）。";
+      if (scan.follow === "cold") s += "冷线索纪律：人情关怀 + 恰好 1 条新信息，不推销；12 月底仍无回复 → 转冷归档，停止主动跟进（仅客户主动回复或新年/广交会等大节点唤醒）。";
+      else if (scan.follow === "warm") s += "跟进节奏：1–2 周一次，必须带新信息。";
+      else s += "热跟进：按状态卡阶段推进（报价→样品→付款→签收），1–2 天一次。";
+      s += "【F3 铁律】草稿必须含 ≥1 条尚未发过的新信息（新素材/新认证/匿名案例/节点/新档位价）；纯催问（any update / just checking in / 还在吗）严格禁止；无可用新信息 → 3 条 text 一律 HOLD（今日不建议发 + 原因 + 下次触发条件建议）。每天最多 1 条跟进。";
+      return s;
+    }
+    if (scan.n) {
+      s += "命中" + scan.all + "，执行局面 " + scan.n + " · " + (scan.name || "") + " → 先判局面再出招：move 与 3 条建议必须全部取自该局面在棋谱里的打法与禁忌；严禁跨局面移植招式（如首询用跟进招、冷线索给降价、已决定才砍价用「一分不让」）。判定错误可以纠正，但必须在 blocker 里写明理由。";
+      var cmpSig = /another (supplier|factory)|why should i (pay|buy)|selling similar|for less|\bcheaper\b|similar rates|competing|competitor/i.test(lastBuyerMsg(buyer));
+      if (scan.n === 3 && cmpSig) s += " 本局面专业性立论（10/30 大哥裁定）＝讲得清「为什么别人的电动行李箱便宜、我们的贵」，从三个角度立论：① 产品不一样（按棋谱/资料给出与便宜货的本质区别，只引支撑立论的关键参数，不堆规格表）② 服务不一样（经销商在我们这得到别人给不到的服务，以资料为准）③ 服务态度和理念不一样（我们怎么做生意：负责、不空口承诺、主动提示风险、帮他想到他没想到的）。不只要守价、不要只说「我们质量好」。";
+      if (scan.n === 14) s += " 时效局面纪律（棋谱局面 14 六步，逐条执行）：① 诚实说做不到什么（截止点/取件时间等事实）② 给可得的最优方案 ③ 去查去争最快的（快递/排产）④ 真实原因（不编）⑤ 流程压缩（把能并的并）⑥ 超额付出说出来（我多跑一趟/我盯到几点）；必须把决策点提前到「今天」；严禁承诺「某日一定到」或「放心」式拍胸脯，安抚类句式（放心/最高优先级/会持续更新）不算步骤完成。草稿必须引用状态卡里 [时效/快递/待办/已承诺] 字段的至少 2 条具体事实（取件截止点、运输天数、直送方式等）放在消息前段；状态卡有 [已承诺/大货] 字段的，本回合必须重申一遍（承诺是拿来兑现的，重提 = 可靠）。";
+      var freeAsk = !!buyer && /(free\s+(shipping|delivery|sample)|delivery\s+free|no\s+(shipping|delivery)\s+(fee|cost)|make.{0,20}(delivery|shipping)\s+free)/i.test((buyer.messages || []).slice(-5).map(function (m) { return m.text; }).join(" "));
+      if (scan.n === 5 || (scan.n === 14 && freeAsk)) s += " 费用争议纪律：客户明确索要免运费/免样品时，必须直接答「拒绝 + 实付成本理由」（运费是付给物流公司的实付成本，不能吸收），跳过客户的明确诉求 = 跑题；拒绝后立即给可执行替代（升级选项/大货抵扣等）。";
+      return s;
+    }
+    s += "无局面硬信号命中 → 自行在棋谱里找局面；找不到就在 blocker 注明「棋谱无对应局面」。";
+    return s;
+  }
+  var F4_CONSTANTS = [8.4, 93.6, 100, 15, 20, 22, 30, 36, 40, 50, 120, 130, 150, 200, 500, 1000, 899, 599.99, 222, 236, 215, 225, 210, 218, 205, 212, 10000, 100000, 299, 300, 699, 700, 999, 9.3]; /* 2026-10-30 考试复跑：补阶梯价四档数量边界（100–299/300–699/700–999）——标准档位表述，误拦 12 条「100–299 units」的根因；9.3=deck 市场均重（10/30 大哥裁定登记，N9 误拦修复） */
+  function f4Numbers(text) {
+    var out = [], m = String(text || "").match(/\d+(?:[.,]\d+)?/g) || [];
+    for (var i = 0; i < m.length; i++) out.push(m[i].replace(/,/g, ""));
+    return out;
+  }
+  /* 10/30 第九跑（N3「2×222=444」「444+100=544」根因修复）：透明算术检查——X 若可分解为 a±b/a×b
+     且 a、b 均出现在草稿里（客户可当场验证算术）、且每个操作数真实（白名单/1–99/状态卡/对话）
+     或本身再一层透明分解（两层封顶，防连环造数），则放行。不透明算术（操作数没写进草稿）仍拦。 */
+  function arithSupported(x, text, supSet) {
+    var tn = f4Numbers(text);
+    var real = function (n) {
+      if (F4_CONSTANTS.indexOf(n) >= 0) return true;
+      if (Number.isInteger(n) && n >= 1 && n <= 99) return true;
+      if (supSet.indexOf(String(n)) >= 0) return true;
+      return false;
+    };
+    var cache = {};
+    var oneStep = function (n) {
+      if (cache[n] != null) return cache[n];
+      if (real(n)) { cache[n] = true; return true; }
+      for (var i = 0; i < tn.length; i++) for (var j = 0; j < tn.length; j++) {
+        var a = Number(tn[i]), b = Number(tn[j]);
+        if (!real(a) || !real(b)) continue;
+        if (a + b === n || (a > b && a - b === n) || (a > 1 && b > 1 && a * b === n)) { cache[n] = true; return true; }
+      }
+      cache[n] = false; return false;
+    };
+    for (var i = 0; i < tn.length; i++) for (var j = 0; j < tn.length; j++) {
+      var a = Number(tn[i]), b = Number(tn[j]);
+      if (!oneStep(a) || !oneStep(b)) continue;
+      if (a + b === x || (a > b && a - b === x) || (a > 1 && b > 1 && a * b === x)) return true;
+    }
+    return false;
+  }
+  function postcheck(text, buyer) {
+    text = String(text || "");
+    var blocks = [];
+    var lastB = lastBuyerMsg(buyer);
+    var support = (buyer.context || []).map(function (c) { return c.k + " " + c.v; }).join(" ") + " " + String(buyer.memory || "") + " " + (buyer.messages || []).slice(-5).map(function (m) { return m.text; }).join(" ");
+    /* 1) 数字白名单：草稿里任何数字必须 ∈ 常量 / 1–99 普通计数 / 年份 / 状态卡 / 最近对话（含千分位写法），否则拦截 */
+    var seen = {};
+    var supSet = f4Numbers(support); /* 2026-10-30 考试复跑修复：tokenize 后精确匹配——原 indexOf 子串让 308 命中 "3,080" 前缀漏网（N5 失配根因） */
+    f4Numbers(text).forEach(function (num) {
+      if (seen[num]) return;
+      seen[num] = 1;
+      var v = Number(num);
+      if (F4_CONSTANTS.indexOf(v) >= 0) return;
+      if (v >= 2020 && v <= 2099) return;
+      if (Number.isInteger(v) && v >= 1 && v <= 99) return;
+      if (supSet.indexOf(num) >= 0) return;
+      if (arithSupported(v, text, supSet)) return; /* 10/30 第九跑：透明算术派生数（见 arithSupported） */
+      blocks.push({ why: "数字 " + num + " 不在事实源（白名单/状态卡/对话）" });
+    });
+    /* 2) 红线词表（上下文条件） */
+    var B = [
+      [/\bFOB\s*245\b|\b245\b\s*\/\s*unit/i, "FOB 245（作废数字）"],
+      [/1[,.]?380|1[,.]?480/, "RMB 1,380/1,480（作废口头报价）"],
+      [/8\.5\s?kg/i, "8.5 kg（旧错值，10/29 裁定 8.4）"],
+      [/free\s+sample|free\s+shipping|free\s+tooling|no\s+(mold|tooling)\s+fee|mold\s+fee\s+is\s+free|sample.{0,20}is\s*free/i, "免费承诺红线（10/30 裁定：打样费客户承担；样品=100 台档价）"],
+      [/make\s+it\s+lighter|lighter\s+version|can\s+make.{0,20}lighter/i, "承诺改轻（澳洲 7kg 红线）"]
+    ];
+    if (!/\bben\b/i.test(String(buyer.name || ""))) B.push([/\bsbi\s?paris\b|\bsbiparis\b|\bben\b/i, "他人客户名（保密红线）"]);
+    for (var i = 0; i < B.length; i++) if (B[i][0].test(text)) blocks.push({ why: B[i][1] });
+    var m7 = text.match(/[^.!?]{0,60}\b7(\.5)?\s?kg\b[^.!?]{0,60}/gi) || [];
+    for (var m7i = 0; m7i < m7.length; m7i++) if (!/carry.?on|cabin|airline|limit|hand.?bag/i.test(m7[m7i])) { blocks.push({ why: "7 kg 当产品重量（只许用于航司手提限重语境）" }); break; }
+    var lowPrice = (buyer.messages || []).slice(-5).some(function (m) { return m.from === "buyer" && /\$\s?\d{2,3}\b/.test(String(m.text || "")); });
+    if (/\$130\b|USD\s*130\b/i.test(text) && !lowPrice) blocks.push({ why: "$130 = 竞品锚点，客户近期报过低价才可用，不主动提" });
+    /* 3) 动作幻觉（F2）：完成态动作必须有状态卡/对话事实支撑，否则拦截 */
+    if (/(i\s*(have|'ve)\s+sent|i\s+sent|we\s*(have|'ve)\s+sent|already\s+sent|already\s+shipped|(?:we|i)[^\n.!?]{0,30}?\bshipped\b|(?:we|i)\s*(have|'ve)\s+(prepared|made|set up)|successfully\s+delivered|confirmed\s+with\s+(the\s+)?courier|已发|已安排|已确认|已和快递确认)/i.test(text) && !/(sent|shipped|tracking|booked|arranged|已发|已安排|单号)/i.test(support)) { /* 支撑不含 prepared/已备：备样是内部动作，「已备」不得自动背书「已为你做成」（考试 N13A 陷阱） */
+      blocks.push({ why: "动作幻觉：完成态动作无状态卡/对话事实支撑（F2，改提议态）" });
+    }
+    /* 4) MOQ 共现 */
+    if (/photochromic|color.?chang/i.test(text) && /moq|minimum|order of/i.test(text) && !/200/.test(text) && !/100/.test(text)) blocks.push({ why: "变色款 MOQ 必须伴随 200（历史例外档案 100）" });
+    if (/custom\s+color/i.test(text) && /moq|minimum/i.test(text) && !/500/.test(text)) blocks.push({ why: "定制色 MOQ 必须伴随 500" });
+    if (/labeling|private\s+label/i.test(text) && /moq|minimum/i.test(text) && !/100/.test(text)) blocks.push({ why: "贴标 MOQ 必须伴随 100" });
+    /* 5) ≥1,000 台档位措辞：深折价必须伴随「特殊优惠/负责人确认」 */
+    if (/\b1[,.]?000\b|40hq|container/i.test(text)) {
+      var pm = text.match(/\$(19[0-9]|20[0-4])\b|USD\s*(19[0-9]|20[0-4])\b|\b(19[0-9]|20[0-4])\s*\/?\s*unit/i) || [];
+      if (pm.length && !/special offer|manager|confirm|apply/i.test(text)) blocks.push({ why: "1,000 台以上深折数必须伴随「特殊优惠/负责人确认」措辞" });
+    }
+    /* 6) F3 无钩子不发（确定性子集，2026-10-30 考试复跑补）：跟进回合（最后一条是我方）+ 客户沉默 >14 天（冷）
+       + 草稿命中纯催问句式 → 拦截。F3 全量逻辑（必须含 ≥1 条未发过的新信息）靠 scanLine 提示词层执行，
+       此处只拦确定性可判的「纯催问」（N12 漏网根因）。热/温跟进不受影响，误伤面最小。 */
+    var allMsF = buyer.messages || [];
+    var lastAnyF = allMsF.length ? allMsF[allMsF.length - 1] : null;
+    if (lastAnyF && lastAnyF.from !== "buyer") {
+      var msBF = allMsF.filter(function (m) { return m.from === "buyer"; });
+      var tBF = msBF.length ? Number(msBF[msBF.length - 1].time || 0) : 0;
+      var dF = tBF ? (Date.now() - tBF) / 864e5 : 0;
+      if (dF > 14 && /\bany update\b|just checking in|just following up|\bstill there\b|any news|just wanted to check/i.test(text)) {
+        blocks.push({ why: "纯催问（F3：冷线索跟进必须带 ≥1 条未发过的新信息，纯催问严格禁止）" });
+      }
+    }
+    /* 7) 一客一档 MOQ（2026-10-30 考试 N10B 根因修复）：状态卡对该客户记了变色款 MOQ（Naseer 兑现 100 台 / 新客户 200 台）
+       → 草稿出现变色 + 不同的 MOQ 数即拦截。每客口径以状态卡为唯一来源（不读客户消息，防对方报价数字污染）。 */
+    var mctx2 = (buyer.context || []).map(function (c) { return c.k + " " + c.v; }).join(" ") + " " + String(buyer.memory || "");
+    /* 变色词与数量之间的窗口含 +/、/;/标准色 等品类切换符 → 该数属于别的品类（如「标准色 50 台 + 变色款 200 台」），拒收。
+       分两轮：先正向（变色词→数字，不吞变色词），后反向（数字→变色词）。两个正则都带 /g：while(exec) 靠 lastIndex 推进，漏 g 首个匹配被拒即死循环（10/30 实测） */
+    var promMq = null, mmq;
+    var mqFwd = /(?:photochromic|color.?chang(?:e|ing)?|变色)([^。;\n]{0,60}?)(\d{2,4})\s*(?:units?|台)/gi;
+    while ((mmq = mqFwd.exec(mctx2)) !== null) {
+      if (!/[+,、；,;]|standard|标准|另|other/i.test(mmq[1] || "")) {
+        var pvq1 = Number(mmq[2]);
+        if (pvq1 >= 20 && pvq1 <= 1000) { promMq = pvq1; break; }
+      }
+      if (mqFwd.lastIndex === mmq.index) mqFwd.lastIndex++;
+    }
+    if (promMq == null) {
+      var mqRev = /(\d{2,4})\s*(?:units?|台)([^。;\n]{0,40}?)(?:photochromic|color.?chang(?:e|ing)?|变色)/gi;
+      while ((mmq = mqRev.exec(mctx2)) !== null) {
+        if (!/[+,、；,;]|standard|标准|另|other/i.test(mmq[2] || "")) {
+          var pvq2 = Number(mmq[1]);
+          if (pvq2 >= 20 && pvq2 <= 1000) { promMq = pvq2; break; }
+        }
+        if (mqRev.lastIndex === mmq.index) mqRev.lastIndex++;
+      }
+    }
+    if (promMq != null && /photochromic|color.?chang(?:e|ing)?|变色/i.test(text)) {
+      var dms2 = String(text).match(/\d{2,4}\s*(?:units?|台)/gi) || [];
+      for (var mqI = 0; mqI < dms2.length; mqI++) {
+        var dn2 = Number(String(dms2[mqI]).replace(/\D/g, ""));
+        if (dn2 >= 20 && dn2 <= 1000 && dn2 !== promMq && dn2 !== 50) { /* 50 = 标准色台阶（考题集规定台阶数，与变色句同现合法）；变色款 50 台 MOQ 由规则 4 的 MOQ 共现拦截 */
+          blocks.push({ why: "变色款 MOQ 与该客户口径不符（状态卡 " + promMq + " 台，一客一档）" });
+          break;
+        }
+      }
+    }
+    /* 8) 跨币种替换（10/30 第九跑 N4 根因修复，参数红线 3 闸门化）：状态卡对该客户只报过一种币种，
+       草稿却用另一种币种的价 = 状态卡数字被换币（客户报过 RMB 1,500，草稿用 USD 236 档价），拦截；
+       状态卡两币种都在（如「USD 240 / RMB 1,580」）不触发。 */
+    var rmbInCtx = /RMB\s*[\d,]+|\d[\d,]*\s*yuan\b/i.test(mctx2);
+    var usdInCtx = /USD\s*[\d,]+|\$\s?\d{1,3}(?:,\d{3})+|\$\s?\d{2,4}\b/i.test(mctx2);
+    if (rmbInCtx && !usdInCtx && /USD\s*[\d,]+|\$\s?\d{1,3}(?:,\d{3})+|\$\s?\d{2,4}\b/i.test(text)) blocks.push({ why: "跨币种替换：状态卡报 RMB（参数红线 3），草稿用 USD 价" });
+    if (usdInCtx && !rmbInCtx && /RMB\s*[\d,]+|\d[\d,]*\s*yuan\b/i.test(text)) blocks.push({ why: "跨币种替换：状态卡报 USD（参数红线 3），草稿用 RMB 价" });
+    return { ok: !blocks.length, blocks: blocks };
   }
 
   /* 团队公共资料注入（2026-10-15 P0 起由 FC 服务端完成）：
@@ -259,6 +472,11 @@
   window.LLM = {
     MODELS: MODELS,
     chat: chat, /* 2026-10-17 导出：供 FB 表单识别等轻量结构化任务复用 */
+    situationScan: situationScan, /* 2026-10-30 导出：考试回归用（F1 局面路由） */
+    scanLineOf: scanLineOf, /* 2026-10-30 导出：考试回归用（F1 扫描行文本） */
+    postcheck: postcheck, /* 2026-10-30 导出：考试回归用（F4 后置校验） */
+    F4_CONSTANTS: F4_CONSTANTS, /* 2026-10-30 导出：考试数字对账用（同一份白名单常量） */
+    arithSupported: arithSupported, /* 10/30 第九跑导出：考试 ③ 同口径透明算术 */
     configured: function () {
       var c = cfg();
       return !!(c && ((c.key && c.baseUrl) || c.proxyUrl));
@@ -342,11 +560,20 @@
         return { diagnosis: (o && o.diagnosis) || null, list: (o && o.suggestions) || null };
       }
        function call(promptText) {
-         /* temp 0.25：编造认证/年份类红线比多样性更要紧，压低随机性；
-            max_tokens 1300→900（2026-10-14 提速）：3 条≤50词+诊断实际用不到 1300，砍掉无效尾段 */
+          /* temp 0.25：编造认证/年份类红线比多样性更要紧，压低随机性；
+             max_tokens 1300→900（2026-10-14 提速）：3 条≤50词+诊断实际用不到 1300，砍掉无效尾段 */
           return fullSystem(buyer).then(function (sys) {
-            return chat(sys, promptText, { max_tokens: 900, temp: 0.25, onChunk: onChunk, scope: buyer.scope });
-          }).then(parse);
+            /* F1（2026-10-30）：局面路由——生成前确定性扫描，命中局面只许用该局面的招 */
+            return chat(sys + scanLineOf(situationScan(buyer, null), buyer), promptText, { max_tokens: 900, temp: 0.25, onChunk: onChunk, scope: buyer.scope });
+          }).then(function (t) {
+            var r = parse(t);
+            /* F4（2026-10-30）：后置校验——命中打标 blocked（UI 出原因，人工改后发） */
+            if (r.list) for (var pi = 0; pi < r.list.length; pi++) {
+              var pc = postcheck(r.list[pi].text, buyer);
+              if (pc.blocks.length) { r.list[pi].blocked = true; r.list[pi].blockReasons = pc.blocks.map(function (x) { return x.why; }); }
+            }
+            return r;
+          });
        }
       return call(Prompts.suggest(buyer)).then(function (r) {
         if (leak(r.list)) {

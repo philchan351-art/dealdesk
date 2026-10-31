@@ -1,5 +1,5 @@
 /* ===== 回合库 v1（Turn Library v1）· 2026-10-26 =====
- * 50 条真实回合：「客户一句 → 吴总一句 + 局面/隐藏目的/换种说法客户会怎样」。
+ * 53 条真实回合：「客户一句 → 吴总一句 + 局面/隐藏目的/换种说法客户会怎样」。
  * 来源：11 个真实成交案例 + Amritpal 12 节点复盘（含老板 3 处红笔，verbatim 存 T01/T02/T03 redpen 字段作校准锚）。
  * 10 条样本经老板 2026-10-26 认可后入库。
  *
@@ -92,10 +92,10 @@
       redpen: "",
       flag: "" },
 
-    { id: "T08", case: "Amritpal_澳洲_广交会", when: "10/22 02:09", stage: "交付与时间压力", st: ["样品确认","成交"], position: "期限压力（必须某日到）",
+    { id: "T08", case: "Amritpal_澳洲_广交会", when: "10/22 02:09", stage: "交付与时间压力", st: ["谈判","样品确认","成交"], position: "期限压力（必须某日到）",
       buyer: "If you send now how long it will take / my friend leaves Sunday morning, bag arrives Saturday",
       wuzong_raw: "①诚实：今天发不了（快递 5 点已取件）②明天发→后天下午/最晚大后天早上 ③我去问最快快递 ④真实原因：广交会+双11次日达不可靠 ⑤建议今天就确认颜色、工厂直送快递站点 ⑥'工人快下班，我还要去仓库拿澳洲插头'",
-      kw: ["how long","how soon","by friday","by saturday","by sunday","by tuesday","by monday","before my","deadline","flight","leaves sunday","leaving sunday","must arrive","urgent","when can you ship","i need it by","来得及","什么时候能到","几号到","要快","急","asap","as soon as possible","hurry"],
+      kw: ["how long","how soon","by friday","by saturday","by sunday","by tuesday","by monday","before my","deadline","flight","leaves sunday","leaving sunday","must arrive","urgent","when can you ship","i need it by","来得及","什么时候能到","几号到","要快","急","asap","as soon as possible","hurry","can it reach","reach saturday","arrive saturday","sunday morning","5am flight","5 am flight","friend leaves"],
       pattern: "期限要求 → 诚实说做不到什么 + 真实原因 + 最快可执行方案 + 把决策点提前到'今天' + 主动想到他没说的（目的国插头）",
       situation: "限期必须到——这是'成不成'的节点",
       hidden: "全程不拍胸脯——可信度来自前面承认过多少次'不确定'；主动想到他没说的（当地插头/清关件）→ 信任峰值，他当场开始问付款",
@@ -161,7 +161,7 @@
     { id: "T14", case: "Ben_Issia_Habib_法国", when: "8/5 03:03-03:11", stage: "大单报价", st: ["需求确认","报价"], position: "柜级报价先问口径",
       buyer: "Please prepare a quote for me as soon as possible so I can place an order for a 40-foot container—the first of five scheduled for the year. I will pay 50% upfront, with the remaining 50% due before the goods are delivered to our freight forwarder in China.",
       wuzong_raw: "For your reference, a 40ft high cube container can load approximately 700–800 units, depending on the final packing arrangement. Could you please confirm whether you need the quotation based on EXW price or FOB price? Once we confirm the container type and price term, we will prepare the quotation for you accordingly.",
-      kw: ["40ft","40 ft","40-foot","40hq","20ft","20 ft","20gp","high cube","how many can you load","container of","a container","full container","place an order","集装箱","整柜","个柜","20 foot","40 foot"],
+      kw: ["40ft","40 ft","40-foot","40hq","20ft","20 ft","20gp","high cube","how many can you load","container of","a container","full container","place an order","集装箱","整柜","个柜","20 foot","40 foot","4000 units","4,000 units","4000 pcs","price for 4000","final price for 4000"], /* 2026-10-30：补「4000 units」类柜级数量检索词（考试 N13A 回捞场景） */
       pattern: "大单报价 → 先答事实（柜型装 [装柜量] 台）→ 反问口径（EXW 还是 FOB？）→ 口径统一后才报价",
       situation: "'一年的第一个柜' = 年度框架单，但 EXW/FOB 口径未定",
       hidden: "先拿口径再报 = 报价只出一次且准确；直接报一个口径但他要另一个，就要收回一条",
@@ -564,7 +564,40 @@
       hidden: "'去浙江还是广东？' = 位置感知（同 T02 捕捉位置）：他去哪决定服务方案（近水楼台 / 安排机场送达）",
       counterfactual: "只'OK 来联系'（不问位置）→ 他去了哪我们不知道，见面场景错过",
       redpen: "",
-      flag: "raw 含电话号码，存档用，不进对外模板" }
+      flag: "raw 含电话号码，存档用，不进对外模板" },
+
+    { id: "T51", case: "Naseer澳大利亚2台样品跟进", when: "10/19 19:32", stage: "MOQ/一客一档", st: ["报价","谈判","样品确认"], position: "变色款 MOQ = 客户专属口径（历史承诺铁打）",
+      buyer: "（10/19 客户确认样品配置：1 silver + 1 photochromic，追问变色款）",
+      wuzong_raw: "The color you mentioned is our photochromic version — it's a custom option priced $22 higher than standard colors. Since it's not in regular stock and requires a minimum order of 100 units, we can only produce it after confirmation. If you'd like one silver and one photochromic sample, the total sample cost will include the extra $22 per unit. Let me know your decision so I can proceed!",
+      kw: ["color changing","color-changing","photochromic","colour changing","start with 100","start with 80","can i take 80","can i do 80","can i take 150","less than 100","80 units","150 units","minimum 100","100 units","200 units","变色","感光"],
+      pattern: "一客一档：状态卡对该客户承诺过 100 台 → 铁打，「yes，我们按 100 台给您留的，这个不变」（语气确定、不犹豫）+ 不接 100 以下 + 台阶（标准色 50 台起）；状态卡是 200 台（新客户）→ 200 是唯一数（特殊材料生产标准，低于不接）",
+      situation: "⚠ 只许对状态卡里有变色款 MOQ 记录的客户用：状态卡=100 台（Naseer 类历史承诺）→ 兑现 100；状态卡=200 台（新客户）→ 200。两条线严禁串档，该用哪个数只读状态卡",
+      hidden: "兑现承诺本身就是信任（B 端信任=负责/专业/解决问题/可靠）；主动向老客户解释「其实我们改成 200 了」= 承认自己改过口 = 信用崩塌；200 新口径不得出现在老客户对话里，100 不得出现在新客户对话里",
+      counterfactual: "「其实现在是 200 台，之前说错了」→ 客户把你从「伙伴」降格成「要盯着的人」；「我帮您申请一下 80 台」→ 低于已承诺数还要申请 = 口径混乱",
+      redpen: "",
+      flag: "一客一档：变色款 MOQ 的每客口径只读状态卡（100=历史承诺 / 200=新标准），不靠名字猜；80 台压价轮为考试设计轮，底稿=10/19 19:32 真实回复 + 10/28 裁定" },
+
+    { id: "T52", case: "Ben_Issia_Habib_法国", when: "8/5 原报价 → 10/21 裁定作废", stage: "旧价回捞/单一口径", st: ["报价","谈判"], position: "客户回捞旧报价/旧数字 → 单一口径转移",
+      buyer: "（回捞旧数字：RMB 1,380/1,480 或「final price」类唤起旧价的问法）",
+      wuzong_raw: "（语料无现场原话：8/5 RMB 1,380 EXW / 1,480 FOB 为口头报价，10/21 Phil 裁定作废，以阶梯价为唯一口径。按裁定构造：不认旧数、不重报 RMB，转向「1,000 台档 205/212 + 特殊优惠需负责人确认」并确认 EXW/FOB 口径）",
+      kw: ["1,380","1380","1,480","1480","old price","previous price","last price","you quoted","quoted before","quoted me","that price from","earlier price","1380 rmb","1480 rmb","the price you gave"],
+      pattern: "旧价回捞 → ①不认旧数、不辩「当时确实是那个价」②不重报 RMB（对外一律 USD）③单一口径转移：1,000 台以上按 1,000 台档（EXW 205 / FOB 212）+ 特殊优惠需负责人确认最终价 ④顺势确认 EXW 还是 FOB 口径 ⑤4,000 台 = 40HQ 每柜约 700–800 台（同 T14 口径）",
+      situation: "旧价是客户心里的沉没成本：认了 = 重开价格战（且 1,380/1,480 是作废数字，任何节点出现即红线）；硬否认 = 「你们说话不算话」",
+      hidden: "把话题从「当时那个数」挪到「现在这个量的口径」——数字只跟量走，不跟关系走；「负责人确认」= 留门但不给数（205 以下一律「向经理申请」不报价）；这一手是棋谱局面 12 的单一口径",
+      counterfactual: "「Yes we can do 1,380」→ 价格体系崩盘，所有新客户都回捞 1,380；「That price is gone」（不给新口径）→ 客户觉得被耍，没数可回去交差，单停摆",
+      redpen: "",
+      flag: "底稿=10/21 裁定口径 + T14 真实句（40HQ 700–800）构造，语料无现场原话；1,380/1,480 为作废数字，回复中不得重报这两个数本身" },
+
+    { id: "T53", case: "Sunyl澳大利亚5样品_Sharma", when: "10/13 06:23", stage: "保密红线/他客探价", st: ["报价","谈判"], position: "客户问其他客户的价/品牌/logo → 保密 + 转专属报价",
+      buyer: "What was the price for 4k units?（看到我们提的 4,000 台案例，追问那位客户的单价/品牌/logo）",
+      wuzong_raw: "I'm sorry, but the pricing for that order is confidential business information. 😊 That customer had specific customization requirements, including their logo, packaging, user manual, and other details. Our pricing depends on the order quantity and customization requirements. Once you share your estimated order quantity and branding requirements, I'll evaluate everything carefully and provide you with a tailored quotation.",
+      kw: ["what was the price","what did they pay","their price","match their price","price for 4k","price for 4000","their brand","brand name","see the logo","their logo","logo design","how much did"],
+      pattern: "①道歉+一句理由（'that order is confidential business information… specific customization requirements'），不再多解释 ②立刻转到他的单：价格取决于你的量和定制，要数量+branding 需求，给专属报价 ③追问品牌名/logo 文件 → 一句「客户信息我们保密」+ 替代路径（我们的标准灯条 logo 案例 + 设计流程：设计师出图→确认→上样→拍视频）④他提「我订 4,000 台，能不能 match 他的价」→ 不接，走局面 12 正规流程（EXW/FOB 条款 → 1,000 台档 205/212 → 最终价负责人确认）",
+      situation: "他客探价 = 摸底（拿对方的价当砍价筹码）。对方价格/品牌/logo 文件/年柜量/付款条款全保密；可说的只有我们自己的标准政策（复杂定制定金 50–70%、简单定制 30%）和我们自己的阶梯价",
+      hidden: "一句理由+转移=保温度（保密≠生硬）；'tailored quotation' 把话题拉回「你的量、你的需求」；绝不说「我帮你问问他能接受什么价」（内部沟通外泄）；1,000+ 大单 = 负责人确认最终价（10/30 裁定：人工介入，AI 不单独承诺深折）",
+      counterfactual: "直接报对方的价 → 他转头找对方对质，我方价格体系穿帮；过度解释保密原因（「他是我们大客户所以…」）→ 越描越像有鬼；只说「let me check」不转专属报价 → 冷场，单停摆",
+      redpen: "",
+      flag: "Sunyl 10/13 06:23 真实回复（原话在案）；品牌名/logo 文件追问轮为考试设计轮，替代路径出自底线手册标准政策" }
   ];
 
   /* ===== 确定性检索：kw 命中为主，阶段匹配加分 ===== */
@@ -613,7 +646,7 @@
     if (!picked.length) {
       return "\n【回合库·未命中】回合库（" + TURNS.length + " 条真实回合）中没有与客户当前局面相似的回合——本次 3 条草案都是通用草案：必须在 diagnosis.blocker 尾部追加'（回合库未命中·通用草案，请重点看）'，让业务员一眼分得出底稿与通用。\n";
     }
-    var s = "\n【回合库·底稿参考（真实回合，最高优先级参照）】以下是团队 50 个真实成交案例中与客户当前这句话最相似的 " + picked.length + " 个回合（客户一句 → 她当时怎么回 + 为什么）。用法：\n" +
+    var s = "\n【回合库·底稿参考（真实回合，最高优先级参照）】以下是团队 " + TURNS.length + " 个真实回合中与客户当前这句话最相似的 " + picked.length + " 个回合（客户一句 → 她当时怎么回 + 为什么）。用法：\n" +
       "1) 先看每条的「局面」：与客户当前局面吻合的，以「她的招」（可复用句式）为底稿改写，只替换事实（客户名/产品/数字/国家/渠道）；句式里的 [占位符] 必须用档案/资料/对话里的真实值填，禁止照抄其他案例的数字。\n" +
       "2) 出招要顺着每条的「隐藏目的」想；「换种说法客户会怎样」是失败模式，严禁写进去。\n" +
       "3) 全部不吻合 → 全部弃用自拟，并在 diagnosis.blocker 尾部追加'（回合库未命中·通用草案，请重点看）'。\n";

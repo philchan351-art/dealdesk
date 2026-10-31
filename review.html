@@ -100,7 +100,7 @@ function proxyUrl(){
   try{ var s=JSON.parse(localStorage.getItem(SET_KEY)); if(s&&s.cloud&&s.cloud.proxyUrl) return s.cloud.proxyUrl; }catch(e){}
   return FC_DEFAULT;
 }
-function factRule(){ return "\n【参数红线（最高优先级，压过其他所有要求）】\n1. 产品参数（续航/电池/充电/认证/重量/容量/MOQ/价格/产能/交货期等）只能引用【资料】或客户档案里明确写过的内容。\n2. 没写明的参数：禁止写具体数值，禁止编造认证、奖项、合作客户、成立年份、收款人身份。只允许：①不提该参数 ②反问客户需要什么规格/数量 ③说“具体需与研发/QC 确认后发你”。"; }
+function factRule(){ return "\n【参数红线（最高优先级，压过其他所有要求）】\n1. 产品参数（续航/电池/充电/认证/重量/容量/MOQ/价格/产能/交货期等）只能引用【资料】或客户档案里明确写过的内容。\n2. 没写明的参数：禁止写具体数值，禁止编造认证、奖项、合作客户、成立年份、收款人身份。只允许：①不提该参数 ②反问客户需要什么规格/数量 ③说“具体需与研发/QC 确认后发你”。\n3. 币种与状态卡优先（10/30 裁定）：档案/对话已报给该客户的数字（样品价、运费、总额等）优先于资料默认数字；档案写 RMB 就按 RMB 答、写 USD 就按 USD 答，严禁跨币种折算。"; }
 function ctx(b){ var l=(b.messages||[]).slice(-5).map(function(m){return (m.from==="me"?"卖家":"客户")+":"+m.text;}).join("\n"); var rl=(b.lastRead&&b.lastRead.posture)?("\n最近研判:"+b.lastRead.posture+(b.lastRead.concern?"｜在意:"+b.lastRead.concern:"")):""; return "客户:"+b.name+"（"+b.country+"，"+b.company+"）｜谈单阶段:"+STAGES[b.stage]+"｜意向分:"+b.intent+rl+"\n档案:"+(b.context||[]).map(function(c){return c.k+"="+c.v;}).join("；")+"\n最近对话:\n"+l; }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function parseSuggest(raw){ var t=String(raw); var g=function(k){var m=t.match(new RegExp(k+String.fromCharCode(58,65307).replace(String.fromCharCode(65307),"[:：]")+"\\s*([^\\n]+)")); return m?m[1].trim():"";};

@@ -135,6 +135,7 @@
       "</div></div>" +
       '<div class="sugg-text">' + escHtml(t) + "</div>" +
       (w ? '<div class="sugg-warn">⚠ ' + escHtml(w) + " · 超出你设的底线，需你本人确认</div>" : "") +
+      (s.blocked ? '<div class="sugg-warn" style="color:#b91c1c">⛔ 后置校验：' + escHtml((s.blockReasons || []).join("；")) + " — 触碰红线，改完再发</div>" : "") +
       (s.zh ? '<div class="sugg-zh">中文：' + escHtml(s.zh) + "</div>" : "") +
       "</div>";
   }
