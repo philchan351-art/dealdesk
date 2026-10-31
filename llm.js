@@ -664,8 +664,33 @@
           });
       });
     },
-     /* 按意图扩充：返回 {text, zh}；F5 语言闸门——重试仍错打 wrongLang 标（界面红字，人工改完再发） */
-     expand: function (text, buyer) {
+      /* 2026-10-31（话术六步自动翻译）：整段忠实翻译到客户语言（langOf 同口径：手动优先/国家自动）。
+         纯翻译系统提示词——不注入资料库/棋谱（话术文本本身是定稿事实源，KB 参与反而会改数）；
+         F5 语言闸门与 localize 同构：仍错抛错，调用方拦截（绝不把中文静默发给外语客户） */
+      translateScript: function (text, buyer) {
+        var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
+        var needForeign = lang !== "中文";
+        function settled(t) {
+          var s = String(t || "").trim();
+          if (!s) throw new Error("返回空译文");
+          if (needForeign && /[一-龥]/.test(s)) throw new Error("语言未生效：译文含中文（目标" + lang + "）");
+          if (wrongLang(s, lang)) throw new Error("语言未生效：输出仍是英语（目标" + lang + "）");
+          return s;
+        }
+        var prompt = (window.Prompts && Prompts.scriptTranslate) ? Prompts.scriptTranslate(buyer) : "把下面的中文翻译成" + lang + "，只输出译文。";
+        var sys = "你是一名专业外贸话术译员，只做忠实翻译，不增删不改写业务内容。";
+        var user = prompt + "\n\n中文原文：" + text;
+        return chat(sys, user, { max_tokens: 600, temp: 0.2, scope: buyer.scope })
+          .then(function (t) {
+            try { return settled(t); } catch (e) {
+              var why = String(e.message).indexOf("含中文") >= 0 ? "上一次输出含中文" : "上一次输出仍是英语";
+              return chat(sys, prompt + "\n\n【纠正】" + why + "，错误。译文必须全部用纯" + lang + "书写，不得出现中文。数字/术语/人名逐字保留。\n\n中文原文：" + text, { max_tokens: 600, temp: 0.1, scope: buyer.scope })
+                .then(settled);
+            }
+          });
+      },
+      /* 按意图扩充：返回 {text, zh}；F5 语言闸门——重试仍错打 wrongLang 标（界面红字，人工改完再发） */
+      expand: function (text, buyer) {
        var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
        var needForeign = lang !== "中文";
        var base = Prompts.expand(buyer) + "\n\n卖家写的意图：" + text;

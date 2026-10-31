@@ -251,6 +251,13 @@
     return s.replace(/^\++/, "+");
   }
 
+  /* 2026-10-31（话术自动翻译缓存键）：djb2 短哈希——话术正文一变（换版/改数字）缓存自动失效 */
+  function textHash(t) {
+    var h = 5381, s = String(t || "");
+    for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+
   window.U = {
     esc: escHtml,
     grade: grade, money: money, sum: sum,
@@ -268,6 +275,8 @@
     /* 号码展示归一：录入多打的 "++86189…" / 没打 "+" 的 "86189…" → 统一显示单个 + */
     waDisplay: waDisplay,
     /* 2026-10-23：报价状态标签（金额/已成交/已报价/未报价）——替代恒为"待报价"的旧判断 */
-    quoteLabel: quoteLabel
+    quoteLabel: quoteLabel,
+    /* 2026-10-31：文本短哈希（话术翻译缓存键用，测试回归导出） */
+    textHash: textHash
   };
 })();

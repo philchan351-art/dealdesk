@@ -294,7 +294,9 @@
       b.lastActive = "刚刚";
       /* 2026-10-22（Phil：阶段判定不能"表面"）：每条记录消息都过机械硬信号扫描——
          1-4 档自动推进并留痕；5 成交信号不自动标成交（Phil 口径：成交=人工终裁），只挂"成交信号"卡等一键确认 */
-      var sig = (window.U && U.stageScan) ? U.stageScan(b, m.text) : null;
+       /* 2026-10-31（话术自动翻译）：scanText=与存储文本分离的扫描文本——存目标语言译文、
+          扫中文原文（已报价/EXW 222 等信号词只存在于中文，扫译文会漏判阶段） */
+       var sig = (window.U && U.stageScan) ? U.stageScan(b, o.scanText || m.text) : null;
       if (sig && !b.outcome) {
         if (sig.to >= 5) {
           if (!b.closeSignal) b.closeSignal = { at: new Date().toISOString(), why: sig.why, evidence: String(m.text || "").slice(0, 80), src: "rule" };

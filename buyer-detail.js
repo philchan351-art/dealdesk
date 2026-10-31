@@ -25,6 +25,20 @@
   var _chatPos = { id: null, top: 0, atBottom: true }; /* 2026-10-18（Phil「页面自己跳上跳下」）：聊天滚动位置跨重渲染记忆 */ // 防重入：同一文本正在翻译时不重复发起
   var _bdGen = 0;      /* 2026-10-18：init 代际号——被新一轮渲染取代后，遗留的 rAF 回调不得再执行（旧渲染的滚动会把新画面拽乱） */
   var scriptCache = { key: "", ts: 0, j: null }; /* 2026-10-18（A7）：话术数据 60s 缓存——同页刷新不重复请求 */
+  /* 2026-10-31（Phil「新客话术要按照语言自动翻译」）：话术译文缓存——键=话术key+步+语言+正文哈希
+     （换版/改数字/换客户名自动失效），首次 2-5s 翻译，之后重发同一步秒出 */
+  var scriptTrans = {};
+  (function () { try { scriptTrans = JSON.parse(localStorage.getItem("dd_script_trans_v1") || "{}") || {}; } catch (e) { scriptTrans = {}; } })();
+  function scriptTransSave() {
+    try {
+      var ks = Object.keys(scriptTrans);
+      if (ks.length > 200) { /* 防膨胀：超 200 条只留最近 100 条 */
+        ks.sort(function (a, c) { return (scriptTrans[a].at || 0) - (scriptTrans[c].at || 0); });
+        for (var q = 0; q < ks.length - 100; q++) delete scriptTrans[ks[q]];
+      }
+      localStorage.setItem("dd_script_trans_v1", JSON.stringify(scriptTrans));
+    } catch (e) {}
+  }
   /* 2026-10-21（Phil「要很久才出来」）：登录进主界面时预取一次话术元数据（5KB、~150ms），
      让"第一次进客户页"也能从本地缓存秒出，不用等网络 */
   window.DDSharedPrefetch = function () {
@@ -1107,28 +1121,49 @@
                   renderCard();
                 });
               });
-              var sendBtn = box.querySelector('[data-act="sp-send"]');
-              if (sendBtn) sendBtn.addEventListener("click", function () {
-                  if (!sel) return;
-                  var si = sel.si, i = sel.i;
-                  var d = scripts[si], st = d && d.steps[i];
-                  if (!st) return;
-                  if (!b.wa) { App.toast("这个客户还没有 WhatsApp 号码，先用上方「编辑」补录再发"); return; }
-                  var text = (window.DocExtract && DocExtract.fillVars) ? DocExtract.fillVars(st.text, cf, myName) : String(st.text || "");
-                  var su = waLink(b.wa, text);
-                  if (!su) { App.toast("号码格式不对，打不开 WhatsApp，请检查档案里的号码"); return; }
-                  /* 2026-10-23：统一走 Store.addMessage（noSave，下方 commit 一次性落盘）——
-                     话术步进文本也过阶段扫描（话术里含"已报价 EXW…"即进报价档） */
-                  Store.addMessage(b.id, text, null, { from: "me", status: "handed", noSave: true });
-                  AIevt(b, "script", { doc: d.key, step: i, title: st.title || "" });
-                  b.scriptProg = b.scriptProg || {};
-                  b.scriptProg[d.key] = Math.max(Number(b.scriptProg[d.key] || 0), i + 1);
-                  if (window.Store) Store.commit();
-                  /* 2026-10-22（Phil「客户进不去了」）：commit 已先行；当前窗口导航（Chrome 下 window.open 是后台新标签像死按钮） */
-                  location.href = su;
-                  App.toast("已打开第 " + (i + 1) + " 步 · 还没发送！发完回来点「✓ 已发」");
-                  App.refresh();
-                });
+               var sendBtn = box.querySelector('[data-act="sp-send"]');
+               if (sendBtn) sendBtn.addEventListener("click", function () {
+                   if (!sel) return;
+                   var si = sel.si, i = sel.i;
+                   var d = scripts[si], st = d && d.steps[i];
+                   if (!st) return;
+                   if (!b.wa) { App.toast("这个客户还没有 WhatsApp 号码，先用上方「编辑」补录再发"); return; }
+                   var zh = (window.DocExtract && DocExtract.fillVars) ? DocExtract.fillVars(st.text, cf, myName) : String(st.text || "");
+                   function doSend(sendText, zhMirror) {
+                     var su = waLink(b.wa, sendText);
+                     if (!su) { App.toast("号码格式不对，打不开 WhatsApp，请检查档案里的号码"); return; }
+                     /* 2026-10-23：统一走 Store.addMessage（noSave，下方 commit 一次性落盘）——话术步进也过阶段扫描；
+                        2026-10-31：发译文时 scanText=中文原文（已报价/EXW 等信号词只存在于中文，扫译文会漏判），
+                        zh=中文镜像（时间线上译文下挂原文，业务员随时可对） */
+                     Store.addMessage(b.id, sendText, zhMirror, { from: "me", status: "handed", noSave: true, scanText: zh });
+                     AIevt(b, "script", { doc: d.key, step: i, title: st.title || "" });
+                     b.scriptProg = b.scriptProg || {};
+                     b.scriptProg[d.key] = Math.max(Number(b.scriptProg[d.key] || 0), i + 1);
+                     if (window.Store) Store.commit();
+                     /* 2026-10-22（Phil「客户进不去了」）：commit 已先行；当前窗口导航（Chrome 下 window.open 是后台新标签像死按钮） */
+                     location.href = su;
+                     App.toast("已打开第 " + (i + 1) + " 步 · 还没发送！发完回来点「✓ 已发」");
+                     App.refresh();
+                   }
+                   /* 2026-10-31（Phil「话术要按语言自动翻译」）：目标语言非中文 → 自动翻译再预填 WhatsApp
+                      （语言口径与 AI 回复同源：手动选择优先 / 国家自动）；中文客户或 LLM 未配置走原文 */
+                   var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "中文";
+                   if (lang === "中文" || !(window.LLM && LLM.translateScript && LLM.configured && LLM.configured())) { doSend(zh, null); return; }
+                   var ck = d.key + ":" + i + ":" + lang + ":" + (window.U && U.textHash ? U.textHash(zh) : zh.length);
+                   if (scriptTrans[ck] && scriptTrans[ck].t) { doSend(scriptTrans[ck].t, zh); return; }
+                   sendBtn.disabled = true;
+                   var oldLabel = sendBtn.textContent;
+                   sendBtn.textContent = "🌐 正在翻译成" + lang + "…";
+                   LLM.translateScript(zh, b).then(function (tr) {
+                     scriptTrans[ck] = { t: tr, at: Date.now() };
+                     scriptTransSave();
+                     doSend(tr, zh);
+                   }).catch(function (e) {
+                     sendBtn.disabled = false;
+                     sendBtn.textContent = oldLabel;
+                     App.toast("话术翻译没成功：" + String((e && e.message) || e).slice(0, 30) + "——再点一次重试；或用下方「逐句直译」手动翻", 4000);
+                   });
+                 });
             }
             renderCard();
           }
