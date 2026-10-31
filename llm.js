@@ -243,6 +243,11 @@
       var ls100 = /light.?strip[\s\S]{0,30}?(?:from|starting at|starts at|start|is|at|of|for)[\s\S]{0,10}?(?:100|a hundred)\b/i.test(text);
       if (ls50 && !ls100) blocks.push({ why: "灯条 logo MOQ 必须是 100 台（10/30 裁定，覆盖 10/29 的 50）；50 仅限标准品" });
     }
+    /* 10) 承重唯一口径（10/30 E2 裁定）：承重一律 120 kg；「150 kg」「130–150 kg」旧口径 → 拦。
+       （150 仍用于 USD 150 打样费，只拦与 kg 挂钩或 130–150 区间的写法，不误伤。 */
+    if (/\b150\b\s?kg/i.test(text) || /130[–-]\s?150\b/i.test(text)) blocks.push({ why: "承重一律 120 kg（10/30 E2 裁定）；150 kg / 130–150 kg 旧口径已作废" });
+    /* 11) 续航唯一口径（10/16 裁定，10/30 E1 话术已同步）：对外 10–15 km；「8–13 km」旧口径 → 拦。 */
+    if (/range[\s\S]{0,20}?8[–-]\s?13\b/i.test(text) || /8[–-]\s?13\s?km/i.test(text)) blocks.push({ why: "续航对外口径 10–15 km（10/16 裁定）；8–13 km 旧口径已作废" });
     return { ok: !blocks.length, blocks: blocks };
   }
 
@@ -278,7 +283,8 @@
        第四步正文再次变化 → 全部历史 key（含 ca06b323 / e5645418）指向 75ecc8d1，cap 维持原值（cap=2 的两把保持 2）。 */
     /* 2026-10-29 第六次换版：第四步 MOQ 定制细化（灯条 logo 50 台 / 贴标 100 台，Phil 裁定）→ 全部历史 key（含 75ecc8d1）指向 a2ae39b8，cap 维持原值。 */
     /* 2026-10-30 第七次换版：第四步灯条 logo 50 → 100 台（Phil R-H 裁定，覆盖 10/29；标准品/Original Brand 50 与贴标 100 不变）→ 全部历史 key（含 a2ae39b8）指向 387b960a，cap 维持原值（a2ae39b8 第四步文案已变，cap=3）。 */
-   var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "387b960a-mvvxkkif", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "387b960a-mvvxkkif", cap: 2 }, "31eedc36-mvc6xdi7": { to: "387b960a-mvvxkkif", cap: 3 }, "369246e3-mvg5888z": { to: "387b960a-mvvxkkif", cap: 3 }, "16722a14-mvga8l75": { to: "387b960a-mvvxkkif", cap: 3 }, "f0daad5c-mvgbye8l": { to: "387b960a-mvvxkkif", cap: 3 }, "ca06b323-mvj32bx1": { to: "387b960a-mvvxkkif", cap: 3 }, "e5645418-mvszfxn9": { to: "387b960a-mvvxkkif", cap: 3 }, "75ecc8d1-mvszghst": { to: "387b960a-mvvxkkif", cap: 3 }, "a2ae39b8-mvtdwpnl": { to: "387b960a-mvvxkkif", cap: 3 } };
+    /* 2026-10-30 第八次换版：第一步规格行承重统一 120 kg（Phil E2 裁定，覆盖 150 kg（低速）/130–150 kg）→ 全部历史 key（含 387b960a）指向 2f69a9b9；第一步文案已变 = 无有效前缀，cap 一律 0（玩家从第一步重发，旧承重规格必须重发纠正）。 */
+   var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "98ba0e2f-mvc6rf66": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "31eedc36-mvc6xdi7": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "369246e3-mvg5888z": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "16722a14-mvga8l75": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "f0daad5c-mvgbye8l": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "ca06b323-mvj32bx1": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "e5645418-mvszfxn9": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "75ecc8d1-mvszghst": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "a2ae39b8-mvtdwpnl": { to: "2f69a9b9-mvvz16z9", cap: 0 }, "387b960a-mvvxkkif": { to: "2f69a9b9-mvvz16z9", cap: 0 } };
   function scriptProgOf(buyer, d) {
     var prog = buyer.scriptProg || {};
     var p = Number(prog[d.key] || 0);
