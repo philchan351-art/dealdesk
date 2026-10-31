@@ -93,7 +93,7 @@
       s += "命中" + scan.all + "，执行局面 " + scan.n + " · " + (scan.name || "") + " → 先判局面再出招：move 与 3 条建议必须全部取自该局面在棋谱里的打法与禁忌；严禁跨局面移植招式（如首询用跟进招、冷线索给降价、已决定才砍价用「一分不让」）。判定错误可以纠正，但必须在 blocker 里写明理由。";
       var cmpSig = /another (supplier|factory)|why should i (pay|buy)|selling similar|for less|\bcheaper\b|similar rates|competing|competitor/i.test(lastBuyerMsg(buyer));
       if (scan.n === 3 && cmpSig) s += " 本局面专业性立论（10/30 大哥裁定）＝讲得清「为什么别人的电动行李箱便宜、我们的贵」，从三个角度立论：① 产品不一样（按棋谱/资料给出与便宜货的本质区别，只引支撑立论的关键参数，不堆规格表）② 服务不一样（经销商在我们这得到别人给不到的服务，以资料为准）③ 服务态度和理念不一样（我们怎么做生意：负责、不空口承诺、主动提示风险、帮他想到他没想到的）。不只要守价、不要只说「我们质量好」。";
-      if (scan.n === 14) s += " 时效局面纪律（棋谱局面 14 六步，逐条执行）：① 诚实说做不到什么（截止点/取件时间等事实）② 给可得的最优方案 ③ 去查去争最快的（快递/排产）④ 真实原因（不编）⑤ 流程压缩（把能并的并）⑥ 超额付出说出来（我多跑一趟/我盯到几点）；必须把决策点提前到「今天」；严禁承诺「某日一定到」或「放心」式拍胸脯，安抚类句式（放心/最高优先级/会持续更新）不算步骤完成。草稿必须引用状态卡里 [时效/快递/待办/已承诺] 字段的至少 2 条具体事实（取件截止点、运输天数、直送方式等）放在消息前段；状态卡有 [已承诺/大货] 字段的，本回合必须重申一遍（承诺是拿来兑现的，重提 = 可靠）。";
+      if (scan.n === 14) s += " 时效局面纪律（棋谱局面 14 六步，逐条执行）：① 诚实说做不到什么（截止点/取件时间等事实）② 给可得的最优方案 ③ 去查去争最快的（快递/排产）④ 真实原因（不编）⑤ 流程压缩（把能并的并）⑥ 超额付出说出来（我多跑一趟/我盯到几点）；必须把决策点提前到「今天」；严禁承诺「某日一定到」或「放心」式拍胸脯，安抚类句式（放心/最高优先级/会持续更新）不算步骤完成。草稿必须引用状态卡里 [时效/快递/待办/已承诺] 字段的至少 2 条具体事实（取件截止点、运输天数、直送方式等）放在消息前段；状态卡有 [已承诺/大货] 字段的，本回合必须重申一遍（承诺是拿来兑现的，重提 = 可靠）。适用边界（10/30 R-H 裁定）：本地交付做法（送酒店/当面定色/工厂直送快递/顺丰次日达）仅当状态卡显示客户人在中国时可用；客户不在中国时，改用国际物流口径（空运 3–5 天/海运约 20 天/DDP 到门），严禁用本地做法。";
       var freeAsk = !!buyer && /(free\s+(shipping|delivery|sample)|delivery\s+free|no\s+(shipping|delivery)\s+(fee|cost)|make.{0,20}(delivery|shipping)\s+free)/i.test((buyer.messages || []).slice(-5).map(function (m) { return m.text; }).join(" "));
       if (scan.n === 5 || (scan.n === 14 && freeAsk)) s += " 费用争议纪律：客户明确索要免运费/免样品时，必须直接答「拒绝 + 实付成本理由」（运费是付给物流公司的实付成本，不能吸收），跳过客户的明确诉求 = 跑题；拒绝后立即给可执行替代（升级选项/大货抵扣等）。";
       return s;
@@ -236,6 +236,13 @@
     var usdInCtx = /USD\s*[\d,]+|\$\s?\d{1,3}(?:,\d{3})+|\$\s?\d{2,4}\b/i.test(mctx2);
     if (rmbInCtx && !usdInCtx && /USD\s*[\d,]+|\$\s?\d{1,3}(?:,\d{3})+|\$\s?\d{2,4}\b/i.test(text)) blocks.push({ why: "跨币种替换：状态卡报 RMB（参数红线 3），草稿用 USD 价" });
     if (usdInCtx && !rmbInCtx && /RMB\s*[\d,]+|\d[\d,]*\s*yuan\b/i.test(text)) blocks.push({ why: "跨币种替换：状态卡报 USD（参数红线 3），草稿用 RMB 价" });
+    /* 9) 灯条 logo MOQ（10/30 R-H 裁定，覆盖 10/29 的 50）：light strip + logo 共现且「50」与灯条 logo 挂钩 = 旧口径，拦截；
+       灯条 logo 明确说 100 才放行。50 仅标准品（无定制）可用。 */
+    if (/light.?strip/i.test(text) && /logo/i.test(text)) {
+      var ls50 = /light.?strip[\s\S]{0,30}?(?:from|starting at|starts at|start|is|at|of|for)[\s\S]{0,10}?(?:50|fifty)\b/i.test(text);
+      var ls100 = /light.?strip[\s\S]{0,30}?(?:from|starting at|starts at|start|is|at|of|for)[\s\S]{0,10}?(?:100|a hundred)\b/i.test(text);
+      if (ls50 && !ls100) blocks.push({ why: "灯条 logo MOQ 必须是 100 台（10/30 裁定，覆盖 10/29 的 50）；50 仅限标准品" });
+    }
     return { ok: !blocks.length, blocks: blocks };
   }
 
@@ -270,7 +277,8 @@
    /* 2026-10-28 第五次换版：变色款对外起订 500 → 200 台（Phil 补充表裁定；定制色维持 500）。
        第四步正文再次变化 → 全部历史 key（含 ca06b323 / e5645418）指向 75ecc8d1，cap 维持原值（cap=2 的两把保持 2）。 */
     /* 2026-10-29 第六次换版：第四步 MOQ 定制细化（灯条 logo 50 台 / 贴标 100 台，Phil 裁定）→ 全部历史 key（含 75ecc8d1）指向 a2ae39b8，cap 维持原值。 */
-   var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "a2ae39b8-mvtdwpnl", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "a2ae39b8-mvtdwpnl", cap: 2 }, "31eedc36-mvc6xdi7": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "369246e3-mvg5888z": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "16722a14-mvga8l75": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "f0daad5c-mvgbye8l": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "ca06b323-mvj32bx1": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "e5645418-mvszfxn9": { to: "a2ae39b8-mvtdwpnl", cap: 3 }, "75ecc8d1-mvszghst": { to: "a2ae39b8-mvtdwpnl", cap: 3 } };
+    /* 2026-10-30 第七次换版：第四步灯条 logo 50 → 100 台（Phil R-H 裁定，覆盖 10/29；标准品/Original Brand 50 与贴标 100 不变）→ 全部历史 key（含 a2ae39b8）指向 387b960a，cap 维持原值（a2ae39b8 第四步文案已变，cap=3）。 */
+   var SCRIPT_KEY_MIGRATION = { "f47eb318-mvazd29i": { to: "387b960a-mvvxkkif", cap: 2 }, "98ba0e2f-mvc6rf66": { to: "387b960a-mvvxkkif", cap: 2 }, "31eedc36-mvc6xdi7": { to: "387b960a-mvvxkkif", cap: 3 }, "369246e3-mvg5888z": { to: "387b960a-mvvxkkif", cap: 3 }, "16722a14-mvga8l75": { to: "387b960a-mvvxkkif", cap: 3 }, "f0daad5c-mvgbye8l": { to: "387b960a-mvvxkkif", cap: 3 }, "ca06b323-mvj32bx1": { to: "387b960a-mvvxkkif", cap: 3 }, "e5645418-mvszfxn9": { to: "387b960a-mvvxkkif", cap: 3 }, "75ecc8d1-mvszghst": { to: "387b960a-mvvxkkif", cap: 3 }, "a2ae39b8-mvtdwpnl": { to: "387b960a-mvvxkkif", cap: 3 } };
   function scriptProgOf(buyer, d) {
     var prog = buyer.scriptProg || {};
     var p = Number(prog[d.key] || 0);
