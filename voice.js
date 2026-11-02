@@ -198,7 +198,7 @@
     function disarmStartWatch() { if (startWatch) { clearTimeout(startWatch); startWatch = null; } }
     /* 2026-10-25（Phil：识别速度还是很慢）：录音期间每 6 秒一片、后台并行送 /stt（并发 4）——
        松手时大部分文字已回来，只等最后 1~2 片。服务端零改动（每片就是一次普通 /stt 调用）。 */
-    var partJobs = [], partInFlight = 0, partAborts = [], sttTick = null, sttAcRef = null, sttUserAbort = false, recFmt = "webm", fastMode = false, recCounter = 0;
+    var partJobs = [], partInFlight = 0, partAborts = [], sttTick = null, sttWatchdog = null, sttAcRef = null, sttUserAbort = false, recFmt = "webm", fastMode = false, recCounter = 0;
     var lastVoiceValue = null; /* 2026-10-26（Phil：第二条语音没覆盖第一条）：记录上次语音写入后的完整内容，用于判断"用户动没动过" */
     function partPump() {
       for (var i = 0; i < partJobs.length; i++) {
@@ -266,7 +266,7 @@
         if (phase === "listening") setLabel(LISTEN + " · " + remain + "s");
       }, 1000);
     }
-    function resetUI() { stopCountdown(); phase = "idle"; setCls(false); setLabel(DEFAULT); killParts(); if (sttTick) { clearInterval(sttTick); sttTick = null; } sttAcRef = null; }
+    function resetUI() { stopCountdown(); phase = "idle"; setCls(false); setLabel(DEFAULT); killParts(); if (sttTick) { clearInterval(sttTick); sttTick = null; } if (sttWatchdog) { clearTimeout(sttWatchdog); sttWatchdog = null; } sttAcRef = null; }
     function stopStream() {
       if (rec && rec.stream) {
         if (rec.stream === warmStream) return; /* 保温流由页面级统一管理（TTL/切后台释放），每次录完不停——停了下次又要弹授权 */
@@ -417,6 +417,13 @@
                 if (phase !== "stt") return;
                 setLabel(sttStage + "… " + Math.round((Date.now() - sttT0) / 1000) + "s");
               }, 1000);
+              /* 2026-11-01（接口改造铁律：失败必须给反馈）：整条 STT 流程的兜底看门狗。
+                 任何漏掉 resetUI 的静默 bail（异步 b64 回调里 phase 已变、用户取消后残留的 in-flight 等），
+                 到点强制 resetUI + toast，绝不让按钮卡在「转成文字」没下文。
+                 110s > 单次 sttBudget 上限(90s) + 余量；正常流程在 resetUI 里已取消看门狗，不会误报。 */
+              sttWatchdog = setTimeout(function () {
+                if (phase === "stt") { resetUI(); App.toast("⏱ 识别没完成（网络太慢或语音太长）。再按一下，说短一点重试", 6000); }
+              }, 110000);
               function sttUpload(bX, stage, onJ, onErr) {
                 sttStage = stage;
                 b64(bX, function (b64v) {
@@ -443,45 +450,46 @@
                     .catch(function (err) { unarmStt(); if (sttUserAbort) return; onErr(err); });
                 });
               }
-              function finishFull() {
+              /* 2026-11-01：warnLong=整段送了长音频(未分段，omni 可能截断)→ 交付后提示"可能不全"，消除静默截断 */
+              function finishFull(warnLong) {
                 sttUpload(blob, "整段识别中", function (j) {
                   resetUI();
-                  if (j && j.text) deliverText(j.text);
+                  if (j && j.text) { deliverText(j.text); if (warnLong) App.toast("这段较长，云端可能只识别到开头部分——如文字不全，请分段再录一次", 6000); }
                   else App.toast(sttFailReason(null, j), 6000);
                 }, function (err) {
                   resetUI();
                   App.toast(sttFailReason(err, null), 6000);
                 });
               }
-              /* ② 长语音自动分段：webm 且 >50s → 两半顺序上传（每半 <50s，在 omni 可靠区间内），文字拼接 */
-              if (probe && probe.dur > 50 && recFmt === "webm" && chunks.length >= 6) {
+              /* ② 长语音自动分段：webm 且 >50s → 两半「并行」上传（每半 ~30s，在 omni 可靠区间内），文字按段序拼接。
+                 2026-11-01（Phil：长语音识别时间过长 + 失败没反馈）：
+                   a) 原两半「串行」(第 2 半嵌在第 1 半成功回调里) → 墙上时间 ≈ 两半相加(实测 80s+)；改「并行」≈ 单半。
+                   b) 分段原来要求 chunks.length>=6，但 rec.start() 无 timeslice 时切片数不固定，长音频常凑不够 →
+                      不分段 → 整段送 omni 被截断成开头两句且无提示。已恢复 rec.start(2000)，切片数稳定，条件放宽为 >=4 并均衡切半。 */
+              if (probe && probe.dur > 50 && recFmt === "webm" && chunks.length >= 4) {
                 var half = Math.ceil(chunks.length / 2);
                 var bA = new Blob(chunks.slice(0, half), { type: blob.type });
                 /* 第二半段前补文件头（只补头不带音频）→ 独立解码且不重复内容；头没提取到时退化为补整个第一片（开头多 ~1s，可接受） */
                 var bB = new Blob((webmHeader ? [webmHeader] : [chunks[0]]).concat(chunks.slice(half)), { type: blob.type });
-                sttUpload(bA, "长语音·第1/2段", function (jA) {
-                  if (sttUserAbort) return;
-                  var tA = (jA && jA.text) || "";
-                  sttUpload(bB, "长语音·第2/2段", function (jB) {
-                    if (sttUserAbort) return;
-                    resetUI();
-                    var tB = (jB && jB.text) || "";
-                    if (tA && tB) { deliverText(tA + " " + tB); return; }
-                    if (tA || tB) { deliverText((tA + " " + tB).trim()); App.toast("只识别到一部分——再按一下补说缺失的部分", 6000); return; }
-                    App.toast(sttFailReason(null, jB), 6000);
-                  }, function (errB) {
-                    if (sttUserAbort) return;
-                    resetUI();
-                    if (tA) { deliverText(tA); App.toast("第二段识别失败，只拿到前半——再按一下补说后半", 6000); }
-                    else App.toast(sttFailReason(errB, null), 6000);
-                  });
-                }, function (errA) {
-                  if (sttUserAbort) return;
+                /* 两半并行：各一次 /stt 同时发，等两半都结算后按段序拼接（先第 1 段再第 2 段） */
+                var stDone = 0, stSettled = false, tA = "", tB = "", errA = null, errB = null, jErrA = null, jErrB = null;
+                function stSettle() {
+                  stDone++;
+                  if (stDone < 2 || stSettled) return;
+                  stSettled = true;
+                  if (sttUserAbort) return; /* 用户中途取消：点击处理器已 resetUI + toast「已停止」，这里不重复 */
                   resetUI();
-                  App.toast(sttFailReason(errA, null) + "（也可以说短一点再试）", 6000);
-                });
+                  if (tA && tB) { deliverText(tA + " " + tB); return; }
+                  if (tA || tB) { deliverText((tA + " " + tB).trim()); App.toast("只识别到一部分——再按一下补说缺失的部分", 6000); return; }
+                  var firstErr = errA || errB;
+                  if (firstErr) { App.toast(sttFailReason(firstErr, null) + "（也可以说短一点再试）", 6000); return; }
+                  var firstJErr = jErrA || jErrB;
+                  App.toast(sttFailReason(null, firstJErr ? { error: firstJErr } : null) + "（也可以说短一点再试）", 6000);
+                }
+                sttUpload(bA, "长语音·分段识别中", function (jA) { tA = (jA && jA.text) || ""; jErrA = (jA && jA.error) || null; stSettle(); }, function (eA) { errA = eA; stSettle(); });
+                sttUpload(bB, "长语音·分段识别中", function (jB) { tB = (jB && jB.text) || ""; jErrB = (jB && jB.error) || null; stSettle(); }, function (eB) { errB = eB; stSettle(); });
               } else {
-                finishFull();
+                finishFull(probe && probe.dur > 50);
               }
             }
             /* 预检：本地解码一次，两用——测峰值（①静音幻觉拦截）+ 测时长（②长语音分段）。
@@ -509,7 +517,10 @@
           };
           try {
             recT0 = Date.now();
-            rec.start(); /* 2026-10-26：切片路线停用，回归默认分片（整段识别用） */
+            rec.start(2000); /* 2026-10-26 曾去掉 timeslice(整段识别用)；2026-11-01 恢复 2s timeslice：
+               整段 blob 仍是全部切片拼接(输出不变)，但切片数稳定——长语音「两半并行」分段依赖稳定切片数，
+               无 timeslice 时 50-60s 常凑不够片 → 不分段 → omni 截断成开头且无提示(Phil 报"识别失败没反馈")。
+               这只影响 ondataavailable 切片粒度；fastMode(录音中并行上传) 仍停用(partPump 无入口调用)。 */
             activeRec = rec;
             if (rec.stream === warmStream) { warmUsers++; refreshWarm(); }
             if (pendingStop) { pendingStop = false; try { rec.stop(); } catch (err2) {} return; }
