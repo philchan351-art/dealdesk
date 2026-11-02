@@ -5,10 +5,18 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.10.1",
+  v: "1.10.2",
   date: "2026-10-31",
-  note: "N7 币种系统性缺陷修法 A（Phil 裁定）：状态卡含 RMB → 整段 RMB 作答",
+  note: "阶段五成交式 D1/D2/D3 修复（WhatsApp 原始记录全量审计实锤 4 例误报）",
   changelog: [
+    {
+      v: "1.10.2", date: "2026-10-31", items: [
+        "[修] 阶段五（成交）式三缺陷（WhatsApp 原始记录全量审计实锤，v1.10.1 基线下 4 例真实误报）：D1 裸 wire/bank transfer 提及（含我方电汇指引『When making the bank transfer…』）判成付款 → 必须带完成动词（made/sent/wired/done/received…）；D2 裸 paid 命中非完成时态（『would be paid』『needs to be paid』）与样品语境（『sample unit needs to be paid』）→ 只认已付语境（has/have/had/ve/just/already + paid、paid in full/up、paid the deposit/balance…、paid N%、独立 Paid!）；D3 50% deposit 付款条款复述（『50% deposit before production』）判成付款 → deposit 必须带完成动词（50% deposit paid / 50% paid / sent…）",
+        "[审计] 吴总手机 WhatsApp 导出全量审计（16 客户 / 23 个导出 / 去重 654 条重复消息）：旧口径 4 例误报全部清除（Ben ×3 + Amritpal ×1）；3 条真实成交证据不受影响（Amritpal 10/22『I've received your payment』/ Gabriel 10/30『I've received the payment』/ Tushar 9/25『Payment done』）",
+        "[测] R19 新增 16 项（4 例实锤误报不再判成交 / 8 条真完成付款表述保留 / 回归守护：payment terms=3、将来时不触发、样品费≠成交），共 165 项全过",
+        "[文档] 手册徽章落后 2 版（停在 v1.10.0）→ 同步 v1.10.2（v76）"
+      ]
+    },
     {
       v: "1.10.1", date: "2026-10-31", items: [
         "[修] N7 系统性缺陷（R13 暴露：全 RMB 状态卡被「报价对外 USD」全局默认带偏 → 跨币种闸门正确拦截 → 对账数出不了，must 0/6 两次复现）——参数红线第 3 条强化（Phil 10-31 裁定修法 A）：回复币种必须与状态卡一致，状态卡含 RMB 数字（样品价/运费/总额）时整段用 RMB（币别写数字旁）；「报价对外 USD」默认仅在状态卡无 RMB 事实时生效",
