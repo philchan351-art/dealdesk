@@ -597,7 +597,76 @@
       hidden: "一句理由+转移=保温度（保密≠生硬）；'tailored quotation' 把话题拉回「你的量、你的需求」；绝不说「我帮你问问他能接受什么价」（内部沟通外泄）；1,000+ 大单 = 负责人确认最终价（10/30 裁定：人工介入，AI 不单独承诺深折）",
       counterfactual: "直接报对方的价 → 他转头找对方对质，我方价格体系穿帮；过度解释保密原因（「他是我们大客户所以…」）→ 越描越像有鬼；只说「let me check」不转专属报价 → 冷场，单停摆",
       redpen: "",
-      flag: "Sunyl 10/13 06:23 真实回复（原话在案）；品牌名/logo 文件追问轮为考试设计轮，替代路径出自底线手册标准政策" }
+      flag: "Sunyl 10/13 06:23 真实回复（原话在案）；品牌名/logo 文件追问轮为考试设计轮，替代路径出自底线手册标准政策" },
+
+    /* ===== v2 增量（2026-11-01）：真实 WhatsApp 导出（桌面"客户交流真实记录"，数据至 10/31）补入
+       库内缺的最新回合 + 新客。数字纪律：pattern 内一律 [占位符]（注入用），wuzong_raw 存档含案例专属数。
+       承重一律 [承重=120kg]、续航 [续航=10-15km]，不引入旧 150kg / 8-13km。 */
+    { id: "T54", case: "Gabriel_Rouimi美国_以色列_样品", when: "10/25 05:00", stage: "砍价/守价", st: ["谈判","报价"], position: "零售锚点砍价（'我卖 $499，给我更低'）→ 守价 + 价值立论 + deck，不降",
+      buyer: "Ok / I sell at 499 dollars in my country / I need lower price",
+      wuzong_raw: "I understand. The reason is that the electric luggage is a new product. For the price of this product, I think it's already good. The product itself is good, but the price of this product is... [发 Electric_Luggage_Comparison.pdf] If you can't accept this price, then there is no need to continue the conversation.",
+      kw: ["i sell at","i sell for","my price is","my retail price","sell at","i need lower price","need lower","my country price","retail price","lower price","cheaper than"],
+      pattern: "客户拿自己零售价当锚点要更低 → ①不降（守 MOQ 阶梯价 [price]）②讲新品价值（品类新、产品本身好，不是虚高）③发对比 deck 让他自己看差在哪 [deck] ④语气留门（不硬顶'那就算了'，改成'帮你找到能做的量/方案'）。零售锚点 ≠ 我们能给的 B 端批发价，别被零售心理价带进零售语境",
+      situation: "他拿零售售价当心理价要更低；其实是 B 端，但用 C 端零售价当砍价筹码",
+      hidden: "零售锚点是谈判地位话术，不是真实成本线；守批发价 + 用 deck 把比较拉回'产品差异'而非'绝对低价'；留门 = 别把 B 端客户当 C 端零售价客户劝退",
+      counterfactual: "顺着 $499 降价 → 批发价被拉到零售心理价，整个价格体系穿帮；硬顶'不接受就算了' → B 端客户被 C 端话术劝退；只说'我们质量好'不给对比 → 他觉得贵得有理由但说不出差在哪",
+      redpen: "",
+      flag: "Gabriel 10/25 真实回复（原话在案，含当时较直的 'no need to continue'）；注入用 pattern（已按 B 端留门润色），不注入 wuzong_raw" },
+
+    { id: "T55", case: "Gabriel_Rouimi美国_以色列_样品", when: "10/30 20:29", stage: "签收/交付", st: ["样品确认","交付","成交"], position: "货已发、客户在等 → 主动确认送达 + 催快递加速（说出来）+ 收货后要首骑体验",
+      buyer: "（客户付款后无新消息，货已发、在等；或 'did it arrive / i'm expecting it'）",
+      wuzong_raw: "I can see the suitcase has arrived in Guangdong. Expected delivered before 2 PM tomorrow. / I've just contacted the courier to speed up the delivery. The suitcase should arrive tomorrow morning. Please keep an eye out for it.",
+      kw: ["did it arrive","did it reach","expecting","waiting for","tracking","has it","arrived","where is","where's the","when will it arrive","delivery"],
+      pattern: "货已发、客户在等 → ①同步真实物流节点（'我看到已到 [地点]，预计 [时间] 送到'）②主动催快递加速并说出来（'我刚联系了快递加急'）③收货后要'首骑反馈'（速度/电池/手感），不是问'收到了吗'，是问'骑起来感觉怎样' ④顺势铺大货（'等你这边计划下一步'）",
+      situation: "钱到了货发了，客户在等；送达 + 首骑体验是信任峰值点，也是从'样品'走向'大货'的桥",
+      hidden: "主动催快递并说出来 = 负责（他能看到你在盯着）；要'首骑反馈'而非'收到吗' = 专业（关心产品好不好用，不是关心包裹）；收货体验好的当下推大货 = 信任峰值，转化最顺",
+      counterfactual: "只问 'did you receive it' → 拿到 'yes' 就停，浪费信任峰值；不催快递不主动同步 → 客户觉得发完就不管；等客户主动说收到 → 可能等很久，且错过体验好的当下",
+      redpen: "",
+      flag: "Gabriel 10/30 真实回复（原话在案）；'首骑反馈 + 推大货'为 11/01 跟进口径（本回合是送达确认段）" },
+
+    { id: "T56", case: "Tushar印度样品跟踪_shah", when: "10/6 20:07", stage: "异议处理", st: ["样品确认","谈判","信息包"], position: "客户说'空箱有点重' → 诚实认 + 物理原因 + 对比市场 >9kg + 承重 [120kg] 结构原因；不承诺改轻",
+      buyer: "Yes, mostly all have liked it very much. Only drawback: the empty suitcase is also a little heavy (when we lift it). Otherwise super good, spacious, LEDs make it interesting.",
+      wuzong_raw: "I understand your concern about the weight. Yes, the suitcase is 8.4 kg (including the battery). This is because it's equipped with a motor, wheels, and a battery, and it also has a larger internal space, so it's heavier than a normal suitcase. However, I think it's very reasonable and suitable for you. The market is flooded with similar electric suitcases, but most weigh over 9 kg. To support a maximum load of up to 150 kg at lower speed, it requires a robust structure, so I think you can understand. 😊",
+      kw: ["a bit heavy","too heavy","little heavy","heavy","how much does it weigh","heavier than","so heavy","weight is","the weight"],
+      pattern: "客户嫌重 → ①诚实认（不否认，'yes, [重量] kg 含电池'）②物理原因（电机+轮+电池+大空间，所以比普通箱重）③对比市场（同类电动箱大多 >[市场均重] kg，我们 [重量] 反而轻）④承重 [承重口径=120kg] 需要结实结构 = 安全的代价 ⑤**绝不承诺改轻 / 做更轻版本**（澳洲 7kg 红线）。重量是这品类物理事实，硬辩'不重' 或软'能改轻' 都掉信任",
+      situation: "样品已收已测，客户给的是'除重量外都好' = 很强的正面 + 一个具体异议",
+      hidden: "承认 + 物理原因 + 市场对比 = 专业（不回避、不硬辩）；承重 120kg 是安全结构 = 把'重'重新定义成'结实/安全'；不承诺改轻 = 守住产品事实（改轻 = 拆结构 = 危险）",
+      counterfactual: "硬辩'其实不重' → 他提了就是觉得重，硬辩掉信任；'能给你做个更轻的' → 承诺改轻（红线），做出来是拆结构/降安全；只道歉不给原因 → 他觉得产品就是设计缺陷",
+      redpen: "",
+      flag: "⚠ 承重口径警示：wuzong_raw 是 10/6 原话，含 E2 前旧口径 '150 kg'。**注入用 pattern（承重 = [120kg]），严禁照抄 wuzong_raw 的 150kg**（10/30 E2 裁定承重一律 120kg）。底稿库唯一带旧承重数字的案例，flag 标死。" },
+
+    { id: "T57", case: "Tushar印度样品跟踪_shah", when: "10/15 04:11", stage: "进口/合规", st: ["报价","样品确认","成交"], position: "客户是进口国本地人、比我们熟清关 → 反过来请教他（BIS/电池分装）+ 用'另一 [国] 客户在走大货'铺量（不点名）",
+      buyer: "（客户是进口国本地专家、样品已收已测；我们在等进口/清关方案，且该国有大货意向）",
+      wuzong_raw: "One more thing I'd like to check: Do you have a regular freight forwarder in India? ... electric suitcases may have BIS requirements in India, and two of my customers are also trying to understand the import process. ... I hope to find a cost-effective shipping method for Indian customers, such as whether the suitcase and battery can be shipped separately, what the Indian regulations are, etc. One of my Indian customers has just received the sample and is considering a 1,000-unit order, and his shipment is already on the vessel. Since you're familiar with the Indian market, your advice would be really helpful.",
+      kw: ["import","customs","bis","clearance","forwarder","shipping to","regulations","battery separate","how to import","duty","tax in","local market"],
+      pattern: "客户是进口国本地专家、我们没把握当地清关 → ①请教他（'你对 [国家] 市场熟，你的建议很有用'——给足身份尊重）②把进口难题摊开（BIS/电池分装/成本方案）= 让他觉得'这事我们一起解' ③用'有 [国家] 客户在走大货、货已在船'铺量（不点名、不报对方价）④把进口/合规的共同利益点留下，把'买样品'升成'一起做 [国家] 市场'",
+      situation: "样品已收、客户已测（正面）、他是本地礼品店主、比工厂熟当地清关",
+      hidden: "请教本地专家 = 尊重 + 分担（不是'你该懂'的施压）；'另一个 [国家] 客户 [数量] 台已在船' = 制造'市场在动'的从众 + 大钩子（但不泄密）；把进口合规从'你的问题'变'我们一起解' = 信任 + 长期合作",
+      counterfactual: "我们硬答 BIS/清关（没把握）→ 说错掉专业 + 埋雷；只问'你打算进口吗'不给从众信号 → 他没动力推进；点出'另一个客户 [数量] 台'的具体对方 → 泄密",
+      redpen: "",
+      flag: "Tushar 10/15 真实回复（原话在案）；'1,000 台印度客户'为保密引用（不点名/不报价），pattern 已占位符化" },
+
+    { id: "T58", case: "Naseer澳大利亚2台样品跟进", when: "10/20 23:10", stage: "付款", st: ["报价","样品确认","成交"], position: "报价+账户已给、等付款 → 催'付款时间表'（不催'付没付'）+ 用船期机制给自然 urgency + B 端不催节奏",
+      buyer: "（报价/账户已给、等客户付款，客户沉默）",
+      wuzong_raw: "Once you've made the payment, please send me the receipt so I can immediately arrange the delivery to our freight forwarder. Our forwarder operates on a weekly shipping schedule, so the earlier we coordinate, the smoother the process will be. Once the samples are loaded onto the vessel, the 30-day transit time begins. / Hi Naseer, just checking in — we've already shared the sample quote and shipping options. Could you kindly let us know your preferred payment timeline so we can arrange the shipment promptly?",
+      kw: ["payment","pay","transfer","receipt","how to pay","when will you pay","payment timeline","still thinking","let me check","bank account","wire"],
+      pattern: "报价+账户已给、等付款、客户沉默 → ①不催'付没付'（施压），催'付款时间表'（'let me know your preferred payment timeline'——给他台阶、不逼）②用**船期机制**给自然 urgency（'forwarder 周班，越早协调越顺；上船才开始 [天数] 海运'）= urgency 来自物流事实不是催促 ③重申报价仍在（'still [price]'）④B 端不催节奏（'no rush，等你 ready 我立刻动'）",
+      situation: "钱没到货不能发；客户可能在等/比价/内部走流程；硬催掉信任",
+      hidden: "催'时间表'不催'付没付' = 给他台阶（他可以说'下周'）；船期 urgency 是物流客观事实（不是'再不定就没了'的假稀缺）；'报价仍保留' = 负责（帮他留着）；B 端不逼 = 周期观",
+      counterfactual: "硬催 'how is the payment?' → 施压，他可能直接冷；假稀缺'再不付就发不了了' → 掉信任（其实随时能发）；只说'等你消息'不给机制 → 没 urgency，拖更久",
+      redpen: "",
+      flag: "Naseer 10/19–10/20 真实回复（原话在案）；USD 594 / AUD 850.55 为该客专属事实，pattern 用 [price] 占位" },
+
+    { id: "T59", case: "Mehmet丹麦10月广交会样品", when: "9/16 10:39", stage: "运费/交付", st: ["报价","样品确认","谈判"], position: "客户要省/免运费（人到当地你发酒店省运费）→ 运费是实付成本不能吸收 + 大货补 [N] 台 + 发酒店=给便利不给免费",
+      buyer: "if you can send the sample to my hotel we will save the cost of freight... i want to save the cost of 88 USD. or i pay the sample cost you pay the freight?",
+      wuzong_raw: "I completely understand. The shipping fee is the actual cost we pay to the logistics company, so it cannot be absorbed by us. However, if you place a bulk order with us later, I can additionally give you one extra unit free of charge to help compensate for the sample cost. Since you will be in Guangzhou for the Canton Fair, I can also arrange to send the sample to your hotel.",
+      kw: ["save the freight","you pay the freight","free shipping","save the cost","shipping to my hotel","no shipping","free delivery","you cover the freight","save 88"],
+      pattern: "客户要省/免运费（尤其'人到当地你发我酒店省运费'）→ ①运费是付给物流的**实付成本**，不能吸收（不装糊涂）②立刻给补偿钩子（'大货补 [N] 台'抵扣样品成本）③人到当地 → 发酒店可以（省的是国际段，不是让免费）④区分'省'（本地段，能给）vs'免'（实付成本，不给）",
+      situation: "客户想两头占便宜：到当地还想要免运费；但'发酒店'本身合理（省国际段）",
+      hidden: "运费 = 实付成本 = 专业（不装糊涂、不假让步）；大货补 [N] 台 = 把'这次让'变成'下次的钩子'（锁下一单）；发酒店 = 给便利（他确实省了国际运费）但不开'免费'口子",
+      counterfactual: "答应免运费 → 打开'下次也免'的口子，运费是实付成本真亏；只说不给运费不给钩子 → 他觉得我们抠、掉信任；把'发酒店'也说成能免 → 假让利",
+      redpen: "",
+      flag: "Mehmet 9/16 真实回复（原话在案）；€88 为该客丹麦运费事实，pattern 占位符化；广交会窗口过后此回合 pivot 成 DDP（见 11/01 清单 §3）" }
   ];
 
   /* ===== 确定性检索：kw 命中为主，阶段匹配加分 ===== */

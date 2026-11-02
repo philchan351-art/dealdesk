@@ -5,10 +5,19 @@
  * 每次推送必须：改本文件（v+date+note）+ changelog 追加一条（≤15 条，每条 ≤8 项）
  *   + 把 index.html 所有 ?v= 统一替换成新号（含本文件的 ?v=） */
 window.APP_VERSION = {
-  v: "1.10.2",
-  date: "2026-10-31",
-  note: "阶段五成交式 D1/D2/D3 修复（WhatsApp 原始记录全量审计实锤 4 例误报）",
+  v: "1.10.3",
+  date: "2026-11-01",
+  note: "翻译卡住/很慢修复（LLM 统一超时 + 补翻并发限流）+ 谈单大脑首询一次给全/时效不锁日期",
   changelog: [
+    {
+      v: "1.10.3", date: "2026-11-01", items: [
+        "[修] 翻译卡住（Phil 11-01）：LLM 调用统一加超时（AbortController）——非流式硬超时（默认 60s）、流式「连接+停滞」超时（每收到数据包重置倒计时，长生成不误杀）。根治 FC 挂死时 fetch 永不返回、气泡永久停在「翻译中…」、zhBusy 锁永不释放",
+        "[修] 翻译很慢（Phil 11-01）：进页自动补翻译由 6 条并行 → ≤3 并行（一条完成接下一条），FC 慢时减少互相争抢；翻译调用 15s 超时 + 原有自动重试 1 次，不再无限等待",
+        "[调] 谈单大脑骨架（R16 真实场景基线·五数全过验证）：首询（局面 1）新增「一次给全」硬骨架（阶梯价+MOQ / 颜色 / 电池 / 零售参考 / 工厂身份 + 反问自用还是做生意，数值按状态卡/资料取不臆造）；时效（局面 14）补强「不锁到货日期」（禁 by [日期] / at the latest [日期]，只给区间+真实原因）",
+        "[调] 底稿库 +6 条真实回合（T54-T59，16 条真实 WhatsApp 线程的吴总原话）：Gabriel 守价+deck / 送达确认+首骑推大货、Tushar 重量→120kg / 印度进口·BIS、Naseer 催付款锁船期、Mehmet 运费实付+大货补 1 台+DDP。只注入 pattern（数字占位），wuzong_raw 存档含旧 150kg 不注入（T56 已加承重口径警示 flag）",
+        "[测] 超时机制验证：FC 死端点 → translate 15.0s 抛「超时」错（非永挂）；并发池自测 maxInFlight=3、6 条全完成；两文件语法过"
+      ]
+    },
     {
       v: "1.10.2", date: "2026-10-31", items: [
         "[修] 阶段五（成交）式三缺陷（WhatsApp 原始记录全量审计实锤，v1.10.1 基线下 4 例真实误报）：D1 裸 wire/bank transfer 提及（含我方电汇指引『When making the bank transfer…』）判成付款 → 必须带完成动词（made/sent/wired/done/received…）；D2 裸 paid 命中非完成时态（『would be paid』『needs to be paid』）与样品语境（『sample unit needs to be paid』）→ 只认已付语境（has/have/had/ve/just/already + paid、paid in full/up、paid the deposit/balance…、paid N%、独立 Paid!）；D3 50% deposit 付款条款复述（『50% deposit before production』）判成付款 → deposit 必须带完成动词（50% deposit paid / 50% paid / sent…）",

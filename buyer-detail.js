@@ -555,9 +555,9 @@
                throw e;
              });
            }
-           attempt(1).then(function (zh) {
-            zh = String(zh || "").trim();
-            if (!zh) throw new Error("返回空译文");
+            return attempt(1).then(function (zh) {
+             zh = String(zh || "").trim();
+             if (!zh) throw new Error("返回空译文");
             m.zh = zh; m.zhFail = false;
             if (window.Store) Store.commit();
             if (!patchBubble(m)) App.refresh();
@@ -707,9 +707,18 @@
              m.zh = "翻译中…"; m.zhFail = false;
              toStart.push(m);
            });
-           toStart.forEach(function (m) { patchBubble(m); });
-           toStart.forEach(startZh);
-         }
+            toStart.forEach(function (m) { patchBubble(m); });
+            /* 2026-11-01（Phil「翻译非常慢」）：原 6 条并行打 FC，FC 慢时互相争抢、越并发越慢。
+               改 ≤3 并行（一条完成后接下一条）；占位已上面批量写好，UI 无感。 */
+            (function runPool(items, limit) {
+              var i = 0;
+              function next() {
+                if (i >= items.length) return;
+                startZh(items[i++]).then(next, next);
+              }
+              for (var k = 0; k < Math.min(limit, items.length); k++) next();
+            })(toStart, 3);
+          }
 
        /* 交接确认：✓ 已发 / ✕ 没发 / 任意我方记录可删
           2026-10-18：改事件委托——补翻译现在是气泡级替换 DOM，逐元素绑定会随旧节点丢失 */

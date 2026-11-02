@@ -93,7 +93,8 @@
       s += "命中" + scan.all + "，执行局面 " + scan.n + " · " + (scan.name || "") + " → 先判局面再出招：move 与 3 条建议必须全部取自该局面在棋谱里的打法与禁忌；严禁跨局面移植招式（如首询用跟进招、冷线索给降价、已决定才砍价用「一分不让」）。判定错误可以纠正，但必须在 blocker 里写明理由。";
       var cmpSig = /another (supplier|factory)|why should i (pay|buy)|selling similar|for less|\bcheaper\b|similar rates|competing|competitor/i.test(lastBuyerMsg(buyer));
       if (scan.n === 3 && cmpSig) s += " 本局面专业性立论（10/30 大哥裁定）＝讲得清「为什么别人的电动行李箱便宜、我们的贵」，从三个角度立论：① 产品不一样（按棋谱/资料给出与便宜货的本质区别，只引支撑立论的关键参数，不堆规格表）② 服务不一样（经销商在我们这得到别人给不到的服务，以资料为准）③ 服务态度和理念不一样（我们怎么做生意：负责、不空口承诺、主动提示风险、帮他想到他没想到的）。不只要守价、不要只说「我们质量好」。";
-      if (scan.n === 14) s += " 时效局面纪律（棋谱局面 14 六步，逐条执行）：① 诚实说做不到什么（截止点/取件时间等事实）② 给可得的最优方案 ③ 去查去争最快的（快递/排产）④ 真实原因（不编）⑤ 流程压缩（把能并的并）⑥ 超额付出说出来（我多跑一趟/我盯到几点）；必须把决策点提前到「今天」；严禁承诺「某日一定到」或「放心」式拍胸脯，安抚类句式（放心/最高优先级/会持续更新）不算步骤完成。草稿必须引用状态卡里 [时效/快递/待办/已承诺] 字段的至少 2 条具体事实（取件截止点、运输天数、直送方式等）放在消息前段；状态卡有 [已承诺/大货] 字段的，本回合必须重申一遍（承诺是拿来兑现的，重提 = 可靠）。适用边界（10/30 R-H 裁定）：本地交付做法（送酒店/当面定色/工厂直送快递/顺丰次日达）仅当状态卡显示客户人在中国时可用；客户不在中国时，改用国际物流口径（空运 3–5 天/海运约 20 天/DDP 到门），严禁用本地做法。";
+      if (scan.n === 1) s += " 首询/即问价纪律（一次给全，不挤牙膏）：同 3 条内必须给全这些字段（数值一律按状态卡/受管资料取，不臆造）——① 阶梯价 + MOQ（标准品 / 定制 logo 两档）② 颜色（标准色 + 变色款加价）③ 电池（Wh · 是否 <100Wh 可手提）④ 零售参考价（TikTok / Amazon）⑤ 工厂身份；并反问一句「自用还是做生意」（先定 B/C 端，报价才立得住）。首询一次给全＝骨架要求，不算堆参数——但每条带业务动作锚点（零售参考接利润逻辑、反问接下一步），结尾一个行动点。";
+      if (scan.n === 14) s += " 时效局面纪律（棋谱局面 14 六步，逐条执行）：① 诚实说做不到什么（截止点/取件时间等事实）② 给可得的最优方案 ③ 去查去争最快的（快递/排产）④ 真实原因（不编）⑤ 流程压缩（把能并的并）⑥ 超额付出说出来（我多跑一趟/我盯到几点）；必须把决策点提前到「今天」；严禁锁死到货日期——「某日一定到」「by [具体日期]」「at the latest [日期]」都算拍胸脯，只给「可得最优区间 + 真实原因」，具体到货日留区间不锁死；安抚类句式（放心/最高优先级/会持续更新）不算步骤完成。草稿必须引用状态卡里 [时效/快递/待办/已承诺] 字段的至少 2 条具体事实（取件截止点、运输天数、直送方式等）放在消息前段；状态卡有 [已承诺/大货] 字段的，本回合必须重申一遍（承诺是拿来兑现的，重提 = 可靠）。适用边界（10/30 R-H 裁定）：本地交付做法（送酒店/当面定色/工厂直送快递/顺丰次日达）仅当状态卡显示客户人在中国时可用；客户不在中国时，改用国际物流口径（空运 3–5 天/海运约 20 天/DDP 到门），严禁用本地做法。";
       var freeAsk = !!buyer && /(free\s+(shipping|delivery|sample)|delivery\s+free|no\s+(shipping|delivery)\s+(fee|cost)|make.{0,20}(delivery|shipping)\s+free)/i.test((buyer.messages || []).slice(-5).map(function (m) { return m.text; }).join(" "));
       if (scan.n === 5 || (scan.n === 14 && freeAsk)) s += " 费用争议纪律：客户明确索要免运费/免样品时，必须直接答「拒绝 + 实付成本理由」（运费是付给物流公司的实付成本，不能吸收），跳过客户的明确诉求 = 跑题；拒绝后立即给可执行替代（升级选项/大货抵扣等）。";
       return s;
@@ -369,6 +370,27 @@
       temperature: opt.temp != null ? opt.temp : 0.4,
       max_tokens: opt.max_tokens || 600
     };
+    /* 2026-11-01（Phil「翻译非常慢、卡住了」）：FC/代理挂死时 fetch 永不返回 → 气泡永久停在
+       「翻译中…」、zhBusy 永不释放。这里统一加 AbortController + 超时：
+       非流式＝硬超时（默认 60s，opt.timeout 可覆盖）；流式＝「连接超时 + 停滞超时」（每收到
+       数据包就重置倒计时，长时间没包才掐断，不误杀长生成）。超时/abort 一律抛错 → 调用方
+       现有 .catch 照走（翻译出「翻译失败·点按重试」并清锁，可随时重试）。 */
+    var ac = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var _useStream = !!opt.onChunk;
+    var _connectTmo = opt.timeout || (_useStream ? 30000 : 60000);
+    var _stallTmo = 30000;
+    var _timer = null, _timedOut = false;
+    function _arm(ms) { if (!ac) return; if (_timer) clearTimeout(_timer); _timer = setTimeout(function () { _timedOut = true; try { ac.abort(); } catch (e) {} }, ms); }
+    function _disarm() { if (_timer) { clearTimeout(_timer); _timer = null; } }
+    if (ac) _arm(_connectTmo);
+    var _fin = function (p) {
+      return p.then(function (v) { _disarm(); return v; }, function (e) {
+        _disarm();
+        if (_timedOut) throw new Error("超时：LLM " + Math.round(_connectTmo / 1000) + "s 无响应，点按重试");
+        if (ac && e && e.name === "AbortError") throw new Error("连接中断，点按重试");
+        throw e;
+      });
+    };
     if (c.proxyUrl) {
       var proxy = c.proxyUrl.replace(/\/+$/, "") + "/llm";
       var pheaders = { "Content-Type": "application/json" };
@@ -386,9 +408,10 @@
         var reader = resp.body.getReader();
         var dec = new TextDecoder("utf-8");
         var buf = "", full = "";
-        function pump() {
-          return reader.read().then(function (p) {
-            if (p.done) return full;
+          function pump() {
+            return reader.read().then(function (p) {
+              _arm(_stallTmo); /* 停滞倒计时重置：收到数据＝连接还活着，长生成不会被误杀 */
+              if (p.done) return full;
             buf += dec.decode(p.value, { stream: true });
             var lines = buf.split("\n");
             buf = lines.pop() || "";
@@ -408,7 +431,7 @@
         }
         return pump();
       }
-      return fetch(proxy, { method: "POST", headers: pheaders, body: JSON.stringify(payload) })
+      return _fin(fetch(proxy, { method: "POST", headers: pheaders, body: JSON.stringify(payload), signal: ac ? ac.signal : undefined })
         .then(function (r) {
           var ct = String(r.headers.get("content-type") || "");
           if (useStream && r.ok && ct.indexOf("text/event-stream") >= 0) return streamParse(r);
@@ -421,19 +444,20 @@
             if (useStream && content) opt.onChunk(content, content);
             return content;
           });
-        });
+        }));
     }
-    return fetch(c.baseUrl + "/chat/completions", {
+    return _fin(fetch(c.baseUrl + "/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + c.key },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: ac ? ac.signal : undefined
     }).then(function (r) {
       return r.text().then(function (t) {
         if (!r.ok) throw new Error("API " + r.status + "：" + t.slice(0, 160));
         var j = JSON.parse(t);
         return (j.choices && j.choices[0] && j.choices[0].message.content) || "";
       });
-    });
+    }));
     }
     /* 2026-10-18：快模型（qwen-flash）在当前端点不可用（404/未开通/403）时自动降级主模型，不阻塞业务员 */
     return one(model0).catch(function (e) {
@@ -536,7 +560,7 @@
           + nodocs 跳过服务端资料注入 + qwen-flash（热态实测 0.75-0.77s）。
           Phil 成本指令：暂时不用贵模型 → 快模型不可用不再静默降级 qwen-plus，直接报错（autoZh 弹 toast，业务员看得见） */
        /* 2026-10-19：中英混合输入（客户信息表单/带中文标注）也要译——保留中文原样、只译外文部分 */
-       return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；若消息里已含中文，保留中文原样、只把外文部分译成中文；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 2500, temp: 0.2, nodocs: true, model: "qwen-flash" })
+       return chat("你是外贸翻译。把客户消息译成自然的商务中文：数字、品牌名、型号、证书名、货币单位保留原文；过度客套可简化；若消息里已含中文，保留中文原样、只把外文部分译成中文；不要解释，只输出一个 JSON：{\"zh\":\"译文\"}", String(text || ""), { max_tokens: 2500, temp: 0.2, nodocs: true, model: "qwen-flash", timeout: 15000 })
         .then(function (t) {
           var o = parseJSON(t);
           if (o && o.zh) return String(o.zh);
