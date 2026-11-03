@@ -737,14 +737,18 @@
          return o;
        }
        return fullSystem(buyer).then(function (sys) {
-          /* 2026-11-02：max_tokens 500→600，容纳"先看后写"骨架字段（buyerLast/check） */
-          return chat(sys, base, { max_tokens: 600, temp: 0.4, scope: buyer.scope })
+           /* 2026-11-02：max_tokens 500→600，容纳"先看后写"骨架字段（buyerLast/check）
+              2026-11-02（Phil：模型升档）：方式①扩充单独升 qwen-plus——"先看后写"骨架 + 15 条上下文
+              对指令遵循的要求超出 flash 档；成本可忽略（约 4k 输入+300 输出 ≈ 0.004 元/次，
+              百炼价 plus 0.8/2 元每百万 token，一天 100 次 < 5 毛）。10-18 全局成本纪律不变
+              （其余调用仍默认 flash）；plus 在端点不可用时自动回退 flash，不阻塞业务员 */
+           return chat(sys, base, { model: "qwen-plus", fallbackModel: "qwen-flash", max_tokens: 600, temp: 0.4, scope: buyer.scope })
            .then(function (t) {
              var o = parseJSON(t);
              try { return settle(o); } catch (e1) {
                var why = String(e1.message) === "含中文" ? "上一次 text 字段含中文" : (String(e1.message) === "仍是英语" ? "上一次输出仍是英语" : "");
                if (!why) throw e1; /* 解析类错误不重试，直接抛 */
-                return chat(sys, base + "\n\n【纠正】" + why + "，错误。text 必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），只有 zh 允许中文。", { max_tokens: 600, temp: 0.2, scope: buyer.scope })
+                  return chat(sys, base + "\n\n【纠正】" + why + "，错误。text 必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），只有 zh 允许中文。", { model: "qwen-plus", fallbackModel: "qwen-flash", max_tokens: 600, temp: 0.2, scope: buyer.scope })
                .then(function (t2) {
                  var o2 = parseJSON(t2);
                  if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
