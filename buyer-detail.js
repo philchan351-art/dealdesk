@@ -1156,8 +1156,12 @@
                    }
                    /* 2026-10-31（Phil「话术要按语言自动翻译」）：目标语言非中文 → 自动翻译再预填 WhatsApp
                       （语言口径与 AI 回复同源：手动选择优先 / 国家自动）；中文客户或 LLM 未配置走原文 */
-                   var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "中文";
-                   if (lang === "中文" || !(window.LLM && LLM.translateScript && LLM.configured && LLM.configured())) { doSend(zh, null); return; }
+                    var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "中文";
+                    /* 2026-11-02（Phil「英语就不用翻译了，直接发，其他语言可以翻译」）：英语客户整个跳过话术翻译 LLM——
+                       首次 2-5s + FC 排队（11-02 连续语音同源的慢点）从根上切掉，发送即时。
+                       护栏：仅当正文非中文（定稿话术即英语）才直发；正文含中文则照旧走翻译路径，绝不把中文静默发给英语客户。 */
+                    if (lang === "英语" && !/[一-龥]/.test(zh)) { doSend(zh, null); return; }
+                    if (lang === "中文" || !(window.LLM && LLM.translateScript && LLM.configured && LLM.configured())) { doSend(zh, null); return; }
                    var ck = d.key + ":" + i + ":" + lang + ":" + (window.U && U.textHash ? U.textHash(zh) : zh.length);
                    if (scriptTrans[ck] && scriptTrans[ck].t) { doSend(scriptTrans[ck].t, zh); return; }
                    sendBtn.disabled = true;
