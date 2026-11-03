@@ -1315,7 +1315,8 @@
             '<div class="pending-head"><span class="pending-tag">' + (loading ? (isExp ? "AI 正在按意图扩充…" : "AI 正在翻译…") : (isExp ? "① 已扩充 · 确认后发送" : "① 已翻译 · 确认后发送")) + '</span><span class="pending-lang">→ ' + escHtml(pending.lang) + "</span></div>" +
             (loading
               ? '<div class="pending-text pending-loading">' + (isExp ? "正在把你的意图补成一条完整消息…" : "正在把中文改写为符合客户习惯的表达…") + "</div>"
-              : (pending.brain ? '<div class="pending-brain" style="font-size:12px;color:#8a7f6d;padding:2px 0 6px;line-height:1.5">🧠 ' + escHtml(pending.brain) + "</div>" : "") +
+               : (pending.look ? '<div class="pending-look" style="font-size:12px;color:#7d8a6d;padding:2px 0 0;line-height:1.5">👁 它看到了：' + escHtml(pending.look) + "</div>" : "") +
+                  (pending.brain ? '<div class="pending-brain" style="font-size:12px;color:#8a7f6d;padding:' + (pending.look ? "0" : "2px") + ' 0 6px;line-height:1.5">🧠 ' + escHtml(pending.brain) + "</div>" : "") +
                  '<div class="pending-text">' + escHtml(pending.en) + "</div>" +
                  (pending.wrongLang ? '<div class="pending-warn">⛔ 语言未生效：' + escHtml(pending.wrongLang) + " · 点「不满意 · 再来一条」重试，或手动改完再发</div>" : "") +
                  (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + escHtml(limitWarn(b, pending.en)) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
@@ -1378,8 +1379,10 @@
              pending.loading = false;
              pending.en = en;
              pending.zh = isExp ? (String(o.zh || "").trim() || t) : t;
-             pending.brain = isExp ? String(o.brain || "").trim() : "";
-             pending.wrongLang = o.wrongLang ? String(o.wrongLang) : ""; /* F5 语言闸门：重试仍错 → 红字提示，改完再发 */
+              pending.brain = isExp ? String(o.brain || "").trim() : "";
+              /* 2026-11-02：「先看后写」骨架字段上卡——吴总一眼核对模型到底看没看上下文（诉求抓错/漏了已给事实） */
+              pending.look = isExp ? [o.buyerLast, o.check].map(function (x) { x = String(x || "").trim(); return (x && x !== "无") ? x : ""; }).filter(Boolean).join("｜") : "";
+              pending.wrongLang = o.wrongLang ? String(o.wrongLang) : ""; /* F5 语言闸门：重试仍错 → 红字提示，改完再发 */
             renderPending();
            App.toast(isExp ? "已按你的意图扩充 · 检查满意再点\"发到 WhatsApp\"" : "已翻译 · 检查一下，满意再点\"发到 WhatsApp\"");
          }).catch(function (e) {

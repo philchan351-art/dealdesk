@@ -141,7 +141,9 @@
     text = String(text || "");
     var blocks = [];
     var lastB = lastBuyerMsg(buyer);
-    var support = (buyer.context || []).map(function (c) { return c.k + " " + c.v; }).join(" ") + " " + String(buyer.memory || "") + " " + (buyer.messages || []).slice(-5).map(function (m) { return m.text; }).join(" ");
+    /* 2026-11-02：事实来源窗口与 ctx 生成窗口同步放宽到 15 条——模型现在能"看见" 15 条内的数字，
+       核查窗还停在 5 条会把合法引用误判为"无来源"拦截 */
+    var support = (buyer.context || []).map(function (c) { return c.k + " " + c.v; }).join(" ") + " " + String(buyer.memory || "") + " " + (buyer.messages || []).slice(-15).map(function (m) { return m.text; }).join(" ");
     /* 1) 数字白名单：草稿里任何数字必须 ∈ 常量 / 1–99 普通计数 / 年份 / 状态卡 / 最近对话（含千分位写法），否则拦截 */
     var seen = {};
     var supSet = f4Numbers(support); /* 2026-10-30 考试复跑修复：tokenize 后精确匹配——原 indexOf 子串让 308 命中 "3,080" 前缀漏网（N5 失配根因） */
@@ -490,7 +492,10 @@
   }
 
   function ctx(buyer) {
-    var last5 = (buyer.messages || []).slice(-5).map(function (m) {
+    /* 2026-11-02（Phil：对话框回复"没看上下文"病灶①）：对话窗口 5→15 条。
+       原 5 条时，第 6 条以外的事实（已报价/已承诺日期/已确认数量）对模型结构性不可见，
+       CONCRETE#9「先查对话再写」也只能扫同样 5 条——长对话里的重复提问、翻旧账正源于此。 */
+    var last15 = (buyer.messages || []).slice(-15).map(function (m) {
       return (m.from === "me" ? "卖家" : "客户") + "：" + m.text;
     }).join("\n");
     /* 显式负信息：档案没记录认证时写出来，防模型"做欧洲市场→肯定有CE"式推理幻觉 */
@@ -510,7 +515,7 @@
       "\n档案：" + (buyer.context || []).map(function (c) { return c.k + "=" + c.v; }).join("；") + certNeg +
       (buyer.profile ? "\n国家画像：" + buyer.profile.address + " / " + buyer.profile.style : "") +
        (buyer.memory ? "\n客户长期记忆（来自导入的过往聊天记录总结，重要背景，回答涉及这些话题时必须一致）：" + buyer.memory.slice(0, 800) : "") +
-      "\n最近对话：\n" + last5 + personaLine();
+       "\n最近对话：\n" + last15 + personaLine();
   }
 
   /* ===== F5 语言闸门（2026-10-30 Phil「选了葡萄牙语依然出英语」·整个修复） =====
@@ -732,13 +737,14 @@
          return o;
        }
        return fullSystem(buyer).then(function (sys) {
-         return chat(sys, base, { max_tokens: 500, temp: 0.4, scope: buyer.scope })
+          /* 2026-11-02：max_tokens 500→600，容纳"先看后写"骨架字段（buyerLast/check） */
+          return chat(sys, base, { max_tokens: 600, temp: 0.4, scope: buyer.scope })
            .then(function (t) {
              var o = parseJSON(t);
              try { return settle(o); } catch (e1) {
                var why = String(e1.message) === "含中文" ? "上一次 text 字段含中文" : (String(e1.message) === "仍是英语" ? "上一次输出仍是英语" : "");
                if (!why) throw e1; /* 解析类错误不重试，直接抛 */
-               return chat(sys, base + "\n\n【纠正】" + why + "，错误。text 必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），只有 zh 允许中文。", { max_tokens: 500, temp: 0.2, scope: buyer.scope })
+                return chat(sys, base + "\n\n【纠正】" + why + "，错误。text 必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），只有 zh 允许中文。", { max_tokens: 600, temp: 0.2, scope: buyer.scope })
                .then(function (t2) {
                  var o2 = parseJSON(t2);
                  if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
