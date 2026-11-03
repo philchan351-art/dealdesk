@@ -352,6 +352,11 @@
     });
   }
 
+  /* 2026-11-02（Phil：连续语音第 2/3 次识别超时）：/stt 与 /llm 同一个 FC 实例，
+     识别会排在在飞的自动扩充/翻译后面 → 手机侧熔断先炸。全局在飞计数器，
+     供 voice.js 判断"云端正忙"：STT 熔断预算自适应延长 + 熔断提示说真话。 */
+  var _inFlight = 0;
+
   function chat(system, user, opt) {
     opt = opt || {};
     var c = cfg();
@@ -361,6 +366,7 @@
        恢复贵模型时改回：opt.model || c.model || "qwen-plus" */
     var model0 = opt.model || "qwen-flash";
     function one(model) {
+    _inFlight++; /* 2026-11-02：在飞计数，_fin 收口减一（含失败/超时/降级重试的每次 fetch） */
     var payload = {
       model: model,
       messages: [
@@ -384,8 +390,8 @@
     function _disarm() { if (_timer) { clearTimeout(_timer); _timer = null; } }
     if (ac) _arm(_connectTmo);
     var _fin = function (p) {
-      return p.then(function (v) { _disarm(); return v; }, function (e) {
-        _disarm();
+      return p.then(function (v) { _disarm(); _inFlight--; return v; }, function (e) {
+        _disarm(); _inFlight--;
         if (_timedOut) throw new Error("超时：LLM " + Math.round(_connectTmo / 1000) + "s 无响应，点按重试");
         if (ac && e && e.name === "AbortError") throw new Error("连接中断，点按重试");
         throw e;
@@ -539,6 +545,7 @@
   window.LLM = {
     MODELS: MODELS,
     chat: chat, /* 2026-10-17 导出：供 FB 表单识别等轻量结构化任务复用 */
+    active: function () { return _inFlight; }, /* 2026-11-02 导出：在飞的 LLM/FC 调用数（voice.js 判断"云端忙"，STT 熔断延长用） */
     wrongLang: wrongLang, /* 2026-10-30 导出：F5 语言闸门，测试回归用 */
     isEnglishLike: isEnglishLike,
     situationScan: situationScan, /* 2026-10-30 导出：考试回归用（F1 局面路由） */

@@ -154,11 +154,20 @@
      "按住说话"改"点按开关"——第 1 下=开始聆听（按钮转绿+提示音），第 2 下=结束并转成文字；
      转文字期间再按无效；单次录入硬上限 60 秒（绿色按钮上实时倒计时，说话的人看得见进度）；
      保温流/权限恢复面板/只转写不存录音 全部沿用。 */
-  /* 2026-10-26（Phil 要求：设立机制）——语音转化失败反馈铁律：
-     任何失败出口必须给出「原因类别 + 人话 + 下一步动作」，禁止静默失败、禁止甩技术黑话 */
+   /* 2026-10-26（Phil 要求：设立机制）——语音转化失败反馈铁律：
+      任何失败出口必须给出「原因类别 + 人话 + 下一步动作」，禁止静默失败、禁止甩技术黑话 */
+  /* 2026-11-02（Phil：连续语音第 2/3 次识别超时/识别不了）：/stt 与 /llm 同一个 FC 实例，
+     识别会排在在飞的自动扩充/翻译后面 → 手机侧 41s 熔断先炸。两道加固：
+     ① LLM 在飞时熔断预算自适应 +35s（见 sttUpload），把假超时变成多等一会儿；
+     ② 熔断时若云端在忙，提示改说真话，不再甩锅「信号弱/语音太长」。 */
+  var sttLlmBusy = 0; /* STT 开始时快照（sttFailReason 在模块作用域，拿不到 attach 闭包变量） */
+  function llmBusy() { try { return (window.LLM && LLM.active) ? LLM.active() : 0; } catch (e) { return 0; } }
   function sttFailReason(err, j) {
     if (err) {
-      if (err.name === "AbortError") return "⏱ 识别超时：可能信号弱或语音太长。再按一下，说短一点，或换 Wi‑Fi 重试";
+      if (err.name === "AbortError") {
+        if (llmBusy() > 0 || sttLlmBusy > 0) return "⏳ 云端正忙（翻译/扩充正在跑），识别在排队——稍等几秒再按一下即可，不用换网";
+        return "⏱ 识别超时：可能信号弱或语音太长。再按一下，说短一点，或换 Wi‑Fi 重试";
+      }
       return "📡 网络异常，识别请求没送到云端（" + String(err.message || "未知错误").slice(0, 40) + "）。检查手机信号后再按一下";
     }
     var e = j && j.error ? String(j.error) : "";
@@ -409,13 +418,14 @@
                 App.toast("🔇 没有采到声音（音量太低或麦克风没工作）。靠近手机再按一下说一次", 6000);
                 return;
               }
-              phase = "stt"; setCls(true, "busy"); setLabel(busyText);
+              phase = "stt"; sttLlmBusy = llmBusy(); setCls(true, "busy"); setLabel(busyText);
               /* 2026-10-25（Phil：长语音没有任何反馈）：转写中每秒显示已耗时 + 当前阶段 */
               var sttT0 = Date.now();
               var sttStage = "正在转成文字";
               sttTick = setInterval(function () {
                 if (phase !== "stt") return;
-                setLabel(sttStage + "… " + Math.round((Date.now() - sttT0) / 1000) + "s");
+                /* 2026-11-02：云端有翻译/扩充在跑时明示"稍忙"，业务员知道是在排队不是卡死 */
+                setLabel(sttStage + "… " + Math.round((Date.now() - sttT0) / 1000) + "s" + (llmBusy() > 0 ? " · 云端稍忙" : ""));
               }, 1000);
               /* 2026-11-01（接口改造铁律：失败必须给反馈）：整条 STT 流程的兜底看门狗。
                  任何漏掉 resetUI 的静默 bail（异步 b64 回调里 phase 已变、用户取消后残留的 in-flight 等），
@@ -437,8 +447,10 @@
                   var p = { method: "POST", headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session }, body: JSON.stringify({ audio: b64v, format: fmt }) };
                   var ac = (window.AbortController ? new AbortController() : null);
                   sttAcRef = ac; sttUserAbort = false;
-                  /* 熔断预算随分段大小：40s 底 + 每 40KB 加 1s（2 分钟音频 ≈ 480KB → 52s），不超 90s */
-                  var sttBudget = Math.min(90000, 40000 + Math.floor(bX.size / 40000) * 1000);
+                   /* 熔断预算随分段大小：40s 底 + 每 40KB 加 1s（2 分钟音频 ≈ 480KB → 52s），不超 90s。
+                      2026-11-02：云端有 LLM 在飞（翻译/扩充占着 FC 单通道）时 +35s——
+                      识别在排队不是坏了，把假超时变成多等一会儿；仍低于 110s 兜底看门狗 */
+                   var sttBudget = Math.min(90000, 40000 + Math.floor(bX.size / 40000) * 1000 + (llmBusy() > 0 ? 35000 : 0));
                   var sttTimer = ac ? setTimeout(function () { ac.abort(); }, sttBudget) : null;
                   function unarmStt() { if (sttTimer) { clearTimeout(sttTimer); sttTimer = null; } sttAcRef = null; }
                   fetch(String(c.proxyUrl).replace(/\/+$/, "") + "/stt", ac ? Object.assign(p, { signal: ac.signal }) : p)

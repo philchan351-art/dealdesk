@@ -1467,16 +1467,26 @@
       });
        /* 2026-10-18（Phil）：「AI 扩充」按钮删除——写完停笔 2 秒自动扩充/直译。
           意图框已是多行 textarea：Enter 换行不再触发提交；上一次还在生成中则不打断 */
-       var autoT = null;
-       input.addEventListener("input", function () {
-         if (autoT) clearTimeout(autoT);
-         var t = input.value.trim();
-         if (!t) return;
-         autoT = setTimeout(function () {
-           if (pending && pending.loading) return;
-           if (input.value.trim() === t) doTranslate();
-         }, 2000);
-       });
+        var autoT = null;
+        function armAuto(t) {
+          autoT = setTimeout(function () {
+            if (pending && pending.loading) {
+              /* 2026-11-02（Phil：连续语音时第 2 句之后的自动扩充被静默丢弃）：
+                 上一轮还在生成 → 不再永久放弃，2s 后再查一次，结束后框内文字没变就补跑。
+                 只对中文补查：非中文走"写外语停笔 2s 直发"快路径，首次检查即已处理，
+                 补查会引入未经确认的自动发送，不能扩展该窗口。 */
+              if (t && /[一-龥]/.test(t)) armAuto(t);
+              return;
+            }
+            if (input.value.trim() === t) doTranslate();
+          }, 2000);
+        }
+        input.addEventListener("input", function () {
+          if (autoT) clearTimeout(autoT);
+          var t = input.value.trim();
+          if (!t) return;
+          armAuto(t);
+        });
 
          /* 2026-10-18（A1）：🎤 按住说话统一用修好的 Voice 组件——保温流（每次进页最多弹 1 次 Allow）、
             "按住说话 · 语音转文字"文案、松手后"已停录音"、被禁常驻指引面板、授权弹窗打断诊断。
