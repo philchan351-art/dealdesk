@@ -495,9 +495,16 @@
     /* 2026-11-02（Phil：对话框回复"没看上下文"病灶①）：对话窗口 5→15 条。
        原 5 条时，第 6 条以外的事实（已报价/已承诺日期/已确认数量）对模型结构性不可见，
        CONCRETE#9「先查对话再写」也只能扫同样 5 条——长对话里的重复提问、翻旧账正源于此。 */
-    var last15 = (buyer.messages || []).slice(-15).map(function (m) {
-      return (m.from === "me" ? "卖家" : "客户") + "：" + m.text;
-    }).join("\n");
+    /* 2026-11-02（黄金集 C3 真缺陷）：给最后一条客户消息打 ▶ 确定性锚——
+       buyerLast 规则从「靠模型自己数」变成「照 ▶ 抄」，已答完的旧问题不再能被当成当前诉求 */
+    var last15 = (function () {
+      var arr = (buyer.messages || []).slice(-15);
+      var lt = -1;
+      for (var li = arr.length - 1; li >= 0; li--) { if (arr[li].from !== "me") { lt = li; break; } }
+      return arr.map(function (m, i2) {
+        return (i2 === lt ? "▶ " : "") + (m.from === "me" ? "卖家" : "客户") + "：" + m.text;
+      }).join("\n");
+    })();
     /* 显式负信息：档案没记录认证时写出来，防模型"做欧洲市场→肯定有CE"式推理幻觉 */
     var hasCert = (buyer.context || []).some(function (c) {
       return /认证|证书|检测报告|test report|\bCE\b|RoHS|REACH|\bUL\b|FDA|UKCA/i.test(String(c.k) + String(c.v));
@@ -515,7 +522,7 @@
       "\n档案：" + (buyer.context || []).map(function (c) { return c.k + "=" + c.v; }).join("；") + certNeg +
       (buyer.profile ? "\n国家画像：" + buyer.profile.address + " / " + buyer.profile.style : "") +
        (buyer.memory ? "\n客户长期记忆（来自导入的过往聊天记录总结，重要背景，回答涉及这些话题时必须一致）：" + buyer.memory.slice(0, 800) : "") +
-       "\n最近对话：\n" + last15 + personaLine();
+       "\n最近对话（▶＝客户最近一条）：\n" + last15 + personaLine();
   }
 
   /* ===== F5 语言闸门（2026-10-30 Phil「选了葡萄牙语依然出英语」·整个修复） =====
