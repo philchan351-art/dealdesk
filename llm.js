@@ -699,7 +699,7 @@
       var sys = "你是外贸「逐句翻译器」，不是写手。任务：把中文原文一句一句翻译成" + lang + "，翻完即止。\n" +
         "【铁律】\n" +
         "1) 句数守恒：原文几句、译文几句。禁止添加问候语、卖点、反问、催单、展望结尾等原文没有的句子。\n" +
-        "2) 事实守恒：原文里的数字/价格/数量/日期/颜色原样保留；原文没有的一个都不许多出现。\n" +
+        "2) 事实守恒：原文里的数字/价格/数量/日期/颜色原样保留；原文没有的一个都不许多出现。数字带币种时必须与原文/档案的币种一致（档案写 RMB 1,580 就只能写 RMB，严禁擅自换成 USD）。\n" +
         "3) 只许润色措辞使其地道，不许增删改信息；原文口误/别字可按上下文纠正后再翻。\n" +
         "4) 语气贴合该客户（" + tone + "），但语气只体现在用词和礼貌度上，不得因此多写一句。\n" +
         "5) 输出必须全部用纯" + lang + "（对话史/模板是英语也要逐句转译，禁止照抄英语）。\n" +
@@ -726,6 +726,29 @@
         if (extra.length) return "译文冒出原文没有的数字：" + extra.slice(0, 3).join("、");
         return "";
       }
+      /* F7（2026-11-03，r4 人工核查抓出）币种错配闸门：数字对、币种被换＝事实错（实测输出
+         "USD 1,580"，档案明写 RMB 1,580）。确定性规则：原文+档案(profile/context/memory)的
+         「数字↔币种」配对为准，译文给同一数字配了别的币种 → 拒绝 */
+      function curPairs(s) {
+        var map = {};
+        var rx = /(USD|RMB|EUR|\$|￥|€)\s*([\d][\d,.]*)|([\d][\d,.]*)\s*(USD|RMB)/gi;
+        var m;
+        while ((m = rx.exec(String(s || "")))) {
+          var cur = String(m[1] || m[4] || "").toUpperCase();
+          var num = String(m[2] || m[3] || "").replace(/[.,]+$/, "").replace(/,/g, "");
+          if (cur === "$") cur = "USD";
+          if (cur === "￥") cur = "RMB";
+          if (cur === "€") cur = "EUR";
+          if (num && cur && !map[num]) map[num] = cur;
+        }
+        return map;
+      }
+      function curReason(t) {
+        var ref = String(text) + " " + JSON.stringify((buyer && buyer.context) || []) + " " + String((buyer && buyer.memory) || "");
+        var so = curPairs(ref), oo = curPairs(t), bad = [];
+        for (var k in oo) if (so[k] && so[k] !== oo[k]) bad.push(k + "：档案为" + so[k] + "、译文写成" + oo[k]);
+        return bad.length ? "币种错配（" + bad.join("；") + "）" : "";
+      }
       /* F5（2026-10-30）：直译也过语言闸门——仍错显式报错（toast 出原因），不静默给英语 */
       function settled(t) {
         if (needForeign && /[一-龥]/.test(String(t || ""))) throw new Error("语言未生效：译文含中文（目标" + lang + "）");
@@ -736,15 +759,16 @@
         .then(function (t) {
           var br = "", langErr = null;
           try { t = settled(t); } catch (e) { langErr = e; }
-          if (!langErr) br = bloatReason(t);
+          if (!langErr) br = bloatReason(t) || curReason(t);
           if (langErr || br) {
             var why = langErr ? (/含中文/.test(langErr.message) ? "上一次输出含中文" : "上一次输出仍是英语") : br;
             var fixup = langErr ? "正文必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），不得出现中文。"
-              : "译文必须与原文句数、信息一一对应：删掉所有原文没有的句子/卖点/结尾，不许出现原文以外的数字。";
+              : (/^币种错配/.test(br) ? "每个数字的币种必须照原文/档案原样写（RMB 就是 RMB、USD 就是 USD），一个都不许换。"
+                : "译文必须与原文句数、信息一一对应：删掉所有原文没有的句子/卖点/结尾，不许出现原文以外的数字。");
             return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】" + why + "，错误。" + fixup + "\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2, scope: buyer.scope })
               .then(function (t2) {
                 var o2 = settled(t2); /* 语言再错→显式抛（同旧行为） */
-                var still = bloatReason(o2);
+                var still = bloatReason(o2) || curReason(o2);
                 return { text: o2, bloat: still };
               });
           }
