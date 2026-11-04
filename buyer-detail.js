@@ -1322,7 +1322,8 @@
                : (pending.look ? '<div class="pending-look" style="font-size:12px;color:#7d8a6d;padding:2px 0 0;line-height:1.5">👁 它看到了：' + escHtml(pending.look) + "</div>" : "") +
                   (pending.brain ? '<div class="pending-brain" style="font-size:12px;color:#8a7f6d;padding:' + (pending.look ? "0" : "2px") + ' 0 6px;line-height:1.5">🧠 ' + escHtml(pending.brain) + "</div>" : "") +
                  '<div class="pending-text">' + escHtml(pending.en) + "</div>" +
-                 (pending.wrongLang ? '<div class="pending-warn">⛔ 语言未生效：' + escHtml(pending.wrongLang) + " · 点「不满意 · 再来一条」重试，或手动改完再发</div>" : "") +
+                  (pending.wrongLang ? '<div class="pending-warn">⛔ 语言未生效：' + escHtml(pending.wrongLang) + " · 点「不满意 · 再来一条」重试，或手动改完再发</div>" : "") +
+                  (pending.bloat ? '<div class="pending-warn">📏 ' + escHtml(pending.bloat) + ' · 可能加了原文没有的内容，逐句核对后再发；想完整表达就换「按意图扩充」</div>' : "") +
                  (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + escHtml(limitWarn(b, pending.en)) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
                 '<div class="pending-zh">' + (isExp ? "这条消息的意思：" : "你写的中文：") + escHtml(pending.zh) + "</div>" +
                '<div class="pending-btns">' +
@@ -1374,9 +1375,9 @@
          var isExp = mtMode === "expand";
           pending = { raw: t, zh: t, en: "", mode: mtMode, lang: (window.Prompts && Prompts.langOf) ? Prompts.langOf(b) : "英语", wrongLang: "", loading: true };
          renderPending();
-         var call = isExp
-           ? LLM.expand(t, b)
-           : LLM.localize(t, b).then(function (en0) { return { text: en0, zh: t }; });
+          var call = isExp
+            ? LLM.expand(t, b)
+            : LLM.localize(t, b).then(function (r0) { return typeof r0 === "string" ? { text: r0, zh: t, bloat: "" } : { text: r0.text, zh: t, bloat: String(r0.bloat || "") }; });
          call.then(function (o) {
            var en = String(o.text || "").trim();
            if (!en) throw new Error("结果为空");
@@ -1387,6 +1388,7 @@
               /* 2026-11-02：「先看后写」骨架字段上卡——吴总一眼核对模型到底看没看上下文（诉求抓错/漏了已给事实） */
               pending.look = isExp ? [o.buyerLast, o.check].map(function (x) { x = String(x || "").trim(); return (x && x !== "无") ? x : ""; }).filter(Boolean).join("｜") : "";
               pending.wrongLang = o.wrongLang ? String(o.wrongLang) : ""; /* F5 语言闸门：重试仍错 → 红字提示，改完再发 */
+              pending.bloat = isExp ? "" : String(o.bloat || ""); /* F6 膨胀闸门：重试仍胖 → 红字核对提示（Phil 11-03 直译不许扩写） */
             renderPending();
            App.toast(isExp ? "已按你的意图扩充 · 检查满意再点\"发到 WhatsApp\"" : "已翻译 · 检查一下，满意再点\"发到 WhatsApp\"");
          }).catch(function (e) {

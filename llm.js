@@ -689,23 +689,67 @@
     localize: function (text, buyer) {
       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
       var needForeign = lang !== "中文";
+      /* 2026-11-03（Phil：「逐句直译就按我们说的内容，不要扩展」）：
+         旧实现复用 fullSystem（档案+对话+资料库+棋谱+销售红线全家桶）——那是给「写手」的配置，
+         每条注入都在劝模型补内容，「不要扩充」只在 user 提示里占一句，权重被淹没＝直译必扩。
+         现改为专用「译员」系统提示：不带资料库、不带棋谱，只留国家语气（措辞层面），
+         句数守恒＋事实守恒写进铁律。resolve 改为 {text, bloat}（全库仅此一个调用方）。 */
+      var cp = (window.CountryProfiles && buyer && buyer.country) ? window.CountryProfiles.get(buyer.country) : null;
+      var tone = (cp && cp.style) ? cp.style : "简洁直接";
+      var sys = "你是外贸「逐句翻译器」，不是写手。任务：把中文原文一句一句翻译成" + lang + "，翻完即止。\n" +
+        "【铁律】\n" +
+        "1) 句数守恒：原文几句、译文几句。禁止添加问候语、卖点、反问、催单、展望结尾等原文没有的句子。\n" +
+        "2) 事实守恒：原文里的数字/价格/数量/日期/颜色原样保留；原文没有的一个都不许多出现。\n" +
+        "3) 只许润色措辞使其地道，不许增删改信息；原文口误/别字可按上下文纠正后再翻。\n" +
+        "4) 语气贴合该客户（" + tone + "），但语气只体现在用词和礼貌度上，不得因此多写一句。\n" +
+        "5) 输出必须全部用纯" + lang + "（对话史/模板是英语也要逐句转译，禁止照抄英语）。\n" +
+        "6) 只输出译文本身：不要解释、不要引号、不要给多个版本。";
       var user = Prompts.localize(buyer) + "\n\n中文原文：" + text;
+      /* F6（2026-11-03）膨胀闸门：确定性检测「译文比原文胖」——句数暴涨或冒出原文没有的数字＝模型加戏。
+         命中→带【纠正】重试一次；仍胖→放行但打 bloat 标（界面红字提醒核对），绝不静默。 */
+      function sents(s) {
+        return (String(s || "").replace(/\d\.\d/g, "0x0").match(/[.!?。！？]+/g) || []).length;
+      }
+      function nums(s) {
+        var out = {}, m = String(s || "").replace(/[,\s]/g, "").match(/\d+(?:\.\d+)?/g) || [];
+        for (var i = 0; i < m.length; i++) out[m[i]] = 1;
+        return out;
+      }
+      function bloatReason(t) {
+        var o = String(t || "");
+        var sn = sents(text), on = sents(o);
+        var lim = Math.max(220, text.replace(/\s/g, "").length * 5.5);
+        if (o.replace(/\s/g, "").length > lim && on > sn + 1) return "译文比原文长太多且句子变多（疑似扩写）";
+        var srcN = nums(text), extra = [];
+        var om = o.replace(/[,\s]/g, "").match(/\d+(?:\.\d+)?/g) || [];
+        for (var i = 0; i < om.length; i++) if (!srcN[om[i]] && extra.indexOf(om[i]) < 0) extra.push(om[i]);
+        if (extra.length) return "译文冒出原文没有的数字：" + extra.slice(0, 3).join("、");
+        return "";
+      }
       /* F5（2026-10-30）：直译也过语言闸门——仍错显式报错（toast 出原因），不静默给英语 */
       function settled(t) {
         if (needForeign && /[一-龥]/.test(String(t || ""))) throw new Error("语言未生效：译文含中文（目标" + lang + "）");
         if (wrongLang(t, lang)) throw new Error("语言未生效：输出仍是英语（目标" + lang + "），点重试或换按意图扩充");
         return t;
       }
-      return fullSystem(buyer).then(function (sys) {
-        return chat(sys, user, { max_tokens: 400, temp: 0.3, scope: buyer.scope })
-          .then(function (t) {
-            try { return settled(t); } catch (e) {
-              var why = String(e.message).indexOf("含中文") >= 0 ? "上一次输出含中文" : "上一次输出仍是英语";
-              return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】" + why + "，错误。正文必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），不得出现中文。\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2, scope: buyer.scope })
-                .then(settled);
-            }
-          });
-      });
+      return chat(sys, user, { max_tokens: 400, temp: 0.3, scope: buyer.scope })
+        .then(function (t) {
+          var br = "", langErr = null;
+          try { t = settled(t); } catch (e) { langErr = e; }
+          if (!langErr) br = bloatReason(t);
+          if (langErr || br) {
+            var why = langErr ? (/含中文/.test(langErr.message) ? "上一次输出含中文" : "上一次输出仍是英语") : br;
+            var fixup = langErr ? "正文必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），不得出现中文。"
+              : "译文必须与原文句数、信息一一对应：删掉所有原文没有的句子/卖点/结尾，不许出现原文以外的数字。";
+            return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】" + why + "，错误。" + fixup + "\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2, scope: buyer.scope })
+              .then(function (t2) {
+                var o2 = settled(t2); /* 语言再错→显式抛（同旧行为） */
+                var still = bloatReason(o2);
+                return { text: o2, bloat: still };
+              });
+          }
+          return { text: t, bloat: "" };
+        });
     },
       /* 2026-10-31（话术六步自动翻译）：整段忠实翻译到客户语言（langOf 同口径：手动优先/国家自动）。
          纯翻译系统提示词——不注入资料库/棋谱（话术文本本身是定稿事实源，KB 参与反而会改数）；
