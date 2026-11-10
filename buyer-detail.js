@@ -1025,8 +1025,23 @@
                ① 本地持久缓存（拉过一次就能离线显示）② 拉取失败自动读缓存
                ③ 该产品线没有专属剧本时回退显示全部剧本（带提示）
                ④ 连缓存都没有 → 显示占位卡 + 重试按钮，绝不再静默消失 */
-            function readCache() { try { var raw = localStorage.getItem("dd_scripts_cache_v1"); if (!raw) return null; var o = JSON.parse(raw); return (o && o.docs && o.docs.length) ? o : null; } catch (e) { return null; } }
-            function writeCache(j) { try { localStorage.setItem("dd_scripts_cache_v1", JSON.stringify({ ts: Date.now(), docs: (j && j.docs) || [] })); } catch (e) {} }
+            /* 缓存必须按域分键：共用一个 key 时，同一台设备先看行李箱客户再看面料客户，
+               本地缓存会把行李箱剧本先渲染出来（网络没回来就已经显示错了） */
+            function cacheKey() {
+              var d = (window.DealDomain && DealDomain.currentId && DealDomain.currentId()) || "e-scooter";
+              return "dd_scripts_cache_v2:" + d;
+            }
+            function readCache() { try { var raw = localStorage.getItem(cacheKey()); if (!raw) return null; var o = JSON.parse ? JSON.parse(raw) : null; return (o && o.docs && o.docs.length) ? o : null; } catch (e) { return null; } }
+            function writeCache(j) { try { localStorage.setItem(cacheKey(), JSON.stringify({ ts: Date.now(), docs: (j && j.docs) || [] })); } catch (e) {} }
+            /* 本域还没有话术时的说明卡（面料域就是这个状态）：说清为什么没有、要什么才有 */
+            function renderNoScript() {
+              var dn = (window.DealDomain && DealDomain.current()) ? DealDomain.current().name : "本业务线";
+              box.innerHTML = '<div class="card ctx-card" style="margin:12px 16px 0">' +
+                '<div class="ctx-head"><span class="ctx-title">📜 新客话术</span><span class="ctx-hint">尚未建立</span></div>' +
+                '<div class="sp-hint">「' + escHtml(dn) + '」还没有自己的剧本。' +
+                '本业务线的话术从 0 开始建：管理员到「设置 → 团队资料 → 话术剧本」上传一套，产品线选本线即可；' +
+                '在建立之前这里不会显示其它业务线的剧本——念错了比没有更误事。</div></div>';
+            }
             function renderEmpty() {
               box.innerHTML = '<div class="card ctx-card" style="margin:12px 16px 0">' +
                 '<div class="ctx-head"><span class="ctx-title">📜 新客话术</span><span class="ctx-hint">没加载到</span></div>' +
@@ -1053,17 +1068,28 @@
             }
           function onShared(j) {
             if (!j) return;
-           /* 产品线=通用（或未设）→ 看全部剧本；指定产品线 → 该产品线 + 通用 */
-            var allScripts = ((j && j.docs) || []).filter(function (d) {
-              return d.type === "script" && d.steps && d.steps.length;
-            });
-            var scripts = allScripts.filter(function (d) {
-              return line === "all" || d.scope === "all" || d.scope === line;
-            });
-            /* 2026-10-21（Phil）：该产品线一套剧本都没有（如宠物客户 vs 行李箱专属剧本）→ 回退显示全部剧本，
-               卡片里加一行说明，保证新客一定有话术可用 */
-            var scopeFallback = false;
-            if (!scripts.length && allScripts.length) { scripts = allScripts.slice(); scopeFallback = true; }
+           /* 产品线=通用（或未设）→ 看全部剧本；指定产品线 → 该产品线 + 通用
+              2026-11-09 多业务域：先按域切一刀再按产品线切，回退范围只到"本域全部"为止。
+              此前面料客户没有专属剧本时，会把《新客话术·六步（Titan X）》整套借过来——
+              那比没话术更糟：业务员照着念就是在对面料客户讲电池容量和航空合规 */
+            var sel = (window.DealDomain && DealDomain.current() && DealDomain.selectScripts)
+              ? DealDomain.selectScripts((j && j.docs) || [], line)
+              : null;
+            var scripts, scopeFallback = false;
+            if (sel) {
+              scripts = sel.scripts;
+              scopeFallback = sel.fallback;
+              /* 本域一套剧本都没有 → 明确说"还没有"，不借用、不空白、不报错 */
+              if (sel.noneInDomain) { renderNoScript(); return; }
+            } else {
+              var allScripts = ((j && j.docs) || []).filter(function (d) {
+                return d.type === "script" && d.steps && d.steps.length;
+              });
+              scripts = allScripts.filter(function (d) {
+                return line === "all" || d.scope === "all" || d.scope === line;
+              });
+              if (!scripts.length && allScripts.length) { scripts = allScripts.slice(); scopeFallback = true; }
+            }
             if (!scripts.length) { renderEmpty(); return; }
            var st0 = (window.Store && Store.getSettings) ? (Store.getSettings() || {}) : {};
            var au0 = window.Auth && Auth.get();

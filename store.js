@@ -70,8 +70,10 @@
   migrateFollowDates();
   /* 先补形再回填成交——缺 stage 的记录补成 0 后，成交回填才不会漏 */
   migrateBuyerShapes();
-  /* 2026-11-09 多业务域：客户/跟进打域标签（幂等；未登录时跳过，登录拉云端快照后再补） */
+  /* 2026-11-09 多业务域：客户/跟进打域标签（老记录一律归遗留域，与当前所选域无关） */
   migrateDomainTags();
+  /* 一次性修复 v1.11.2 及之前「按当前域打标」搬错的数据（判据保守，见函数注释） */
+  try { repairMisTags(); } catch (e) { console.warn && console.warn("[域标签修复失败]", e); }
   migrateOutcomeStages();
   rescanStages(); /* 启动回扫：store 先于 utils 加载时此处 U 未定义（自动跳过），由 app.js startApp 补跑 */
 
@@ -214,20 +216,47 @@
   }
   /* ===== 2026-11-09（Phil 裁决「一人绑一域」）：业务域标签 =====
      domainId 是记录的一等字段：客户、跟进都带。隔离做在取数层（domainBuyers/domainFollowups），
-     不是 UI 隐藏——搜索、导出、复盘、看板全部走同一把过滤刀，换 UI 也漏不出去。
-     未打标签的历史记录：迁移时归到「当前账号绑定的域」；没绑定就原样留着（下次登录/拉云端再补），
-     绝不写死成某个域——写死等于替 Phil 决定谁卖什么。 */
+     不是 UI 隐藏——搜索、导出、复盘、看板全部走同一把过滤刀，换 UI 也漏不出去。 */
+  /* 遗留域：业务域功能上线之前，全系统只有行李箱/宠物这一条业务线，所以没有 domainId 的老记录
+     只可能属于它。这是事实推断，不是替谁决定卖什么。 */
+  var LEGACY_DOMAIN = "e-scooter";
   function currentDomainId() {
     return (window.DealDomain && DealDomain.currentId && DealDomain.currentId()) || null;
   }
+  /* ⚠ 这里曾经是一个会造成数据损坏的 bug（v1.11.2 及之前）：无标签记录被打上「当前所选域」。
+     后果：管理员账号从行李箱域切进面料域的瞬间，他名下全部行李箱客户被改标成面料客户并持久化上云——
+     不是"没隔开"，是主动把客户搬进了新域。
+     正确模型（Phil 定调「全新的域，不是在原来基础上生成」）：**切域永远不搬数据、不改标签**。
+     老记录一律归遗留域；新域是个干净的空世界，要客户就自己新建。 */
   function migrateDomainTags() {
-    var d = currentDomainId();
-    if (!d) return false;
     var hit = false;
-    data.buyers.forEach(function (b) { if (!b.domainId) { b.domainId = d; hit = true; } });
-    data.followups.forEach(function (f) { if (!f.domainId) { f.domainId = d; hit = true; } });
+    data.buyers.forEach(function (b) { if (!b.domainId) { b.domainId = LEGACY_DOMAIN; hit = true; } });
+    data.followups.forEach(function (f) { if (!f.domainId) { f.domainId = LEGACY_DOMAIN; hit = true; } });
     if (hit) saveLocal();
     return hit;
+  }
+  /* 修复被上面那个 bug 搬错的记录：判据只用「产品线字段明确是 suitcase/pet」这一条硬事实。
+     不用 free text 正则——面料客户里真实存在"给行李箱厂供布"的，产品描述会带 suitcase 字样，
+     按文本搬就会把真面料客户搬走（漏修可以人工处理，误搬是破坏数据）。
+     跟进记录一律跟随其客户的域，客户不在本域的跟进也一并归位。
+     该函数任何时候跑都安全（幂等、只认硬字段），所以启动与拉云端快照后各跑一次。 */
+  var LINES_IN_LEGACY = { suitcase: 1, pet: 1 };
+  function repairMisTags() {
+    var moved = 0;
+    data.buyers.forEach(function (b) {
+      if (!b || b.domainId === LEGACY_DOMAIN) return;
+      if (LINES_IN_LEGACY[String(b.scope || "").toLowerCase()]) { b.domainId = LEGACY_DOMAIN; moved++; }
+    });
+    var byId = {};
+    data.buyers.forEach(function (b) { if (b && b.id) byId[b.id] = b; });
+    data.followups.forEach(function (f) {
+      if (!f) return;
+      var owner = byId[f.buyerId];
+      if (owner) { if (f.domainId !== owner.domainId) { f.domainId = owner.domainId; moved++; } }
+      else if (LINES_IN_LEGACY[String(f.scope || "").toLowerCase()]) { f.domainId = LEGACY_DOMAIN; moved++; }
+    });
+    if (moved) saveLocal();
+    return moved;
   }
   /* 产品线值域由域包给（行李箱：suitcase/pet/all；面料：functional/coated/all）。
      写死值域就是第二个域一上线就报错的根因。非法值一律回落"未定"，不猜 */
@@ -339,6 +368,7 @@
     domainFollowups: domainFollowups,
     currentDomainId: currentDomainId,
     migrateDomainTags: migrateDomainTags,
+    repairMisTags: repairMisTags,
     validScope: validScope,
     /* 账号换域是管理员动作：本域标签不迁移，原域记录留在原域（该账号此后看不到） */
     rebindAccountDomain: function (domainId) {
@@ -640,7 +670,8 @@
         purgeDemo();
         migrateFollowDates(); /* 云端快照可能来自旧版本设备，无 dueDate 的同样补一次（幂等） */
         migrateBuyerShapes(); /* 同上：旧设备记录缺字段（tags 等）的，拉下来补形（幂等）；必须在成交回填之前 */
-        migrateDomainTags(); /* 同上：旧设备推上来的记录没有域标签，按本账号绑定的域补齐（幂等；未绑域时原样留着） */
+        migrateDomainTags(); /* 同上：没有域标签的记录一律归遗留域（不认当前域，否则切域就搬客户） */
+        try { repairMisTags(); } catch (e) { console.warn && console.warn("[域标签修复失败]", e); }
         migrateOutcomeStages(); /* 同上：旧设备标记成交但 stage 未进 5 的，拉下来同样补（幂等） */
         rescanStages(); /* 同上：其他设备/旧版本没扫过的存量对话，拉下来同样补扫（幂等） */
         data.savedAt = snap.updatedAt || data.savedAt;

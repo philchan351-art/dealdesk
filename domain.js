@@ -395,6 +395,21 @@
        · 其它域 → 只认明确属于自己的 scope，连"通用"也不给。
      因为现网所有 all 资料都是行李箱语境写的，放行"通用"等于把行李箱卖点当面料的共享知识灌进去。
      新域要资料就自己上传——从 0 开始就该从 0 开始。 */
+  /* 新客话术取数：先切域，再切产品线，两刀都在跨域之前落刀。
+     刻意取消「本线没有剧本就回退显示全部」这条 2026-10-21 的兜底——那是单产品线时代的承诺，
+     跨域后它会把《新客话术·六步（Titan X）》整套借给面料客户，比没话术更糟。
+     本域确实一套都没有时返回空，由界面显示"本业务线还没有话术"，绝不外借。 */
+  function selectScripts(docs, line) {
+    var inDomain = filterShare(docs || []);
+    var all = inDomain.filter(function (d) { return d && d.type === "script" && d.steps && d.steps.length; });
+    var l = line || "all";
+    var picked = (l === "all") ? all : all.filter(function (d) { return d.scope === "all" || d.scope === l; });
+    /* 域内回退保留现网语义（2026-10-21 Phil「保证新客一定有话术」：宠物客户没有专属剧本时显示本域其它剧本）。
+       回退范围只到"本域全部"为止——绝不跨到别的业务线去借剧本 */
+    var fallback = false;
+    if (!picked.length && all.length) { picked = all.slice(); fallback = true; }
+    return { scripts: picked, fallback: fallback, noneInDomain: all.length === 0 };
+  }
   function ownerDomainOfScope(scope) {
     var s = String(scope || "").toLowerCase();
     if (s === "suitcase" || s === "pet") return "e-scooter";
@@ -604,6 +619,7 @@
     of: of,
     filterShare: filterShare,
   ownerDomainOfScope: ownerDomainOfScope,
+  selectScripts: selectScripts,
   /* 界面显示产品线名：先查本域产品线，再兜全局表（历史数据可能带跨域线值） */
   scopeLabel: function (scope) {
     var lines = (current() && current().productLines) || [];

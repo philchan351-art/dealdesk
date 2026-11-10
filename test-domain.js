@@ -252,5 +252,41 @@ ok("scope→归属域 反推（服务端只有 scope，没有 domainId）",
   c.DealDomain.ownerDomainOfScope("fabric") === "functional-fabric" &&
   c.DealDomain.ownerDomainOfScope("all") === null);
 
+console.log("\n[12] 切域绝不搬数据（Phil「要用全新的域，不是在原来基础上生成」）");
+const g = boot("functional-fabric");
+g.App = { toast: function () {} };
+g.Store.applySnapshot({ buyers: [
+  { id: "old_plain", name: "PlainOld", country: "德国" },
+  { id: "old_suit", name: "LugOld", country: "美国", scope: "suitcase", qty: "500 台" },
+  { id: "bad_tag", name: "MisTagged", country: "美国", scope: "suitcase", domainId: "functional-fabric", qty: "1000 台" }
+], followups: [{ id: "f1", buyerId: "bad_tag", domainId: "functional-fabric", action: "跟进报价" }] });
+ok("面料域看这老账号：一个客户都没有（无标签记录归遗留域，不是当前域）", g.Store.domainBuyers().length === 0, g.Store.domainBuyers().map(b => b.name + "/" + b.domainId));
+g.DealDomain.setAccount({ id: "x", name: "Phil", role: "admin", domainId: "e-scooter" });
+const back = g.Store.domainBuyers().map(b => b.name).sort().join(",");
+ok("切回行李箱域：三条老客户一条不少（切域不搬数据）", back === "LugOld,MisTagged,PlainOld", back);
+ok("被 bug 搬错的那条已自动归位", g.Store.domainBuyers().find(b => b.name === "MisTagged").domainId === "e-scooter");
+ok("跟进跟随其客户归位", g.Store.domainFollowups().find(f => f.id === "f1").domainId === "e-scooter");
+ok("真面料客户不会被误搬（scope 不是 suitcase/pet 就一律不动）", (function () {
+  g.DealDomain.setAccount({ id: "x", name: "Phil", role: "admin", domainId: "functional-fabric" });
+  g.Store.applySnapshot({ buyers: [{ id: "fab_real", name: "RealFabric", country: "意大利", scope: "fabric", domainId: "functional-fabric", product: "suitcase lining fabric 210T" }] });
+  return g.Store.domainBuyers().some(b => b.id === "fab_real" && b.domainId === "functional-fabric");
+})(), "给行李箱厂供布的客户描述了 suitcase 但必须留在面料域");
+
+console.log("\n[13] 新客话术不跨域外借");
+const SCRIPTS = [
+  { key: "s1", type: "script", scope: "suitcase", name: "新客话术·六步（Titan X）", steps: ["a", "b"] },
+  { key: "s2", type: "script", scope: "pet", name: "宠物六步", steps: ["c"] },
+  { key: "s3", type: "script", scope: "fabric", name: "面料首询", steps: ["d"] }
+];
+/* 10-21 现网场景：宠物客户但宠物线还没有专属剧本 → 本域内回退显示行李箱剧本（带说明），这条行为不能改 */
+const scSel = c.DealDomain.selectScripts([SCRIPTS[0]], "pet");
+ok("行李箱域宠物客户无专属剧本时仍回退本域全部（现网保留）", scSel.scripts.length === 1 && scSel.fallback === true, scSel);
+ok("有专属剧本时不回退", c.DealDomain.selectScripts(SCRIPTS, "pet").scripts.map(d => d.key).join(",") === "s2");
+const faSel = f.DealDomain.selectScripts(SCRIPTS, "fabric");
+ok("面料客户只看得到面料剧本", faSel.scripts.map(d => d.key).join(",") === "s3", faSel);
+const faNone = f.DealDomain.selectScripts([SCRIPTS[0], SCRIPTS[1]], "fabric");
+ok("面料域没有自己的剧本 → 返回空 + noneInDomain（绝不借Titan X六步）", faNone.scripts.length === 0 && faNone.noneInDomain === true, faNone);
+ok("行李箱域看不到面料剧本", c.DealDomain.selectScripts(SCRIPTS, "suitcase").scripts.map(d => d.key).indexOf("s3") < 0);
+
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);
