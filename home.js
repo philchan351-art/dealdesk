@@ -11,7 +11,7 @@
 
   function collectPairs() {
     var pairs = [], seen = {};
-    Mock.buyers.forEach(function (b) {
+    U.visibleBuyers().forEach(function (b) {
       (b.aiEvents || []).forEach(function (e) {
         if (e.t !== "sent" || !e.raw) return;
         var k = String(e.raw) + "" + String(e.text || "");
@@ -77,12 +77,14 @@
 
     render: function () {
       /* 2026-10-14：下线全部示例数字（Mock.kpis / Mock.week）——看板指标一律由真实客户数据实时计算 */
-      var buyers = Mock.buyers, followups = Mock.followups;
+      /* 2026-11-09 多业务域：看板只算本域客户与本域跟进（面料业务员看不到行李箱数字） */
+      var buyers = U.visibleBuyers(), followups = (window.Store && Store.domainFollowups) ? Store.domainFollowups() : Mock.followups;
+      var DEAL = Mock.DEAL_STAGE, QS = Mock.QUOTE_STAGE, NS = Mock.NEGOTIATION_STAGE;
       var now = new Date(), DAY = 86400000;
       /* 2026-10-22（阶段判定严格化）："进行中"= 未成交且未流失——已标结果的客户不再混进管道/待回复 */
-      var open = buyers.filter(function (b) { return b.stage < 5 && !b.outcome; });
-      var neg = open.filter(function (b) { return b.stage === 3; }).length;
-      var qte = open.filter(function (b) { return b.stage === 2; }).length;
+      var open = buyers.filter(function (b) { return b.stage < DEAL && !b.outcome; });
+      var neg = open.filter(function (b) { return b.stage === NS; }).length;
+      var qte = open.filter(function (b) { return b.stage === QS; }).length;
       var waiting = open.filter(function (b) {
         var ms = b.messages || [];
         return ms.length && ms[ms.length - 1].from === "buyer";
@@ -147,7 +149,7 @@
       var dStr = (now.getMonth() + 1) + "月" + now.getDate() + "日 " + ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][now.getDay()];
       var myName = (Store.getSettings() || {}).name || "Cherry";
       /* AI 学习进度：统计本账号真实消息里的原话配对（sent 且带 raw），用于提示离 ②/④ 的门槛还差多少 */
-      var learned = Mock.buyers.reduce(function (s, b) { return s + (b.aiEvents || []).filter(function (e) { return e.t === "sent" && e.raw; }).length; }, 0);
+      var learned = U.visibleBuyers().reduce(function (s, b) { return s + (b.aiEvents || []).filter(function (e) { return e.t === "sent" && e.raw; }).length; }, 0);
       var pNow = (window.Store && Store.getPersona) ? Store.getPersona() : null;
       var trained = !!(pNow && pNow.updated && String(pNow.thoughts || "").indexOf(AUTO_MARK) >= 0);
       var llmOn = !!(window.LLM && LLM.configured());

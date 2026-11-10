@@ -16,9 +16,10 @@
 
   /* M2 修复：买家为空时 Mock.buyers[0] 是 undefined，取 .id 直接抛错，"记一条"打不开 */
   function defaultBuyer() {
-    var open = Mock.followups.filter(function (f) { return !f.done; })
+    var open = ((window.Store && Store.domainFollowups) ? Store.domainFollowups() : Mock.followups).filter(function (f) { return !f.done; })
       .sort(function (a, b) { return U.followDays(a) - U.followDays(b); })[0];
-    return open ? open.buyerId : (Mock.buyers[0] ? Mock.buyers[0].id : "");
+    var vb = U.visibleBuyers();
+    return open ? open.buyerId : (vb[0] ? vb[0].id : "");
   }
   function cur() { return Mock.getBuyer(state.buyerId); }
   function aiOn() { return window.LLM && LLM.configured(); }
@@ -30,7 +31,7 @@
     bd.innerHTML = '<div class="sheet">' +
       '<div class="sheet-head"><b>记一条 · 客户消息</b><button class="sheet-x" data-act="x">✕</button></div>' +
       '<div class="sheet-sub">' + (aiOn() ? "粘贴客户消息（任意语言），AI 自动完成中文对照、字段提取、意向分更新" : "粘贴客户消息 → 手填中文对照与动作（设置里配置 LLM 后可全自动）") + "</div>" +
-      '<div class="sl-buyers">' + Mock.buyers.map(function (b) {
+      '<div class="sl-buyers">' + U.visibleBuyers().map(function (b) {
         return '<button class="sl-b' + (b.id === state.buyerId ? " active" : "") + '" data-bid="' + escHtml(b.id) + '">' +
           '<span class="sl-b-name">' + escHtml(b.name) + '</span><span class="sl-b-sub">' + escHtml(b.cc) + " · " + Mock.STAGES[b.stage] + " · " + b.intent + "分</span></button>";
       }).join("") + "</div>" +
@@ -60,8 +61,8 @@
         ' · ' + escHtml(ai.delta.reason || "") + "（" + b.intent + " → " + Math.max(5, Math.min(99, b.intent + ai.delta.delta)) + "）</div>" : "") +
       /* 2026-10-22 阶段严格判定：复核页预告阶段推进 / 成交信号，入库前业务员看得见 */
       (ai.delta && typeof ai.delta.stage === "number" && ai.delta.stage > b.stage && !b.outcome
-        ? (ai.delta.stage >= 5
-          ? '<div class="sl-delta" style="background:#FFF8E6;border-color:#F5C96B">💰 成交信号（stage 5）：' + escHtml(ai.delta.stageWhy || "付款/PI 证据") + " — 入库后客户页出现「标记成交」确认卡，你确认才算数</div>"
+        ? (ai.delta.stage >= U.dealOf(b)
+          ? '<div class="sl-delta" style="background:#FFF8E6;border-color:#F5C96B">💰 成交信号（第 ' + (U.dealOf(b) + 1) + " 档）：" + escHtml(ai.delta.stageWhy || "付款/PI 证据") + " — 入库后客户页出现「标记成交」确认卡，你确认才算数</div>"
           : '<div class="sl-delta" style="background:#EFF6EF;border-color:#BFDDBF">📈 阶段将推进：' + Mock.STAGES[b.stage] + " → " + Mock.STAGES[ai.delta.stage] + (ai.delta.stageWhy ? "（" + escHtml(ai.delta.stageWhy) + "）" : "") + "</div>")
         : "") +
       '<div class="set-actions"><button class="set-btn-inline ghost" data-act="back">← 重填</button><button class="set-btn-inline" data-act="save">确认入库</button></div>' +
@@ -158,7 +159,7 @@
     var stageNote = "";
     if (rd && rd.stage !== null && rd.stage > b.stage && !b.outcome) {
       var rdWhy = rd.stageWhy || "AI 阶段研判";
-      if (rd.stage >= 5) {
+      if (rd.stage >= U.dealOf(b)) {
         if (!b.closeSignal) { b.closeSignal = { at: new Date().toISOString(), why: rdWhy, evidence: text.slice(0, 80), src: "ai" }; Store.commit(); }
         stageNote = " · 已挂成交信号卡";
       } else if (U.applyStage(b, rd.stage, rdWhy, "ai", text)) {
@@ -166,9 +167,12 @@
         stageNote = " · 阶段→" + Mock.STAGES[b.stage];
       }
     }
-    /* 需求确认兜底：数量/规格字段入库且客户还停在询盘 → 推进 1 档（AI 漏判时的确定性补位） */
-    if (b.stage === 0 && !b.outcome && applied.some(function (k) { return /(数量|qty|quantity|规格|spec)/i.test(k); })) {
-      if (U.applyStage(b, 1, "需求确认（数量/规格入库）", "field", text)) {
+    /* 需求确认兜底：数量/规格字段入库且客户还停在询盘 → 推进到本域「需求档」（AI 漏判时的确定性补位）
+       2026-11-09：目标档由域包给。面料的 0 档本身就是「规格确认」，且 1 档是「选型推荐」，
+       所以面料包 needsStage=null → 这条兜底在面料域不生效（规格信号交给词表判，避免把没推荐的说成已推荐） */
+    var ns = (window.DealDomain && DealDomain.current()) ? DealDomain.needsStage() : 1;
+    if (ns != null && b.stage < ns && !b.outcome && applied.some(function (k) { return /(数量|qty|quantity|规格|spec)/i.test(k); })) {
+      if (U.applyStage(b, ns, "需求确认（数量/规格入库）", "field", text)) {
         Store.commit();
         stageNote = " · 阶段→" + Mock.STAGES[b.stage];
       }

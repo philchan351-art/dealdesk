@@ -137,6 +137,12 @@
 
   /* 确定性选技能：客户最后一条消息的信号优先，阶段兜底 */
   function pick(b) {
+    /* 2026-11-09 多业务域：本技能库是「电动行李箱」的句子库（moq/sample/cert 的例句都带台数与认证口径）。
+       域包没声明 skillSet = 这个域还没有自己的技能库 → 直接返回 null 让调用方不注入，
+       绝不把行李箱句式塞进面料对话（与"跨域底稿复用被否决"是同一条理由）。放在函数最前面：
+       关键词命中（sample/moq/账期）在各域都可能出现，越靠后判越容易漏 */
+    if (window.DealDomain && DealDomain.current() && !DealDomain.skillSet()) return null;
+
     var low = lastBuyer(b).toLowerCase();
     if (has(low, ["proforma", " send the pi", "send me the pi", "lets proceed", "let's proceed", "place the order", "confirm the order", "we'll take", "we will take", "下订单", "发pi", "付定金", "proceed"])) return "close";
     if (window.KB && KB.hasCertWord(low)) return "cert";
@@ -148,12 +154,15 @@
     if (has(low, ["too high", "cheaper", "price is high", "discount", "best price", "reduce the price", "cut the price", "% off", "降价", "便宜点", "价格高", "优惠"])) return "bargain";
 
     var stage = b.stage || 0;
+    var deal = (window.U && U.dealOf) ? U.dealOf(b) : 5;
+    var qs = (window.DealDomain && DealDomain.current()) ? DealDomain.quoteStage() : 2;
+    var ns = (window.DealDomain && DealDomain.current()) ? DealDomain.needsStage() : 1;
     var silent = b.updatedAt && (Date.now() - b.updatedAt) > 48 * 3600 * 1000;
-    if (silent && stage < 5) return "nudge";
+    if (silent && stage < deal) return "nudge";
     if (stage === 0) return "icebreaker";
-    if (stage === 1) return "needs";
-    if (stage === 2) return "quote";
-    if (stage >= 4) return "close";
+    if (ns != null && stage === ns) return "needs";
+    if (stage === qs) return "quote";
+    if (stage >= deal - 1) return "close"; /* 成交前的最后一档：行李箱=样品确认(4)，其它域随管道自动跟随 */
     return "bargain";
   }
 

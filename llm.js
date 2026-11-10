@@ -300,9 +300,15 @@
   }
   function scriptLine(buyer) {
     return getSharedScripts().then(function (docs) {
-      var line = ["suitcase", "pet", "all"].indexOf(buyer.scope) >= 0 ? buyer.scope : "all";
+      /* 2026-11-09 多业务域：第一刀按域切（客户端先挡住，不等 FC）——没有域标签的历史剧本视为行李箱域，
+         面料账号一条都不注入。FC 侧同样按 x-dealdesk-domain 过滤后，这里就是双保险。
+         第二刀才是原来的产品线（scope）过滤，值域由域包给，不再写死 suitcase/pet/all */
+      var inDomain = (window.DealDomain && DealDomain.current()) ? DealDomain.filterShare(docs) : docs;
+      var lines = (window.DealDomain && DealDomain.current() ? DealDomain.productLines() : []).map(function (l) { return l.key; });
+      if (!lines.length) lines = ["", "suitcase", "pet", "all"];
+      var line = lines.indexOf(buyer.scope) >= 0 && buyer.scope ? buyer.scope : "all";
       /* 通用客户（或未设产品线）→ 全部剧本；指定产品线 → 该产品线 + 通用 */
-      var hits = docs.filter(function (d) { return line === "all" || d.scope === "all" || d.scope === line; });
+      var hits = inDomain.filter(function (d) { return line === "all" || d.scope === "all" || d.scope === line; });
       if (!hits.length) return "";
       var parts = [];
       for (var i = 0; i < hits.length; i++) {
@@ -404,11 +410,17 @@
       var pheaders = { "Content-Type": "application/json" };
       var _ddau = window.Auth && Auth.get();
       if (_ddau && _ddau.session) pheaders["x-dealdesk-session"] = _ddau.session;
-       /* 2026-10-16：把当前客户的产品线传给服务端，团队资料按线注入（行李箱客户不吃宠物资料） */
-       if (opt.scope) pheaders["x-dealdesk-scope"] = opt.scope;
-       /* 2026-10-18（Phil）：翻译等轻量调用跳过服务端资料注入（prompt 数万字符→百余字符，目标 2 秒内出译文）；
-          旧版 FC 不识别该头会忽略，无副作用 */
-       if (opt.nodocs) pheaders["x-dealdesk-nodocs"] = "1";
+      /* 2026-10-16：把当前客户的产品线传给服务端，团队资料按线注入（行李箱客户不吃宠物资料）
+         2026-11-09 多业务域：产品线取值改由域包裁决（serverScope）——面料客户一律 fabric，
+         不给它被打回 "" 后落进 any 包（=行李箱+宠物资料）的机会；行李箱域行为不变 */
+      var domLine = (window.DealDomain && DealDomain.current()) ? DealDomain.serverScope({ scope: opt.scope }) : (opt.scope || "");
+      if (domLine) pheaders["x-dealdesk-scope"] = domLine;
+      /* 2026-11-09：服务端还没有本域产品线时（docsAllowed=false）强制跳过资料注入——
+         宁可没资料，也不能拿行李箱资料编面料参数。与 2026-10-18 的翻译轻量调用共用同一个头 */
+      if ((window.DealDomain && DealDomain.current() && !DealDomain.docsAllowed()) || opt.nodocs) pheaders["x-dealdesk-nodocs"] = "1";
+      /* 2026-11-09：把业务域一并送过去，便于服务端日志与后续按域过滤；
+         旧版 FC 不识别该头会直接忽略，无副作用 → 前后端可以分步上线 */
+      if (window.DealDomain && DealDomain.currentId()) pheaders["x-dealdesk-domain"] = DealDomain.currentId();
       var useStream = !!opt.onChunk;
       if (useStream) payload.stream = true;
       function streamParse(resp) {
@@ -611,10 +623,17 @@
       /* 2026-10-22（阶段严格判定）：机械硬信号先确定性扫描一遍注入提示词——
          信号命中时 AI 不得低于命中档（除非写明理由），防止"表面读"漏掉硬事实 */
       var scan = (window.U && U.stageScan) ? U.stageScan(buyer, text) : null;
+      var deal = (window.U && U.dealOf) ? U.dealOf(buyer) : 5;
+      /* 2026-11-09 多业务域：Prompts.read 里那段阶段定义是行李箱六档原文，黄金集压着它，一个字不改。
+         其它域在末尾追加本域阶段表并声明优先级（追加式 = 行李箱域永远不经过这里，零回归风险） */
+      var dp = window.DealDomain ? DealDomain.of(buyer) : null;
+      var stageOverride = (dp && dp.readStageTable)
+        ? "\n【本业务域阶段表·覆盖上文所有阶段描述，一律以此为准】\n" + dp.readStageTable + "\n"
+        : "";
       var scanLine = scan
-        ? "\n机械扫描（确定性硬信号，命中即成立）：" + scan.why + " → 阶段 " + scan.to + (scan.to >= 5 ? "（成交信号，stage 给 5，等待人工确认标记）" : "")
+        ? "\n机械扫描（确定性硬信号，命中即成立）：" + scan.why + " → 阶段 " + scan.to + (scan.to >= deal ? "（成交信号，stage 给 " + deal + "，等待人工确认标记）" : "")
         : "\n机械扫描：无阶段硬信号（阶段判定纯靠消息事实）。";
-      return chat(ctx(buyer), Prompts.read + scanLine + "\n\n消息：" + text, { max_tokens: 260, temp: 0.2, nodocs: true })
+      return chat(ctx(buyer), Prompts.read + stageOverride + scanLine + "\n\n消息：" + text, { max_tokens: 260, temp: 0.2, nodocs: true })
         .then(function (t) {
           var o = parseJSON(t);
           if (!o || typeof o.delta !== "number") return null;
@@ -626,9 +645,11 @@
           o.reason = String(o.reason || "").slice(0, 16);
           o.concern = String(o.concern || "").slice(0, 24);
           o.evidence = String(o.evidence || "").slice(0, 40);
-          /* stage：null=无阶段证据；只收 0-5 整数，越界/非数字一律当 null（宁缺毋滥） */
+          /* stage：null=无阶段证据；只收本域管道内的整数档，越界/非数字一律当 null（宁缺毋滥）
+             2026-11-09：上界按客户所属域取（行李箱 5，面料 6）——写死 5 会把面料「首单成交」判成无效 */
           o.stage = (o.stage === null || o.stage === "" || o.stage === "null") ? null : Math.round(Number(o.stage));
-          if (o.stage === null || isNaN(o.stage) || o.stage < 0 || o.stage > 5) o.stage = null;
+          var maxSt = (window.U && U.maxOf) ? U.maxOf(buyer) : 5;
+          if (o.stage === null || isNaN(o.stage) || o.stage < 0 || o.stage > maxSt) o.stage = null;
           o.stageWhy = String(o.stageWhy || "").slice(0, 16);
           return o;
         });

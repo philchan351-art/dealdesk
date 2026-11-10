@@ -1,0 +1,226 @@
+/* ===== 多业务域回归（node test-domain.js）=====
+ * 用最小浏览器壳（window/localStorage）按 index.html 的真实顺序加载 mock → domain → utils → store，
+ * 验证两条裁决 + 现网零行为变化。行李箱域若有任何一条不一致 = Step 0 迁移失败，禁止合入。
+ */
+"use strict";
+const fs = require("fs");
+const vm = require("vm");
+
+function makeCtx() {
+  const mem = {};
+  const noop = function () {};
+  const el = () => ({
+    style: {}, dataset: {}, classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
+    appendChild: noop, appendChild: noop, removeChild: noop, addEventListener: noop,
+    querySelector: () => null, querySelectorAll: () => [], setAttribute: noop, getAttribute: () => null,
+    textContent: "", innerHTML: "", children: []
+  });
+  const ctx = {
+    console, setTimeout, clearTimeout, setInterval, clearInterval,
+    localStorage: {
+      getItem: k => (k in mem ? mem[k] : null),
+      setItem: (k, v) => { mem[k] = String(v); },
+      removeItem: k => { delete mem[k]; },
+      key: i => Object.keys(mem)[i],
+      get length() { return Object.keys(mem).length; }
+    },
+    location: { hash: "#/home", search: "", href: "https://x/", replace: noop, reload: noop },
+    history: { replaceState: noop },
+    document: {
+      createElement: el, body: el(), querySelector: () => null, querySelectorAll: () => [],
+      getElementById: () => null, addEventListener: noop, title: ""
+    },
+    navigator: { userAgent: "node" },
+    performance: { now: () => Date.now() },
+    requestAnimationFrame: noop,
+    Blob: function () {}, URL: { createObjectURL: () => "", revokeObjectURL: noop },
+    FileReader: function () {}, fetch: () => Promise.reject(new Error("no net in test"))
+  };
+  ctx.window = ctx;
+  ctx.globalThis = ctx;
+  ctx.self = ctx;
+  ctx.localStorage._mem = mem;
+  vm.createContext(ctx);
+  return ctx;
+}
+function load(ctx, file) { vm.runInContext(fs.readFileSync(__dirname + "/" + file, "utf8"), ctx, { filename: file }); }
+
+let pass = 0, fail = 0;
+function safe(v) { try { return JSON.stringify(v); } catch (e) { return String(v); } }
+function ok(name, cond, extra) {
+  if (cond) { pass++; console.log("  ok   " + name); return; }
+  fail++;
+  console.log("  FAIL " + name + (extra === undefined ? "" : " → " + safe(extra)));
+}
+function boot(domainId) {
+  const ctx = makeCtx();
+  if (domainId) ctx.localStorage.setItem("dealdesk.auth.v1", JSON.stringify({ name: "T", role: "rep", session: "s", domainId: domainId }));
+  load(ctx, "mock.js");
+  load(ctx, "domain.js");
+  load(ctx, "utils.js");
+  load(ctx, "store.js");
+  return ctx;
+}
+
+console.log("\n[1] 域包注册（两个域都必须通过契约校验）");
+let c = boot("e-scooter");
+ok("两个域都注册成功", Object.keys(c.DealDomain.packs).length === 2, c.DealDomain.rejected);
+ok("无被拒域", c.DealDomain.rejected.length === 0, c.DealDomain.rejected);
+
+console.log("\n[2] 行李箱域现网零变化（Step 0 的验收底线）");
+const mockStages = c.Mock.STAGES;
+ok("阶段名逐字一致", safe(mockStages) === safe(["询盘", "需求确认", "报价", "谈判", "样品确认", "成交"]), mockStages);
+ok("成交档仍是 5", c.Mock.DEAL_STAGE === 5 && c.DealDomain.dealStage() === 5);
+ok("报价档仍是 2", c.DealDomain.quoteStage() === 2);
+ok("产品线值域不变", safe(c.DealDomain.productLines().map(l => l.key)) === safe(["", "suitcase", "pet", "all"]));
+ok("行李箱开脑", c.DealDomain.brainMode().replyDraft === true);
+ok("回合库语料计入闸门", c.DealDomain.brainMode().have >= 1, c.DealDomain.brainMode());
+
+console.log("\n[3] 裁决 1 覆盖（Phil「不开脑不行」）：面料走 docs_driven 开脑 + 三条硬约束");
+let f = boot("functional-fabric");
+const fb = f.DealDomain.brainMode();
+ok("面料已开脑", fb.replyDraft === true, fb);
+ok("模式是 docs_driven（资料+棋谱驱动，非底稿替换）", fb.mode === "docs_driven");
+ok("每条底稿带未验证水印文案", /未验证/.test(fb.unverifiedMark), fb.unverifiedMark);
+ok("风险签核留痕", /Phil/.test(fb.riskAcceptedBy), fb.riskAcceptedBy);
+ok("事实未终裁 → factsReady=false", fb.factsReady === false);
+ok("状态卡/阶段判定/风险/复盘仍开", fb.statusCard && fb.stageDetection && fb.riskHints && fb.review);
+ok("门槛 60 条、当前 0 条（够数改回 runtime 切回底稿法）", fb.gate === 60 && fb.have === 0, fb);
+/* 闸门可以被签字绕开，不能被"顺手改个 true"绕开 */
+const nosign = JSON.parse(safe(f.DealDomain.get("functional-fabric")));
+delete nosign.brain.acceptedRiskBy;
+ok("docs_driven 缺风险签核 → 拒载该域", f.DealDomain.validatePack(nosign).some(e => /签核/.test(e)));
+const wrongmode = JSON.parse(safe(f.DealDomain.get("functional-fabric")));
+delete wrongmode.brain.mode;
+ok("source=docs 但未声明 docs_driven 模式 → 拒载", f.DealDomain.validatePack(wrongmode).some(e => /docs_driven/.test(e)));
+ok("8 段设计落成 7 段且成交=末档", f.Mock.STAGES.length === 7 && f.Mock.DEAL_STAGE === 6, f.Mock.STAGES);
+ok("阶段名是面料的", safe(f.Mock.STAGES) === safe(["规格确认", "选型推荐", "寄样", "客户测试", "试单", "大货报价", "首单成交"]), f.Mock.STAGES);
+ok("面料报价档=大货报价(5)", f.DealDomain.quoteStage() === 5);
+/* 以下两项都校验副本，绝不改活包（改了会污染后面的阶段用例） */
+const broken = JSON.parse(safe(f.DealDomain.get("functional-fabric")));
+broken.stages = broken.stages.map(function (s, i) { return { key: s.key, name: s.name, isDeal: i === 2 }; }); /* isDeal 挪到中档 = 成交后还有阶段 */
+ok("成交档挪出末位 → 契约拒绝该域", f.DealDomain.validatePack(broken).some(e => /末档/.test(e)));
+ok("活包未被污染（仍是 7 段）", f.DealDomain.get("functional-fabric").stages.length === 7);
+const sneak = JSON.parse(safe(f.DealDomain.get("e-scooter")));
+sneak.id = "sneak";
+sneak.brain = { repliesEnabled: true, corpusGate: { minRealReplies: 60, source: "runtime" } };
+ok("零语料想开脑 → 契约直接拒载", f.DealDomain.validatePack(sneak).some(e => /禁止开脑/.test(e)));
+
+console.log("\n[4] 裁决 2：一人绑一域 + 取数层隔离");
+ok("行李箱账号取到行李箱包", c.DealDomain.current().id === "e-scooter");
+ok("面料账号取到面料包", f.DealDomain.current().id === "functional-fabric");
+let threw = "";
+try { c.DealDomain.setAccount({ name: "X", role: "rep" }); } catch (e) { threw = e.message; }
+ok("未绑域账号抛错，不回落默认域", /ACCOUNT_WITHOUT_DOMAIN/.test(threw), threw);
+threw = "";
+try { c.DealDomain.setAccount({ name: "X", domainId: "no-such" }); } catch (e) { threw = e.message; }
+ok("未知域抛错", /UNKNOWN_DOMAIN/.test(threw), threw);
+
+/* 两个域各建客户 → 互相看不见 */
+c.Store.addBuyer({ name: "LugBuyer", country: "美国", qty: "100 台", scope: "suitcase" });
+f.Store.addBuyer({ name: "FabBuyer", country: "德国", qty: "3000 米", scope: "functional" });
+ok("行李箱侧可见 1 个客户", c.Store.domainBuyers().length === 1, c.Store.domainBuyers().map(b => b.name));
+ok("面料侧可见 1 个客户", f.Store.domainBuyers().length === 1, f.Store.domainBuyers().map(b => b.name));
+ok("客户带上域标签", c.Store.domainBuyers()[0].domainId === "e-scooter" && f.Store.domainBuyers()[0].domainId === "functional-fabric");
+ok("面料侧看不到行李箱客户（按名字）", !f.Store.domainBuyers().some(b => b.name === "LugBuyer"));
+ok("面料侧建客户能选本域产品线", f.Store.domainBuyers()[0].scope === "functional");
+ok("跨域产品线值被回落为未定", (f.Store.addBuyer({ name: "Bad", country: "美国", scope: "pet" }), f.Store.domainBuyers().find(b => b.name === "Bad").scope === ""));
+/* 两个 node 上下文同毫秒建客户会撞 id（"u"+Date.now()），所以直接改本地记录的域标签来验隔离：
+   本域库里存在这条记录，但它不属于本域 → getBuyer 必须取不到（跨域 id 命中也拿不到人） */
+const flip = f.Store.domainBuyers().find(b => b.name === "FabBuyer");
+flip.domainId = "e-scooter";
+ok("getBuyer 也走隔离（本库记录但域不符 → 取不到）", f.Mock.getBuyer(flip.id) === null);
+ok("客户详情侧同样看不到", !f.Store.domainBuyers().some(b => b.id === flip.id));
+flip.domainId = "functional-fabric";
+
+console.log("\n[5] 面料阶段管道：机械扫描按面料词表推进");
+const fab = f.Store.domainBuyers().find(b => b.name === "FabBuyer");
+f.Store.addMessage(fab.id, "我要 210T 春亚纺，克重 65，门幅 150cm", "", { from: "buyer" });
+ok("规格信号 → 规格确认(0)", fab.stage === 0, fab.stage);
+f.Store.addMessage(fab.id, "建议走 40D 加后整理，A 方案更轻 B 方案更耐磨", "", { from: "me" });
+ok("选型推荐 → 1", fab.stage === 1, fab.stage);
+f.Store.addMessage(fab.id, "样卡已寄，DHL 单号 1234567890", "", { from: "me" });
+ok("寄样 → 2", fab.stage === 2, fab.stage);
+f.Store.addMessage(fab.id, "客户说 SGS 测试开始了，等结果", "", { from: "buyer" });
+ok("客户测试 → 3", fab.stage === 3, fab.stage);
+f.Store.addMessage(fab.id, "先做 300 米试单", "", { from: "buyer" });
+ok("试单 → 4", fab.stage === 4, fab.stage);
+f.Store.addMessage(fab.id, "bulk price USD 3.2/m, valid until 11-30", "", { from: "me" });
+ok("大货报价 → 5", fab.stage === 5, fab.stage);
+ok("留痕可审计", fab.stageLog.length >= 5, fab.stageLog.length);
+f.Store.markWon(fab.id, "manual");
+ok("首单成交 → 6 且需人工标记", fab.stage === 6 && fab.outcome.status === "won");
+ok("U-quoteLabel：面料 5 档算已报价", f.U.quoteLabel({ stage: 5 }) === "已报价" && f.U.quoteLabel({ stage: 2 }) === "未报价", f.U.quoteLabel({ stage: 2 }));
+ok("U-quoteLabel：行李箱 2 档仍是已报价", c.U.quoteLabel({ stage: 2 }) === "已报价");
+
+console.log("\n[6] 面料守卫：无规格报价必红警（该域最易砸单的错）");
+const specCtx = [{ k: "成分", v: "92%PA 8%EA" }, { k: "克重", v: "160" }, { k: "门幅", v: "150" }, { k: "后整理", v: "DWR C6" }, { k: "色号", v: "19-4053 TCX" }];
+const fabPack = f.DealDomain.current();
+let g1 = f.DealDomain.guardDraft(fabPack, { context: [{ k: "成分", v: "92%PA" }] }, "Our price is USD 3.2 per meter");
+ok("只有成分 → block 且列出缺项", g1.pass === false && g1.hits.some(h => h.id === "spec" && h.missing.length === 4), g1.hits);
+let g2 = f.DealDomain.guardDraft(fabPack, { context: specCtx }, "Our price is USD 3.2 per meter, valid until Nov 30");
+ok("规格齐了但事实未终裁 → 仍拦（AI 不得替无价格表的域定价）", g2.pass === false && g2.hits.some(h => h.id === "facts_pending"), g2.hits);
+const readyPack = JSON.parse(safe(fabPack));
+readyPack.facts.items[0].verified = true; /* 模拟 Phil 终裁了成分/价格口径 */
+ok("事实一旦终裁 + 规格齐 + 单位币种有效期齐 → 放行", f.DealDomain.guardDraft(readyPack, { context: specCtx }, "Our price is USD 3.2 per meter, valid until Nov 30").pass === true);
+ok("零价格的技术底稿不受禁价约束（docs_driven 可正常出规格类草稿）", f.DealDomain.guardDraft(fabPack, { context: specCtx }, "This 210T fabric is 65 GSM, width 150cm, with C6 DWR finishing").pass === true);
+ok("缺有效期 → block", f.DealDomain.guardDraft(fabPack, { context: specCtx }, "USD 3.2 per meter").hits.some(h => h.id === "validity"));
+ok("缺单位（只给数字价）→ block", f.DealDomain.guardDraft(fabPack, { context: specCtx }, "USD 3.2 only").hits.some(h => h.id === "unit"));
+ok("绝对化承诺 → block", f.DealDomain.guardDraft(fabPack, { context: specCtx }, "hand feel 100% 一致, 永久防水").hits.some(h => h.id === "claim"));
+ok("面料无阶梯表 → 阶梯守卫自动跳过（不用估算值拦人）", f.DealDomain.guardDraft(fabPack, { context: specCtx }, "USD 99 per meter, valid 7 days").hits.every(h => h.id !== "ladder"));
+
+console.log("\n[7] 行李箱守卫：历史缺陷（1000 台报 215）回归");
+const sc = c.DealDomain.current();
+const bad = c.DealDomain.guardDraft(sc, { qty: "1000 台", context: [{ k: "型号", v: "X1" }] }, "USD 215 per unit");
+ok("跨档报价被拦", bad.pass === false, bad.hits);
+ok("提示应为 205/212", safe(bad.hits).indexOf("205") >= 0);
+ok("正确价 205 放行", c.DealDomain.guardDraft(sc, { qty: "1000 台", context: [{ k: "型号", v: "X1" }] }, "USD 205 per unit, formal quote attached").pass === true);
+ok("100 台档 222 放行", c.DealDomain.guardDraft(sc, { qty: "100 台", context: [] }, "USD 222 per unit").pass === true);
+
+console.log("\n[8] 术语表 + 界面禁词");
+const gl = f.DealDomain.applyGlossary(fabPack, "门幅 150，克重 160，缸差控制在色差允收内");
+ok("门幅/克重/缸差 走术语表", /fabric width/.test(gl.text) && /GSM/.test(gl.text) && /batch-to-batch color variation/.test(gl.text), gl);
+ok("缸差不被直译成 color difference", gl.text.indexOf("缸差") < 0 && gl.text.indexOf("color tolerance") >= 0);
+ok("面料界面命中「整柜」报禁词", f.DealDomain.forbiddenTermHits(fabPack, "这个整柜价格").indexOf("整柜") >= 0);
+ok("行李箱界面命中「门幅」报禁词", c.DealDomain.forbiddenTermHits(null, "门幅多少").indexOf("门幅") >= 0);
+ok("域角标不可切换", c.DealDomain.badge().switchable === false && f.DealDomain.badge().text === "功能性面料");
+
+console.log("\n[8.5] 出稿/发送两个出口共用的域提示（draftNotes）");
+const notes = f.DealDomain.draftNotes(fabPack, { context: specCtx }, "Our price is USD 3.2 per meter", "pending-warn");
+ok("含域守卫红条", /域守卫/.test(notes.html));
+ok("含未验证底稿水印", /未验证底稿/.test(notes.html));
+ok("用的是待发确认卡的样式类", notes.html.indexOf('class="pending-warn"') >= 0, notes.html.slice(0, 60));
+ok("blocked=true", notes.blocked === true);
+ok("提示里的价格与文案已转义（不注入 HTML）", notes.html.indexOf("<script") < 0);
+const xss = f.DealDomain.draftNotes(fabPack, { context: [{ k: "成分", v: '</div><img src=x onerror=alert(1)>' }] }, "USD 3.2 per meter");
+/* 档案值本身不会进这段提示（只渲染缺失的标签名），但守卫消息统一过 esc()：
+   断言"输出里没有可执行标签"，而不是断言某个转义串出现在哪里 */
+ok("提示输出无可执行标签（档案含攻击性内容时）", /<img|onerror=/i.test(xss.html) === false, xss.html.slice(0, 140));
+ok("档案值确实被拦在提示之外（缺的是克重/门幅等标签名）", /克重/.test(xss.html) && /onerror/.test(xss.html) === false);
+const npx = f.DealDomain.guardDraft(fabPack, { context: [] }, "unit price 0.32/m, valid 15 days");
+ok("没写币种的单价（0.32/m）也识别为价格", npx.hits.length > 0, npx.hits);
+const sNotes = c.DealDomain.draftNotes(null, { context: [{ k: "型号", v: "X1" }, { k: "数量", v: "1000 台" }] }, "USD 215 per unit");
+ok("行李箱域无水印（有底稿）", /未验证底稿/.test(sNotes.html) === false, sNotes.html);
+
+console.log("\n[9] 资料污染防线：服务端产品线（x-dealdesk-scope / nodocs）");
+const eScooter = c.DealDomain;
+ok("行李箱域：客户 scope 原样送服务端（现网不变）", eScooter.serverScope({ scope: "pet" }) === "pet");
+ok("行李箱域：scope 为空仍送空（不发该头，落 any 包 = 现网行为）", eScooter.serverScope({ scope: "" }) === "");
+ok("行李箱域：资料注入允许", eScooter.docsAllowed() === true);
+ok("面料域：无论客户 scope 填什么，一律送 fabric（不给落 any 包的机会）", f.DealDomain.serverScope({ scope: "" }) === "fabric" && f.DealDomain.serverScope({ scope: "functional" }) === "fabric");
+ok("面料域：服务端未上线 fabric → docsAllowed=false（客户端改发 nodocs:1）", f.DealDomain.docsAllowed() === false);
+const flipPack = JSON.parse(safe(f.DealDomain.get("functional-fabric")));
+flipPack.serverLineReady = true; /* 模拟 FC 已加第四条产品线 */
+ok("FC 上线后翻一个开关即放行，无需改代码", f.DealDomain.docsAllowed(flipPack) === true);
+
+console.log("\n[10] 未绑域账号：拒绝建档，且不得谎报成功");
+const n = boot(null); /* 老设备升级后的本地状态：登录态里没有 domainId */
+const seen = [];
+n.App = { toast: m => seen.push(m) };
+const nb = n.Store.addBuyer({ name: "NoDomain", country: "美国", qty: "100 台" });
+ok("addBuyer 返回 null（不给盖域标签就不建）", nb === null);
+ok("客户列表没有凭空多出一条", n.Store.domainBuyers().length === 0, n.Store.domainBuyers().map(b => b.name));
+ok("给了可见提示而不是静默失败", /业务域/.test(seen.join(" ")), seen);
+
+console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
+process.exit(fail ? 1 : 0);

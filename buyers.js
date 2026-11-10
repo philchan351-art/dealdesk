@@ -7,7 +7,7 @@
     title: "买家管理",
 
     render: function () {
-      return UI.topbar("买家", Mock.buyers.length + " 位活跃买家 · " + U.unreadTotal() + " 条未读消息", '<button class="topbar-add" data-act="new">＋ 新增客户</button>') +
+      return UI.topbar("买家", U.visibleBuyers().length + " 位活跃买家 · " + U.unreadTotal() + " 条未读消息", '<button class="topbar-add" data-act="new">＋ 新增客户</button>') +
         '<div class="search-wrap"><div class="search">' +
         '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>' +
         '<input id="buyerSearch" placeholder="搜索买家 / 公司 / 产品"/></div></div>' +
@@ -61,7 +61,7 @@
       /* 2026-10-21（Phil）：「待回复」口径与看板「待我回复」完全一致——
          进行中谈单（stage<5）且最后一条消息来自客户（旧口径 b.unread>0 在记一条时从不累加，实际恒为空） */
       function waitingFor(b) {
-        if (b.outcome || b.stage >= 5) return false; /* 已成交/已流失不算"待我回复"（2026-10-22 口径统一） */
+        if (b.outcome || b.stage >= U.dealOf(b)) return false; /* 已成交/已流失不算"待我回复"（2026-10-22 口径统一；2026-11-09 成交档按域取） */
         var ms = b.messages || [];
         return ms.length && ms[ms.length - 1].from === "buyer";
       }
@@ -76,7 +76,7 @@
 
       function draw() {
         var q = state.q ? state.q.toLowerCase() : "";
-        var arr = Mock.buyers.filter(function (b) {
+        var arr = U.visibleBuyers().filter(function (b) {
           if (state.k === "unread") return waitingFor(b);
           if (state.k === "A" || state.k === "B" || state.k === "C") return U.grade(b.intent) === state.k;
           return true;

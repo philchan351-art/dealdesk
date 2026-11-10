@@ -315,11 +315,15 @@
            客户卡/谈单页/详情优先显示金额，没录的按阶段证据显示"已报价/未报价" */
         field("nbAmount", "金额（美元）", "选填：报价或订单金额，如 111000", null, null, isEdit && editB.amount ? String(editB.amount) : "") +
         field("nbProduct", "产品线 / 意向产品", "选填：如 电动行李箱", null, null, isEdit ? (editB.product && editB.product !== "待确认" ? editB.product : "") : "") +
+      /* 2026-11-09 多业务域：产品线选项由当前域包给（面料域不会再看到"宠物用品/电动行李箱"），
+         值顺序里第一个空值就是"未定"；跨域值即使被写进来，store.validScope 也会回落成未定 */
       '<label class="set-lbl">产品线（用于话术剧本 / 资料库隔离，可后补）</label>' +
       '<select class="set-inp" id="nbScope">' +
-      '<option value="">通用（全部产品线）</option>' +
-      '<option value="pet" ' + ((editB && editB.scope === "pet") ? "selected" : "") + '>宠物用品（pet）</option>' +
-      '<option value="suitcase" ' + ((editB && editB.scope === "suitcase") ? "selected" : "") + '>电动行李箱（suitcase）</option>' +
+      (window.DealDomain && DealDomain.current() ? DealDomain.productLines() : [
+        { key: "", label: "通用（全部产品线）" }, { key: "pet", label: "宠物用品（pet）" }, { key: "suitcase", label: "电动行李箱（suitcase）" }
+      ]).map(function (l) {
+        return '<option value="' + escHtml(l.key) + '" ' + (((isEdit ? editB.scope : "") || "") === l.key ? "selected" : "") + ">" + escHtml(l.label) + "</option>";
+      }).join("") +
       "</select>" +
       field("nbNote", "备注", "如 价格敏感（选填，成为标签）", false, null, isEdit ? ((editB.tags && editB.tags[0] && editB.tags[0] !== "新客户") ? editB.tags[0] : "") : "") +
       (isEdit ? "" : field("nbIntent", "初始意向分", "0-100，默认 50（A≥80 / B≥55 / C）")) +
@@ -366,6 +370,13 @@
         scope: document.getElementById("nbScope") ? document.getElementById("nbScope").value : "",
         extraContext: pendingCtx
       });
+      /* 2026-11-09 多业务域：账号未绑域时 addBuyer 返回 null（不给客户盖域标签就不建）。
+         这里必须先判空——原来无条件 closeIt + "已建档" + nb.id 取值，会既报成功又抛 TypeError，
+         表单里已经敲进去的内容还全丢了 */
+      if (!nb) {
+        App.toast("⚠ 这个账号还没绑定业务域，无法建档（域决定客户能看到哪套产品与话术）", 5000);
+        return;
+      }
       pendingCtx = [];
       closeIt();
       App.toast("已建档 · " + name);

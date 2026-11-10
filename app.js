@@ -4,7 +4,9 @@
 
   var TITLES = { home: "谈单看板", buyers: "买家管理", deals: "谈单跟踪", followup: "跟进提醒", settings: "设置" };
   var $ = function (s) { return document.querySelector(s); };
-  var AUTH_KEY = "dealdesk.auth.v1";
+  /* 2026-11-09 多业务域：登录态的 key 由域运行时持有（store.js 先于本文件加载就要读它），
+     两处各写一份字符串是"改一处漏一处"的老坑，这里只留一个引用 */
+  var AUTH_KEY = (window.DealDomain && DealDomain.AUTH_KEY) || "dealdesk.auth.v1";
 
   window.Auth = {
     get: function () { try { return JSON.parse(localStorage.getItem(AUTH_KEY)) || null; } catch (e) { return null; } },
@@ -60,6 +62,7 @@
       t.classList.toggle("active", t.dataset.tab === p.screen || (p.screen === "buyer-detail" && t.dataset.tab === "buyers"));
     });
     document.title = "谈单舱 · " + mod.title;
+    injectDomainBadge(); /* 2026-11-09：每次渲染后补域角标（topbar 由页面重绘，角标跟着重建） */
     var fab = $(".fab");
     if (fab) {
       if (p.screen === "buyer-detail") { fab.style.display = "none"; }
@@ -155,7 +158,13 @@
       go.disabled = true;
       msg.textContent = mode === "register" ? "创建中…" : "登录中…";
       Sync.authCall(name, pass, mode, teamTok, 15000).then(function (j) {
-        Auth.save({ key: j.key, name: j.name, role: j.role || "rep", session: j.session });
+        /* 2026-11-09：服务端 /auth 一旦回 domain 字段就以它为准（管理员在成员卡里指定的域）；
+           服务端还没这个字段时为空 → startApp 里弹一次性选择卡。
+           注意：这只是界面归属，服务端注入资料/话术要真正按域隔离，还需 /llm 与 /shared 按 domainId 过滤 */
+        Auth.save({
+          key: j.key, name: j.name, role: j.role || "rep", session: j.session,
+          domainId: j.domain || j.domainId || ""
+        });
         var st2 = Store.getSettings() || {};
         st2.name = j.name;
         Store.saveSettings(st2);
@@ -172,6 +181,73 @@
     el.querySelector("#authPass").addEventListener("keydown", function (e) { if (e.key === "Enter") submit(); });
   }
 
+  /* ===== 2026-11-09（Phil 裁决「业务员一人绑一域」）：业务域绑定卡 =====
+     未绑域的账号绝不进应用，也绝不自动挑一个域——挑错域 = 看到另一套产品事实/话术/客户，
+     比让人多按一下严重得多。老账号升级后第一次登录会看到这张卡（一次性）。 */
+  function domainPickerHtml() {
+    var ids = window.DealDomain ? DealDomain.ids() : [];
+    var name = (Auth.get() || {}).name || "";
+    return '<div class="auth-wrap"><div class="auth-brand">' +
+      '<div class="auth-logo"><img src="logo.jpg?v=51" alt="谈单舱"/></div>' +
+      '<h1>选择业务域</h1><p>' + escHtml(name) + '，这个账号做哪条业务线？</p></div>' +
+      '<div class="auth-card">' +
+      '<div class="set-note" style="margin-bottom:10px">一人一域：绑定后只看得到本域的客户、话术、资料与报价口径；' +
+      '要换业务线由管理员在「设置 → 成员」里改，改完原域数据对该账号不再可见。</div>' +
+      ids.map(function (id) {
+        var p = DealDomain.get(id);
+        return '<label class="dom-opt" style="display:flex;align-items:flex-start;gap:10px;padding:12px;' +
+          'border:1px solid #e3ddd2;border-radius:12px;margin-bottom:8px;cursor:pointer">' +
+          '<input type="radio" name="domPick" value="' + escHtml(id) + '" style="margin-top:4px" />' +
+          '<span><b style="color:' + escHtml(p.accentColor || "#333") + '">' + escHtml(p.name) + "</b>" +
+          '<div class="set-note">' + escHtml(p.stages.length + " 段阶段管道 · " + (p.glossary.length) + " 条术语" +
+            (p.brain && p.brain.repliesEnabled ? " · AI 可出稿" : " · AI 暂不出稿（语料未达门槛）")) + "</div></span></label>";
+      }).join("") +
+      '<button class="auth-btn" id="domGo" style="margin-top:10px">进入谈单舱</button>' +
+      '<div class="set-note" id="domMsg"></div>' +
+      "</div></div>";
+  }
+  function renderDomainPicker() {
+    var el = $("#screen");
+    el.classList.remove("detail");
+    el.innerHTML = domainPickerHtml();
+    document.title = "谈单舱 · 选择业务域";
+    var p = phoneEl();
+    if (p) p.classList.add("auth-on");
+    var go = el.querySelector("#domGo"), msg = el.querySelector("#domMsg");
+    go.addEventListener("click", function () {
+      var pick = el.querySelector('input[name="domPick"]:checked');
+      if (!pick) { msg.textContent = "先选一个业务域"; return; }
+      var a = Auth.get() || {};
+      a.domainId = pick.value;
+      Auth.save(a);
+      try {
+        DealDomain.setAccount(a);
+        if (window.Store && Store.migrateDomainTags) Store.migrateDomainTags();
+        App.toast("已进入「" + DealDomain.current().name + "」");
+        startApp(a.name, false);
+      } catch (e) { msg.textContent = String(e.message || e); }
+    });
+  }
+  /* 域角标：让业务员永远知道自己在哪个域（错域发错价是本改造要根治的事故类型）。
+     rep 不给切换入口——不是禁用样式，是压根不渲染 */
+  function injectDomainBadge() {
+    if (!window.DealDomain) return;
+    var bd = DealDomain.badge();
+    if (!bd) return;
+    var host = $(".topbar .tb-title h1") || $(".topbar");
+    if (!host) return;
+    /* :scope 在老 WebView 里会抛 SyntaxError，而这段每次渲染都跑 → 用 try 兜住，
+       宁可角标偶尔不出现，也不能把整个页面渲染打断（"功能偶尔消失"的老坑） */
+    try { if (host.querySelector(":scope > .dom-chip")) return; }
+    catch (e) { if (host.querySelector(".dom-chip")) return; }
+    var chip = document.createElement("span");
+    chip.className = "dom-chip";
+    chip.setAttribute("style", "display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;" +
+      "font-size:11px;font-weight:700;vertical-align:middle;color:#fff;background:" + bd.color);
+    chip.textContent = bd.text;
+    host.appendChild(chip);
+  }
+
   function renderAuth() {
     var el = $("#screen");
     el.classList.remove("detail");
@@ -186,6 +262,14 @@
   function startApp(name, freshLogin) {
     var p = phoneEl();
     if (p) p.classList.remove("auth-on");
+    /* 2026-11-09（Phil 裁决「一人绑一域」）：没绑定业务域就不进应用，也不替他猜一个。
+       本次升级前建的老账号第一次登录会看到选择卡（一次性），之后由管理员在成员卡里改 */
+    if (window.DealDomain) {
+      var a0 = Auth.get() || {};
+      var ok = !!a0.domainId;
+      if (ok) { try { DealDomain.setAccount(a0); } catch (e) { ok = false; console.warn("[域绑定失败]", e.message); } }
+      if (!ok) { renderDomainPicker(); return; }
+    }
     if (freshLogin && Store.wipeLocal) Store.wipeLocal();
     /* 2026-10-23（Phil「整个客户状态系列都存在问题」）：启动补跑存量对话回扫。
        index.html 里 store.js 先于 utils.js 加载，store 启动时的迁移此刻 U 尚未定义（自动跳过）；

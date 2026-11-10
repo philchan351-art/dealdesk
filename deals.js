@@ -22,8 +22,9 @@
     return ms.length ? ms[ms.length - 1] : null;
   }
   function fuOf(b) {
-    for (var i = 0; i < Mock.followups.length; i++) {
-      var f = Mock.followups[i];
+    var fus = (window.Store && Store.domainFollowups) ? Store.domainFollowups() : Mock.followups;
+    for (var i = 0; i < fus.length; i++) {
+      var f = fus[i];
       if (f.buyerId === b.id && !f.done) return f;
     }
     return null;
@@ -149,7 +150,7 @@
     var wrap = document.querySelector(".wqueue");
     if (!wrap) return;
     /* 2026-10-22（口径统一）：已标成交/流失的客户离开谈单队列 */
-    var deals = Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome && !muted[b.id]; });
+    var deals = U.visibleBuyers().filter(function (b) { return b.stage < U.dealOf(b) && !b.outcome && !muted[b.id]; });
     var groups = [];
     if (sort === "wait") {
       var p0 = deals.filter(function (b) { return pri(b) === 0; });
@@ -159,7 +160,7 @@
       if (p1.length) groups.push({ title: priTitle(1), n: p1.length, items: p1 });
       if (p2.length) groups.push({ title: priTitle(2), n: p2.length, items: p2 });
     } else if (sort === "stage") {
-      Mock.STAGES.slice(0, 5).forEach(function (s, i) {
+      Mock.STAGES.slice(0, Mock.DEAL_STAGE).forEach(function (s, i) {
         var items = deals.filter(function (b) { return b.stage === i; });
         if (items.length) groups.push({ title: s, n: items.length, items: items });
       });
@@ -178,7 +179,7 @@
           '<div class="stagger">' + g.items.map(card).join("") + "</div></div>";
       }).join("")
       : '<div class="wempty">🎉 队列空了——该歇口气了</div>';
-    var mut = Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome && muted[b.id]; });
+    var mut = U.visibleBuyers().filter(function (b) { return b.stage < U.dealOf(b) && !b.outcome && muted[b.id]; });
     if (mut.length) {
       html += '<details class="wmuted"><summary>🔕 已静音 ' + mut.length + " 人（点开查看）</summary>" +
         '<div class="stagger">' + mut.map(card).join("") + "</div></details>";
@@ -188,9 +189,9 @@
   }
 
   function render() {
-    var all = Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome; });
+    var all = U.visibleBuyers().filter(function (b) { return b.stage < U.dealOf(b) && !b.outcome; });
     var waitN = all.filter(function (b) { return pri(b) === 0; }).length;
-    var hotN = Mock.followups.filter(function (f) { return U.followDays(f) < 0 && !f.done; }).length;
+    var hotN = ((window.Store && Store.domainFollowups) ? Store.domainFollowups() : Mock.followups).filter(function (f) { return U.followDays(f) < 0 && !f.done; }).length;
     var tabs = SORTS.map(function (s) {
       return '<button class="wtab' + (s.k === sort ? " on" : "") + '" data-act="w-sort" data-sort="' + s.k + '">' + s.n + "</button>";
     }).join("");

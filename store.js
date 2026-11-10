@@ -9,6 +9,11 @@
   var SEED_V = "v4-w4-fresh2"; // 种子数据版本：结构变化时递增，旧本地数据自动重建（w4-fresh2：清除 W4 验证产生的测试买家，试用起步）
   var seed = window.Mock; // mock.js 作为种子数据
 
+  /* 2026-11-09 多业务域：store.js 先于 app.js 加载，而本文件的迁移/取数都要知道当前域，
+     所以在这里就从登录态绑定（app.js 只负责处理"未绑定"和"登录后换绑"）。
+     未登录或登录态里没有域标签 → current() 返回 null，各入口按兜底逻辑走，不抛错白屏 */
+  if (window.DealDomain) { try { DealDomain.bindFromStorage(); } catch (e) { console.warn && console.warn("[域绑定失败]", e); } }
+
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
@@ -65,6 +70,8 @@
   migrateFollowDates();
   /* 先补形再回填成交——缺 stage 的记录补成 0 后，成交回填才不会漏 */
   migrateBuyerShapes();
+  /* 2026-11-09 多业务域：客户/跟进打域标签（幂等；未登录时跳过，登录拉云端快照后再补） */
+  migrateDomainTags();
   migrateOutcomeStages();
   rescanStages(); /* 启动回扫：store 先于 utils 加载时此处 U 未定义（自动跳过），由 app.js startApp 补跑 */
 
@@ -143,9 +150,10 @@
   function migrateOutcomeStages() {
     var hit = false;
     data.buyers.forEach(function (b) {
-      if (b.outcome && b.outcome.status === "won" && b.stage < 5 && window.U && U.applyStage) {
+      var deal = (window.U && U.dealOf) ? U.dealOf(b) : 5;
+      if (b.outcome && b.outcome.status === "won" && b.stage < deal && window.U && U.applyStage) {
         b.outcome.prevStage = b.stage;
-        if (U.applyStage(b, 5, "补记：已成交标记", "migrate", null, true)) hit = true;
+        if (U.applyStage(b, deal, "补记：已成交标记", "migrate", null, true)) hit = true;
       }
     });
     if (hit) saveLocal();
@@ -162,12 +170,13 @@
     var changed = 0;
     data.buyers.forEach(function (b) {
       var s0 = b.stage, cs0 = !!b.closeSignal;
+      var deal = (window.U && U.dealOf) ? U.dealOf(b) : 5;
       if (b.outcome) {
-        /* 2026-10-23（二次审计）：v1.4.0 前"已标记成交但 stage 停在旧值"的旧数据，启动时也补到 5——
+        /* 2026-10-23（二次审计）：v1.4.0 前"已标记成交但 stage 停在旧值"的旧数据，启动时也补到成交档——
            此前只在云端快照时补（本地数据已同步的设备永远等不到快照），成交客户的阶段条不再冻在旧档 */
         if (b.outcome.status === "won") {
-          if (b.stage < 5 && b.outcome.prevStage == null) b.outcome.prevStage = b.stage;
-          if (U.applyStage(b, 5, "补记：已成交标记", "rescan", null, true)) { stamp(b); changed++; }
+          if (b.stage < deal && b.outcome.prevStage == null) b.outcome.prevStage = b.stage;
+          if (U.applyStage(b, deal, "补记：已成交标记", "rescan", null, true)) { stamp(b); changed++; }
         }
         return; /* 已成交/已流失：消息不再扫描推进 */
       }
@@ -176,7 +185,7 @@
         if (!t) return;
         var sig = U.stageScan(b, t);
         if (!sig) return;
-        if (sig.to >= 5) {
+        if (sig.to >= deal) {
           if (!b.closeSignal) b.closeSignal = { at: new Date().toISOString(), why: sig.why, evidence: String(t).slice(0, 80), src: "rescan" };
         } else if (U.applyStage(b, sig.to, sig.why + "·补扫", "rescan", t)) {
           /* 推进已写入 b.stage + stageLog（上限 20 条） */
@@ -203,6 +212,43 @@
     });
     if (hit) saveLocal();
   }
+  /* ===== 2026-11-09（Phil 裁决「一人绑一域」）：业务域标签 =====
+     domainId 是记录的一等字段：客户、跟进都带。隔离做在取数层（domainBuyers/domainFollowups），
+     不是 UI 隐藏——搜索、导出、复盘、看板全部走同一把过滤刀，换 UI 也漏不出去。
+     未打标签的历史记录：迁移时归到「当前账号绑定的域」；没绑定就原样留着（下次登录/拉云端再补），
+     绝不写死成某个域——写死等于替 Phil 决定谁卖什么。 */
+  function currentDomainId() {
+    return (window.DealDomain && DealDomain.currentId && DealDomain.currentId()) || null;
+  }
+  function migrateDomainTags() {
+    var d = currentDomainId();
+    if (!d) return false;
+    var hit = false;
+    data.buyers.forEach(function (b) { if (!b.domainId) { b.domainId = d; hit = true; } });
+    data.followups.forEach(function (f) { if (!f.domainId) { f.domainId = d; hit = true; } });
+    if (hit) saveLocal();
+    return hit;
+  }
+  /* 产品线值域由域包给（行李箱：suitcase/pet/all；面料：functional/coated/all）。
+     写死值域就是第二个域一上线就报错的根因。非法值一律回落"未定"，不猜 */
+  function validScope(scope) {
+    var lines = (window.DealDomain && DealDomain.current() && DealDomain.productLines()) || null;
+    var allowed = lines ? lines.map(function (l) { return l.key; }) : ["", "suitcase", "pet", "all"];
+    return allowed.indexOf(scope) >= 0 ? scope : "";
+  }
+
+  /* 本域可见客户：唯一的取数入口（页面一律用它，不再裸读 Mock.buyers） */
+  function domainBuyers() {
+    var d = currentDomainId();
+    if (!d) return data.buyers; /* 域运行时未就绪：退回全量，宁可多看不白屏（并留一次告警） */
+    return data.buyers.filter(function (b) { return !b.domainId || b.domainId === d; });
+  }
+  function domainFollowups() {
+    var d = currentDomainId();
+    if (!d) return data.followups;
+    return data.followups.filter(function (f) { return !f.domainId || f.domainId === d; });
+  }
+
   function tombAdd(id) {
     if (!id) return;
     if (data.deletedIds.indexOf(id) < 0) {
@@ -212,17 +258,57 @@
   }
 
   var Mock = {
-    STAGES: seed.STAGES,
     buyers: data.buyers,
     suggestions: seed.suggestions,
     followups: data.followups,
     week: seed.week,
     kpis: seed.kpis,
     getBuyer: function (id) {
-      for (var i = 0; i < data.buyers.length; i++) if (data.buyers[i].id === id) return data.buyers[i];
+      var list = domainBuyers();
+      for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
       return null;
     }
   };
+  /* 2026-11-09 多业务域：STAGES 由当前域包提供（行李箱域返回与 mock.js 逐字一致的 6 段 → 现网零变化；
+     面料域 7 段）。用 getter 而不是常量：绑定发生在 app.js 登录后，取数时才知道是哪个域 */
+  Object.defineProperty(Mock, "STAGES", {
+    get: function () {
+      if (window.DealDomain) {
+        var p = DealDomain.current();
+        if (p) return DealDomain.stageNames(p);
+      }
+      return seed.STAGES;
+    }
+  });
+  Object.defineProperty(Mock, "DEAL_STAGE", {
+    get: function () {
+      if (window.DealDomain) {
+        var p = DealDomain.current();
+        if (p) return DealDomain.dealStage(p);
+      }
+      return 5;
+    }
+  });
+  /* 看板分桶用的「已报价档 / 谈判档」同样由域包给：行李箱 2 与 3；
+     面料「已报价」= 大货报价(5)，谈判档沿用 5（面料没有独立的议价阶段，议价发生在报价档内） */
+  Object.defineProperty(Mock, "QUOTE_STAGE", {
+    get: function () {
+      if (window.DealDomain) {
+        var p = DealDomain.current();
+        if (p) return DealDomain.quoteStage(p);
+      }
+      return 2;
+    }
+  });
+  Object.defineProperty(Mock, "NEGOTIATION_STAGE", {
+    get: function () {
+      if (window.DealDomain) {
+        var p = DealDomain.current();
+        if (p) return DealDomain.negotiationStage(p);
+      }
+      return 3;
+    }
+  });
 
   function parseCSV(text) {
     var rows = [], row = [], field = "", inQ = false;
@@ -248,6 +334,24 @@
     commit: save,
     rescanStages: rescanStages, /* 2026-10-23 app.js startApp 启动时补跑（启动时 U 尚未加载）；应用快照/导入在内部自跑 */
     dataSizeMB: dataSizeMB, /* 2026-10-22 设置版本卡展示本地数据体量 */
+    /* ===== 2026-11-09 多业务域：页面取数一律走这两个入口，隔离做在这里 ===== */
+    domainBuyers: domainBuyers,
+    domainFollowups: domainFollowups,
+    currentDomainId: currentDomainId,
+    migrateDomainTags: migrateDomainTags,
+    validScope: validScope,
+    /* 账号换域是管理员动作：本域标签不迁移，原域记录留在原域（该账号此后看不到） */
+    rebindAccountDomain: function (domainId) {
+      if (!window.DealDomain || !DealDomain.get(domainId)) return false;
+      try {
+        var a = DealDomain.readAccount() || {};
+        a.domainId = domainId;
+        localStorage.setItem(DealDomain.AUTH_KEY, JSON.stringify(a));
+        DealDomain.setAccount(a);
+        migrateDomainTags();
+        return true;
+      } catch (e) { console.error("[换域失败]", e); return false; }
+    },
     getSettings: function () {
       try { return JSON.parse(localStorage.getItem(SET_KEY)) || null; } catch (e) { return null; }
     },
@@ -297,8 +401,9 @@
        /* 2026-10-31（话术自动翻译）：scanText=与存储文本分离的扫描文本——存目标语言译文、
           扫中文原文（已报价/EXW 222 等信号词只存在于中文，扫译文会漏判阶段） */
        var sig = (window.U && U.stageScan) ? U.stageScan(b, o.scanText || m.text) : null;
+      var deal = (window.U && U.dealOf) ? U.dealOf(b) : 5;
       if (sig && !b.outcome) {
-        if (sig.to >= 5) {
+        if (sig.to >= deal) {
           if (!b.closeSignal) b.closeSignal = { at: new Date().toISOString(), why: sig.why, evidence: String(m.text || "").slice(0, 80), src: "rule" };
         } else if (U.applyStage(b, sig.to, sig.why, "rule", m.text)) {
           /* 推进已写入 b.stage + stageLog，随下方 save 同步 */
@@ -316,9 +421,10 @@
       var b = Mock.getBuyer(buyerId);
       if (!b || b.outcome) return null;
       b.outcome = { status: "won", at: new Date().toISOString() };
-      if (b.stage < 5 && window.U && U.applyStage) {
+      var deal = (window.U && U.dealOf) ? U.dealOf(b) : 5;
+      if (b.stage < deal && window.U && U.applyStage) {
         b.outcome.prevStage = b.stage;
-        U.applyStage(b, 5, via === "signal" ? "成交信号确认" : "手动标记成交", "manual", b.closeSignal ? b.closeSignal.evidence : null, true);
+        U.applyStage(b, deal, via === "signal" ? "成交信号确认" : "手动标记成交", "manual", b.closeSignal ? b.closeSignal.evidence : null, true);
       }
       b.closeSignal = null;
       stamp(b);
@@ -339,8 +445,17 @@
     addBuyer: function (info) {
       var cp = (window.CountryProfiles && CountryProfiles.get(info.country)) ||
         { address: info.name, style: "国家画像待积累（随沟通自动学习）", tip: "首次沟通确认其称呼与沟通偏好" };
+      /* 2026-11-09：客户建在哪个域 = 建档账号绑的域，建完锁定（一个客户只属一个域） */
+      var dom = currentDomainId();
+      if (!dom) {
+        if (window.App) App.toast("⚠ 当前账号未绑定业务域，请先在弹出卡片里选择", 4000);
+        return null;
+      }
       var b = {
-        id: "u" + Date.now(),
+        /* id 加随机尾：原来 "u"+Date.now() 在同毫秒连续建档（批量导入/快速补录）会撞号，
+           撞了以后 getBuyer 只会命中第一条，消息与阶段就记到别人头上（多业务域回归测试实锤） */
+        id: "u" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+        domainId: dom,
         name: info.name,
         company: info.company || "—",
         country: info.country,
@@ -358,7 +473,7 @@
         quoteNo: "—",
         daysInStage: 0,
         wa: info.wa || "",
-        scope: ["suitcase", "pet", "all"].indexOf(info.scope) >= 0 ? info.scope : "",
+        scope: validScope(info.scope),
         /* extraContext：FB 表单识别出的扩展要点（邮箱/首单计划/业务类型…），最多 6 条 */
       context: [].concat(info.product ? [{ k: "需求", v: info.product }] : []).concat((info.extraContext || []).filter(function (x) { return x && x.k && String(x.v || "").trim(); }).slice(0, 6)),
         profile: cp,
@@ -371,7 +486,7 @@
       };
       data.buyers.unshift(b);
       data.followups.unshift({
-        id: "f" + Date.now(), buyerId: b.id,
+        id: "f" + Date.now(), buyerId: b.id, domainId: dom,
         action: "首次跟进：发产品资料 + 确认核心需求", dueIn: 1, dueDate: addDaysISO(1),
         done: false, updatedAt: new Date().toISOString()
       });
@@ -386,6 +501,7 @@
       var f = {
         id: "f" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
         buyerId: buyerId,
+        domainId: b.domainId || currentDomainId(),
         action: String(action || "").trim().slice(0, 80),
         dueIn: n,
         dueDate: addDaysISO(n),
@@ -408,7 +524,7 @@
       if (f.qty !== undefined) b.qty = f.qty || "待确认";
       if (f.amount !== undefined) { var amt = parseFloat(f.amount); b.amount = (isFinite(amt) && amt > 0) ? amt : 0; } /* 2026-10-23：报价/订单金额可录可清 */
       /* 产品线（2026-10-15）：决定客户页显示哪套公共资料/话术剧本 */
-      if (f.scope !== undefined) b.scope = ["suitcase", "pet", "all"].indexOf(f.scope) >= 0 ? f.scope : "";
+      if (f.scope !== undefined) b.scope = validScope(f.scope);
       if (f.note !== undefined) {
         var nt = String(f.note).trim();
         b.tags = nt ? [nt] : [];
@@ -524,6 +640,7 @@
         purgeDemo();
         migrateFollowDates(); /* 云端快照可能来自旧版本设备，无 dueDate 的同样补一次（幂等） */
         migrateBuyerShapes(); /* 同上：旧设备记录缺字段（tags 等）的，拉下来补形（幂等）；必须在成交回填之前 */
+        migrateDomainTags(); /* 同上：旧设备推上来的记录没有域标签，按本账号绑定的域补齐（幂等；未绑域时原样留着） */
         migrateOutcomeStages(); /* 同上：旧设备标记成交但 stage 未进 5 的，拉下来同样补（幂等） */
         rescanStages(); /* 同上：其他设备/旧版本没扫过的存量对话，拉下来同样补扫（幂等） */
         data.savedAt = snap.updatedAt || data.savedAt;
@@ -544,11 +661,13 @@
       }
     },
     exportCSV: function () {
+      /* 2026-11-09：导出限定当前域 + 阶段名取域包（面料导出里不会再出现「样品确认」这类行李箱档名） */
+      var names = Mock.STAGES, dl = domainBuyers();
       var rows = [["buyer", "company", "country", "intent", "stage", "wa", "time", "from", "text", "zh_mirror"]];
-      data.buyers.forEach(function (b) {
+      dl.forEach(function (b) {
         (b.messages || []).forEach(function (m) {
           rows.push([
-            b.name, b.company, b.country, b.intent, seed.STAGES[b.stage], b.wa || "",
+            b.name, b.company, b.country, b.intent, names[b.stage] || "", b.wa || "",
             m.time, m.from === "me" ? "me" : "buyer", m.text, m.zh || ""
           ]);
         });
@@ -573,7 +692,8 @@
         try {
           var rows = parseCSV(String(reader.result).replace(/^\uFEFF/, ""));
           var idx = {};
-          data.buyers.forEach(function (b) { idx[b.name] = b; });
+          var names = Mock.STAGES, dom = currentDomainId();
+          domainBuyers().forEach(function (b) { idx[b.name] = b; });
           var added = 0;
           rows.slice(1).forEach(function (r) {
             if (r.length < 10 || !r[0]) return;
@@ -582,7 +702,8 @@
               b = {
                 id: "imp_" + Math.random().toString(36).slice(2, 8), name: r[0], company: r[1],
                 country: r[2], cc: "?", product: "（导入）", qty: "", amount: 0, currency: "$",
-                intent: Number(r[3]) || 50, stage: Math.max(0, seed.STAGES.indexOf(r[4])),
+                domainId: dom,
+                intent: Number(r[3]) || 50, stage: Math.max(0, names.indexOf(r[4])),
                 followIn: 7, lastActive: "导入", unread: 0, tags: [], quoteNo: "—", daysInStage: 0,
                 wa: r[5], messages: []
               };

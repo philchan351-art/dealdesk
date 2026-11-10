@@ -19,8 +19,9 @@
   ];
 
   function newTaskHtml(preBuyerId) {
-    var hasBuyers = Mock.buyers.length > 0;
-    var opts = Mock.buyers.map(function (b) {
+    var vb = U.visibleBuyers();
+    var hasBuyers = vb.length > 0;
+    var opts = vb.map(function (b) {
       return '<option value="' + escHtml(b.id) + '"' + (b.id === preBuyerId ? " selected" : "") + ">" +
         escHtml(b.name) + " · " + Mock.STAGES[b.stage] + "</option>";
     }).join("");
@@ -48,7 +49,7 @@
       if (preBuyer && !Mock.getBuyer(preBuyer)) preBuyer = "";
 
       var sections = GROUPS.map(function (g) {
-        var items = Mock.followups
+        var items = ((window.Store && Store.domainFollowups) ? Store.domainFollowups() : Mock.followups)
           .filter(g.test)
           .sort(function (a, b) { return U.followDays(a) - U.followDays(b); })
           .map(function (f) {
@@ -68,7 +69,7 @@
 
       /* H1 修复：旧版写死演示 ID，新账号/删客户后 getBuyer 返回 null 直接抛错，
          整个"跟进"页打不开（甚至刷新白屏）。改为从真实数据取最近 5 条有消息的客户 */
-      var feed = Mock.buyers
+      var feed = U.visibleBuyers()
         .filter(function (b) { return b && b.messages && b.messages.length; })
         .slice(0, 5)
         .map(function (b) {

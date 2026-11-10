@@ -137,6 +137,15 @@
     } else { fallback(); }
   }
 
+  /* 2026-11-09 多业务域：域守卫 + docs_driven 未验证水印。
+     行李箱域守卫与现网 limitWarn 并行不干扰（现网那套看 b.limit，域守卫看事实与规格）；
+     HTML 由域运行时统一生成，两个出口（AI 底稿卡 / 手动待发确认卡）共用，不会一头有一头没有 */
+  function domainNotes(b, t, cls) {
+    if (!window.DealDomain || !DealDomain.current()) return "";
+    try { return DealDomain.draftNotes(null, b, t, cls || "sugg-warn").html; }
+    catch (e) { console.warn && console.warn("[域守卫]", e); return ""; } /* 守卫异常不能把客户页打死 */
+  }
+
   function suggCard(s, b) {
     var t = String(s.text || "");
     var w = limitWarn(b, t);
@@ -150,6 +159,7 @@
       '<div class="sugg-text">' + escHtml(t) + "</div>" +
       (w ? '<div class="sugg-warn">⚠ ' + escHtml(w) + " · 超出你设的底线，需你本人确认</div>" : "") +
       (s.blocked ? '<div class="sugg-warn" style="color:#b91c1c">⛔ 后置校验：' + escHtml((s.blockReasons || []).join("；")) + " — 触碰红线，改完再发</div>" : "") +
+      domainNotes(b, t) +
       (s.zh ? '<div class="sugg-zh">中文：' + escHtml(s.zh) + "</div>" : "") +
       "</div>";
   }
@@ -427,9 +437,11 @@
         var ocClear = root.querySelector('[data-act="oc-clear"]');
         if (ocClear) ocClear.addEventListener("click", function () {
           /* 清除"已成交"：stage 从 5 回到标记前的档位（留痕），客户重新回到进行中管道 */
-          if (b.outcome && b.outcome.status === "won" && b.stage >= 5) {
-            var back = (typeof b.outcome.prevStage === "number") ? b.outcome.prevStage : 4;
-            b.stage = Math.min(back, 4);
+          /* 成交档与"退回到哪一档"都按域取：面料 7 段管道成交=6，退回上一档=5（大货报价） */
+          var deal = U.dealOf(b);
+          if (b.outcome && b.outcome.status === "won" && b.stage >= deal) {
+            var back = (typeof b.outcome.prevStage === "number") ? b.outcome.prevStage : deal - 1;
+            b.stage = Math.min(back, deal - 1);
             b.stageLog = b.stageLog || [];
             b.stageLog.push({ from: 5, to: b.stage, at: new Date().toISOString(), why: "清除成交标记", src: "manual" });
             AIevt(b, "stage", { to: Mock.STAGES[b.stage] });
@@ -584,8 +596,8 @@
            }
            /* 2026-10-22 阶段严格判定：速记路径（记客户/记我发）同样吃 AI 阶段层——
               机械硬信号已在 addMessage 应用，这里与机械取高、单调推进；5 只挂成交信号卡 */
-           if (o.stage !== null && o.stage > b.stage && !b.outcome) {
-             if (o.stage >= 5) {
+            if (o.stage !== null && o.stage > b.stage && !b.outcome) {
+              if (o.stage >= U.dealOf(b)) {
                if (!b.closeSignal) { b.closeSignal = { at: new Date().toISOString(), why: o.stageWhy || "AI 判成交信号", evidence: String(t || "").slice(0, 80), src: "ai" }; Store.commit(); }
              } else if (U.applyStage(b, o.stage, o.stageWhy || "AI 阶段研判", "ai", t)) {
                Store.commit();
@@ -1324,7 +1336,9 @@
                  '<div class="pending-text">' + escHtml(pending.en) + "</div>" +
                   (pending.wrongLang ? '<div class="pending-warn">⛔ 语言未生效：' + escHtml(pending.wrongLang) + " · 点「不满意 · 再来一条」重试，或手动改完再发</div>" : "") +
                   (pending.bloat ? '<div class="pending-warn">📏 ' + escHtml(pending.bloat) + ' · 可能加了原文没有的内容，逐句核对后再发；想完整表达就换「按意图扩充」</div>' : "") +
-                 (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + escHtml(limitWarn(b, pending.en)) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
+                  (limitWarn(b, pending.en) ? '<div class="pending-warn">⚠ ' + escHtml(limitWarn(b, pending.en)) + " · 超出你设的底线，需你本人确认后发送</div>" : "") +
+                  /* 发送前最后一道：域守卫 + 未验证水印（与 AI 底稿卡同源，见 domainNotes） */
+                  domainNotes(b, pending.en, "pending-warn") +
                 '<div class="pending-zh">' + (isExp ? "这条消息的意思：" : "你写的中文：") + escHtml(pending.zh) + "</div>" +
                '<div class="pending-btns">' +
                '<button class="p-send" data-act="p-send">发到 WhatsApp</button>' +

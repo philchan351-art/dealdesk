@@ -48,14 +48,17 @@
     return '<span class="intent intent-' + g + '"><b>' + g + "</b>" + score + "</span>";
   }
 
-  /* 六阶段横向跟踪器 */
+  /* 六阶段横向跟踪器
+     2026-11-09 多业务域：段名与段数由当前域包提供（Mock.STAGES 在 store.js 内按域取），
+     行李箱域仍是 6 段同名同序 → 现网渲染零变化；面料域 7 段自动变长 */
   function stageTracker(cur) {
+    var names = (window.Mock && Mock.STAGES) || [];
     var html = '<div class="tracker">';
-    Mock.STAGES.forEach(function (s, i) {
+    names.forEach(function (s, i) {
       var cls = i < cur ? "done" : i === cur ? "now" : "";
       html += '<div class="t-step ' + cls + '"><div class="t-dot">' + (i < cur ? "✓" : i + 1) +
         '</div><div class="t-label">' + s + "</div></div>";
-      if (i < Mock.STAGES.length - 1) html += '<div class="t-conn"></div>';
+      if (i < names.length - 1) html += '<div class="t-conn"></div>';
     });
     return html + "</div>";
   }
@@ -122,8 +125,15 @@
     requestAnimationFrame(step);
   }
 
+  /* 2026-11-09 多业务域：所有页面统计的唯一取数入口 = 当前业务域内的客户。
+     隔离做在取数层（Store.domainBuyers），不是 UI 隐藏；Store 缺失时退回 Mock.buyers 保证不白屏 */
+  function visibleBuyers() {
+    if (window.Store && Store.domainBuyers) return Store.domainBuyers();
+    return (window.Mock && Mock.buyers) || [];
+  }
+
   function unreadTotal() {
-    return sum(Mock.buyers.map(function (b) { return b.unread; }));
+    return sum(visibleBuyers().map(function (b) { return b.unread; }));
   }
 
   function getFollowupByBuyer(id) {
@@ -198,11 +208,38 @@
     { to: 1, why: "需求信号（数量/规格）", re: /\d{2,}\s*(pcs|pieces|units|sets|台|只|个|箱|boxes|cartons|containers?|20ft|40ft|40hq|柜)|quantity\s+of\s+\d+|need\s+\d{2,}|要\s?\d{2,}/i }
   ];
 
+  /* 2026-11-09 多业务域：词表按客户所属域取。行李箱域 stagePatterns=null → 用上面这份内置表
+     （迁包要动现网 200+ 行正则，Step 0 不碰）；面料域用域包自带词表。
+     内置表在 DealDomain 缺失时仍可用（脚本加载顺序异常时不至于把阶段判定打死） */
+  function patternsFor(buyer) {
+    if (window.DealDomain) {
+      var p = DealDomain.stagePatterns(DealDomain.of(buyer));
+      if (p) return p;
+    }
+    return STAGE_PATTERNS;
+  }
+  /* 该客户所属域的「成交档」下标：面料 7 段=6，行李箱 6 段=5 */
+  function dealOf(buyer) {
+    if (window.DealDomain) {
+      var p = DealDomain.of(buyer);
+      if (p) return DealDomain.dealStage(p);
+    }
+    return 5;
+  }
+  function maxOf(buyer) {
+    if (window.DealDomain) {
+      var p = DealDomain.of(buyer);
+      if (p) return DealDomain.maxStage(p);
+    }
+    return 5;
+  }
+
   function stageScan(buyer, text) {
     var s = String(text || "");
     if (!s) return null;
-    for (var i = 0; i < STAGE_PATTERNS.length; i++) {
-      var p = STAGE_PATTERNS[i];
+    var pats = patternsFor(buyer);
+    for (var i = 0; i < pats.length; i++) {
+      var p = pats[i];
       if (p.needStage && buyer.stage < p.needStage) continue;
       if (p.re.test(s)) return { to: p.to, why: p.why };
     }
@@ -210,10 +247,10 @@
   }
 
   /* 阶段推进唯一写入口：只进不退（回退=误判，走手动调阶段）、留痕 stageLog（可审计）、
-     已流失客户不推进；已成交客户仅 allowWon 时允许补 5（标记成交/存量迁移两条路径） */
+     已流失客户不推进；已成交客户仅 allowWon 时允许补成交档（标记成交/存量迁移两条路径） */
   function applyStage(b, to, why, src, evidence, allowWon) {
     to = Math.round(Number(to) || 0);
-    if (isNaN(to) || to < 0 || to > 5) return false;
+    if (isNaN(to) || to < 0 || to > maxOf(b)) return false;
     if (b.outcome) { if (b.outcome.status === "lost" || !allowWon) return false; }
     if (to <= b.stage) return false;
     var from = b.stage;
@@ -225,17 +262,24 @@
   }
 
   function openPipeline() {
-    /* 2026-10-22（口径统一）：已标成交/流失的客户不计入进行中管道金额 */
-    return sum(Mock.buyers.filter(function (b) { return b.stage < 5 && !b.outcome; }).map(function (b) { return b.amount; }));
+    /* 2026-10-22（口径统一）：已标成交/流失的客户不计入进行中管道金额
+       2026-11-09：成交档按域取（面料 7 段=6），取数走本域可见客户 */
+    return sum(visibleBuyers().filter(function (b) { return b.stage < dealOf(b) && !b.outcome; }).map(function (b) { return b.amount; }));
   }
 
   /* 2026-10-23（Phil「很多客户已经报过价、甚至成交了，还显示待报价」）：报价状态按证据判，不再看金额字段。
      旧逻辑 b.amount ? money : "待报价" —— 而 amount 没有任何录入入口、恒为 0，于是所有真实客户永远"待报价"。
-     新口径（三页统一）：有金额→金额；已成交→已成交；stage≥2（报价硬信号/AI 研判/手动调档都算报价证据）→已报价；否则→未报价 */
+     新口径（三页统一）：有金额→金额；已成交→已成交；stage≥报价档（报价硬信号/AI 研判/手动调档都算报价证据）→已报价；否则→未报价
+     2026-11-09：报价档由域包给（行李箱 2，面料「大货报价」=5）——面料「寄样」是 2 档，沿用 ≥2 会把未报价说成已报价 */
   function quoteLabel(b) {
     if (b.amount) return money(b.amount, b.currency);
     if (b.outcome && b.outcome.status === "won") return "已成交";
-    if ((b.stage || 0) >= 2) return "已报价";
+    var qs = 2;
+    if (window.DealDomain) {
+      var p = DealDomain.of(b);
+      if (p) qs = DealDomain.quoteStage(p);
+    }
+    if ((b.stage || 0) >= qs) return "已报价";
     return "未报价";
   }
 
@@ -269,6 +313,8 @@
     avatar: avatar, intentBadge: intentBadge,
     stageTracker: stageTracker, intentRing: intentRing,
     barChart: barChart, donut: donut, countUp: countUp,
+    /* 2026-11-09 多业务域：本域可见客户 + 按域取成交档，供各页替换写死的 stage 5 */
+    visibleBuyers: visibleBuyers, dealOf: dealOf, maxOf: maxOf, patternsFor: patternsFor,
     unreadTotal: unreadTotal, getFollowupByBuyer: getFollowupByBuyer, openPipeline: openPipeline,
     followDays: followDays, buyerFollowDays: buyerFollowDays,
     stageScan: stageScan, applyStage: applyStage,
