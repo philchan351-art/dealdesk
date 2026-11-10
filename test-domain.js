@@ -288,20 +288,13 @@ const faNone = f.DealDomain.selectScripts([SCRIPTS[0], SCRIPTS[1]], "fabric");
 ok("面料域没有自己的剧本 → 返回空 + noneInDomain（绝不借Titan X六步）", faNone.scripts.length === 0 && faNone.noneInDomain === true, faNone);
 ok("行李箱域看不到面料剧本", c.DealDomain.selectScripts(SCRIPTS, "suitcase").scripts.map(d => d.key).indexOf("s3") < 0);
 
-console.log("\n[14] 面料独立入口：行李箱模块根本不加载（根治隔离）");
+console.log("\n[14] 面料入口切换：旧入口退役，重定向到独立体系 fabric/（v1.13.0，domainId 路线 11-09 终裁取消）");
 const fabHtml = fs.readFileSync(__dirname + "/fabric.html", "utf8");
-const fabScripts = [...fabHtml.matchAll(/<script src="([^"?]+)/g)].map(m => m[1]);
-const LUGGAGE_MODULES = ["mock.js", "turns.js", "skills.js", "kb.js"];
-ok("fabric.html 不加载任何行李箱内容模块", LUGGAGE_MODULES.every(m => fabScripts.indexOf(m) < 0), fabScripts.filter(m => LUGGAGE_MODULES.indexOf(m) >= 0));
-ok("fabric.html 第一个脚本是入口声明", fabScripts[0] === "fabric-boot.js", fabScripts[0]);
-ok("fabric.html 用 domain-seed 顶替 mock", fabScripts.indexOf("domain-seed.js") >= 0 && fabScripts.indexOf("mock.js") < 0);
-ok("入口声明指向面料域", /functional-fabric/.test(fs.readFileSync(__dirname + "/fabric-boot.js", "utf8")));
+ok("旧入口 fabric.html 是纯重定向页（不加载任何脚本）", !/<script/.test(fabHtml));
+ok("重定向目标为新面料工作台 fabric/index.html", /url=fabric\/index\.html/.test(fabHtml));
+ok("旧入口文件已退役（fabric-boot.js / domain-seed.js 不再存在）", !fs.existsSync(__dirname + "/fabric-boot.js") && !fs.existsSync(__dirname + "/domain-seed.js"));
 const idxHtml = fs.readFileSync(__dirname + "/index.html", "utf8");
 ok("index.html 仍加载行李箱模块（现网未受影响）", /mock\.js\?v=/.test(idxHtml) && /turns\.js\?v=/.test(idxHtml));
-
-/* 干净种子：加载 domain-seed 后，Mock 里不得出现任何行李箱字样 */
-const seedSrc = fs.readFileSync(__dirname + "/domain-seed.js", "utf8");
-ok("domain-seed 自身不含行李箱产品词", !/Titan|行李箱|宠物|壁灯|彩盒|Wh\b/.test(seedSrc.replace(/\/\*[\s\S]*?\*\//g, "")));
 console.log("\n[15] 入口与账号错配必须被拦住");
 const mm = boot("e-scooter");
 mm.DEAL_DOMAIN_ENTRY = "functional-fabric";
@@ -334,13 +327,12 @@ ok("勾选的已离开本域", rp.Store.domainBuyers().length === before - 1 && 
 ok("其跟进随客户一起走", !rp.Store.domainFollowups().some(f => f.buyerId === "stray1"));
 ok("retag 返回受影响条数（客户+跟进）", typeof rp.Store.retagBuyers([], "e-scooter") === "number");
 
-console.log("\n[17] 入口即边界：两个入口都声明自己的域（防换网址绕过隔离）");
+console.log("\n[17] 入口即边界：行李箱入口声明自己的域，并指向新的面料独立工作台");
 const idxBoot = fs.readFileSync(__dirname + "/domain-boot.js", "utf8");
-const fabBoot = fs.readFileSync(__dirname + "/fabric-boot.js", "utf8");
 const idxScripts = [...fs.readFileSync(__dirname + "/index.html", "utf8").matchAll(/<script src="([^"?]+)/g)].map(x => x[1]);
 ok("index.html 第一个脚本是入口声明", idxScripts[0] === "domain-boot.js", idxScripts[0]);
 ok("index.html 声明的是电动行李箱域", /DEAL_DOMAIN_ENTRY\s*=\s*"e-scooter"/.test(idxBoot));
-ok("两个入口互相指认对方（走错时给得出正确链接）", /fabric\.html/.test(idxBoot) && /index\.html/.test(fabBoot));
+ok("行李箱侧「走错入口」卡指向新面料工作台 fabric/index.html", /fabric\/index\.html/.test(idxBoot));
 const swap = boot("functional-fabric");
 swap.DEAL_DOMAIN_ENTRY = "e-scooter";
 ok("面料账号直接打开 index.html 会被判为错配", swap.DealDomain.entryState().state === "mismatch", swap.DealDomain.entryState());

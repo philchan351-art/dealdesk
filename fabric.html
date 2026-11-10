@@ -3,103 +3,24 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<!-- 与 index.html 同一套 CSP：禁止任何内联脚本/事件处理器 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
-<title>谈单舱 · 功能性面料工作台</title>
-<meta name="theme-color" content="#0f8f6b"/>
-<meta name="description" content="谈单舱 · 功能性面料工作台：规格确认、寄样与测试跟踪、试单与大货报价，独立业务域。"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-<meta name="apple-mobile-web-app-title" content="面料工作台"/>
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.12.0"/>
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=1.12.0"/>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1.12.0"/>
-<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png?v=1.12.0"/>
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.12.0"/>
-<link rel="manifest" href="manifest.json?v=1.12.0"/>
-<link rel="stylesheet" href="tokens.css?v=1.12.0"/>
-<link rel="stylesheet" href="base.css?v=1.12.0"/>
-  <link rel="stylesheet" href="components.css?v=1.12.0"/>
-  <link rel="stylesheet" href="screens.css?v=1.12.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'"/>
+<meta http-equiv="refresh" content="0;url=fabric/index.html"/>
+<title>面料工作台 · 已迁移</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"/>
+<style>
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f6f8f7;color:#1c2b26;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:16px}
+  .card{background:#fff;border:1px solid #e3e9e6;border-radius:14px;padding:28px 24px;max-width:420px;text-align:center}
+  h1{font-size:17px;margin:0 0 10px}
+  p{font-size:13px;line-height:1.7;color:#5a6b64;margin:0 0 16px}
+  a{display:inline-block;background:#0f8f6b;color:#fff;text-decoration:none;padding:10px 22px;border-radius:10px;font-size:14px;font-weight:600}
+</style>
 </head>
 <body>
-<div class="stage">
-  <div class="stage-side" aria-hidden="true">
-    <div class="side-brand">
-      <div class="side-mark">FD</div>
-      <div>
-        <div class="side-name">DealPilot · Fabric</div>
-        <div class="side-cn">功能性面料工作台 · 独立业务域</div>
-      </div>
-    </div>
-    <ul class="side-feats">
-      <li><i></i>规格确认与选型推荐</li>
-      <li><i></i>寄样 · 测试 · 试单跟踪</li>
-      <li><i></i>大货报价与首单成交</li>
-      <li><i></i>沟通记录与跟进提醒</li>
-      <li><i></i>AI 草拟（学徒期，逐句核对）</li>
-    </ul>
-    <div class="side-foot">本工作台是独立业务域<br/>不加载电动行李箱的任何数据与话术</div>
-  </div>
-
-  <div class="phone">
-    <div class="phone-cam" aria-hidden="true"></div>
-    <div class="statusbar">
-      <span class="sb-time">9:41</span>
-      <span class="sb-ico">
-        <i class="sig"><b></b><b></b><b></b></i>
-        <i class="batt"><b></b></i>
-      </span>
-    </div>
-    <main id="screen" class="screen" aria-live="polite"></main>
-    <button class="fab" id="fabLog">＋ 记一条</button>
-    <div class="sheet-backdrop" id="logSheet" hidden></div>
-    <div class="sheet-backdrop" id="buyerSheet" hidden></div>
-    <nav class="tabbar">
-      <a class="tab" data-tab="home" href="#/home">
-        <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>看板</span>
-      </a>
-      <a class="tab" data-tab="buyers" href="#/buyers">
-        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2c2.6.2 4.6 1.8 5.3 4.4"/></svg><span>买家</span>
-      </a>
-      <a class="tab" data-tab="deals" href="#/deals">
-        <svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="8" cy="8" r="1.6"/></svg><span>谈单</span>
-      </a>
-      <a class="tab" data-tab="followup" href="#/followup">
-        <svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9Z"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/></svg><span>跟进</span>
-      </a>
-    </nav>
-  </div>
-
-  <div class="stage-cap">谈单舱 · 功能性面料工作台（独立业务域）</div>
+<div class="card">
+  <h1>面料工作台已迁移</h1>
+  <p>「功能性面料工作台」已升级为完整独立体系，搬到了新地址（本页面会自动跳转）。<br/>
+  注意：新工作台使用独立的数据空间，此前在本旧入口登记的面料客户请通过「数据与备份」页核对。</p>
+  <a href="fabric/index.html">进入面料工作台</a>
 </div>
-
-<!-- 入口声明必须排第一：它决定本页属于哪条业务域 -->
-<script src="fabric-boot.js?v=1.12.0"></script>
-<script src="version.js?v=1.12.0"></script>
-<script src="domain.js?v=1.12.0"></script>
-<!-- domain-seed.js 顶替 mock.js：只提供本域形状的空种子，行李箱演示数据一行都不进内存 -->
-<script src="domain-seed.js?v=1.12.0"></script>
-<script src="country-profiles.js?v=1.12.0"></script>
-  <script src="store.js?v=1.12.0"></script>
-  <script src="docextract.js?v=1.12.0"></script>
-<script src="utils.js?v=1.12.0"></script>
-<!-- 刻意不加载：kb.js（行李箱资料段）、turns.js（53 条吴总回合）、skills.js（行李箱句式库）
-     三者的对外调用都有 window.X 存在性判断，缺模块时自动降级为空，不会白屏 -->
-<script src="prompts.js?v=1.12.0"></script>
-  <script src="llm.js?v=1.12.0"></script>
-  <script src="sync.js?v=1.12.0"></script>
-  <script src="voice.js?v=1.12.0"></script>
-  <script src="components.js?v=1.12.0"></script>
-  <script src="home.js?v=1.12.0"></script>
-<script src="buyers.js?v=1.12.0"></script>
-<script src="buyer-detail.js?v=1.12.0"></script>
-<script src="deals.js?v=1.12.0"></script>
-<script src="followup.js?v=1.12.0"></script>
-  <script src="settings.js?v=1.12.0"></script>
-<script src="log-sheet.js?v=1.12.0"></script>
-<script src="buyer-sheet.js?v=1.12.0"></script>
-<script src="app.js?v=1.12.0"></script>
 </body>
 </html>

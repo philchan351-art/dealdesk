@@ -5,5 +5,5 @@
  */
 window.DEAL_DOMAIN_ENTRY = "e-scooter";
 window.DEAL_DOMAIN_ENTRY_LABEL = "电动行李箱工作台";
-/* 面料业务线请用独立工作台：那边不加载本域的演示数据、回合库、句式库与资料段 */
-window.DEAL_DOMAIN_OTHER_ENTRY = "fabric.html";
+/* 面料业务线请用独立工作台：fabric/ 是完整独立体系（独立存储、独立账号前缀），与本域零共享数据 */
+window.DEAL_DOMAIN_OTHER_ENTRY = "fabric/index.html";
