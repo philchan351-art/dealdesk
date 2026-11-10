@@ -82,7 +82,9 @@
     serverLine: null,
     serverLineReady: true,
 
+    authority: "master", /* 本域话稿基准已确立：吴总真实回复 + 棋谱 v1 + 技能库 */
     skillSet: "scooter",
+    turnLibrary: true,   /* 回合库（53 条真实回合）只属于本域 */
 
     /* 客户产品线（沿用现网 scope 值域，避免第二套分类法） */
     productLines: [
@@ -131,9 +133,11 @@
            3) 出稿只准走棋谱内打法，棋谱 evidence 为空时 blocker 必须注明"无底稿依据"。
          语料到 60 条后把 source 改回 runtime，即切回底稿替换法。 */
       mode: "docs_driven",
-      acceptedRiskBy: "Phil 2026-11-09（零底稿开脑，接受上述三条约束）",
-      reason: "零回合库底稿开脑（docs_driven）：底稿来自本域资料库与棋谱骨架，出稿带「未验证」标记，价格与承诺类内容仍被守卫拦下",
-      corpusGate: { minRealReplies: 60, source: "docs", countedFrom: "面料业务员确认发送且经复核的真实回复条数（够 60 条把 source 改回 runtime 即切回底稿替换法）" },
+      acceptedRiskBy: "Phil 2026-11-09（零话稿开脑，接受学徒期定位与下述约束）",
+      reason: "学徒期开脑：本域没有话稿基准，AI 只做草拟与追问，不模拟资深口吻；价格与承诺类内容仍被守卫拦下",
+      /* 从 0 积累：计数口径是"本域自己确认发送的回复"，不预设归属人。
+         基准话稿是谁的（Phil？未来的面料业务员？）由 Phil 后续指定，指定前本域不承认任何"经验" */
+      corpusGate: { minRealReplies: 60, source: "docs", countedFrom: "本域确认发送且经核对的回复条数（实时统计本域客户的已发送记录，从 0 起算）" },
       realReplyCount: 0,
       playbookUnverifiedAllowed: true
     },
@@ -218,7 +222,23 @@
     serverLine: "fabric",
     serverLineReady: false,
 
+    authority: "novice", /* 学徒期：无话稿基准、无归属人，AI 只草拟不装经验 */
     skillSet: null, /* 面料域未建技能库：宁可不注入，也不能拿行李箱句式当面料话术 */
+    /* 2026-11-09（Phil「面料和吴总话术没关系，从 0 开始」）：回合库=53 条吴总行李箱真实回合，
+       提示词里标的是"最高优先级参照"。面料不关掉它，等于让 AI 拿零售锚点/整单重算/柜级口径去谈面料。 */
+    turnLibrary: false,
+    /* 追加式覆盖块：行李箱域不发这一段 → CONCRETE 原文一字不动（黄金集压着它）；
+       面料域在 CONCRETE 之后追加，明确宣布上文那些行李箱事实与审批人不适用于本域 */
+    /* 覆盖块只否定、不枚举：把行李箱卖点逐条写出来反而把它们重新喂回模型（不要想大象）。
+       所以这里不提任何对方域的事实，只把本域可用的东西正向框死。 */
+    promptOverrides: "\n【本域定位·优先级高于上文】本业务线是「功能性面料」，且当前处于学徒期：\n" +
+      "1) 上文通则里凡属其它产品线的数字、认证、卖点、计量单位与内部审批流程，本域一律不得引用；本域没有成熟话稿，" +
+      "禁止使用「我们通常/一贯/以往成交都是这样/按我们的经验」这类以经验为由的表述——本域还没有资格谈经验。\n" +
+      "2) 只能使用客户档案、本域资料与本条对话里真实出现过的值；没有的就明确说需确认后回复，不许用行业惯例填补。\n" +
+      "3) 学徒期该做的是把指标问清、把风险讲在前面（缸差、缩水率、色牢度、洗后功能衰减）、给出可核对的下一步，" +
+      "不是模仿资深业务口的口吻推销。宁可短、准、留一句待确认，也不要长而空。\n" +
+      "4) 让步与例外不写任何具体人名，统一写「需我方确认后回复」。\n",
+    markText: "学徒期草拟·本域尚无话稿基准，请逐句核对后再发",
 
     productLines: [
       { key: "", label: "未定" },
@@ -300,7 +320,21 @@
     if (cg.source === "bundled") {
       return (window.TURNS && window.TURNS.list && window.TURNS.list.length) || (cg.minRealReplies || 1);
     }
-    return (p && p.brain && p.brain.realReplyCount) || 0;
+    /* 实时统计本域"已确认发送"的回复条数：从 0 起算，随使用自然增长，不预设话稿归属人 */
+    var live = countSentReplies(p);
+    var seedN = (p && p.brain && p.brain.realReplyCount) || 0;
+    return Math.max(live, seedN);
+  }
+  /* 数据源与首页"AI 学习进度"同源：aiEvents 里 t=sent 且带 raw 的才算是人确认发过的真实回复 */
+  function countSentReplies(p) {
+    try {
+      if (!p || !window.Store || !Store.domainBuyers) return 0;
+      var n = 0;
+      Store.domainBuyers().forEach(function (b) {
+        (b.aiEvents || []).forEach(function (e) { if (e && e.t === "sent" && e.raw) n++; });
+      });
+      return n;
+    } catch (e) { return 0; }
   }
 
   /* ---------- 注册表 ----------
@@ -373,7 +407,8 @@
       statusCard: true, stageDetection: true, riskHints: true, review: true,
       /* docs_driven：出稿可以，但必须让业务员一眼看出这不是吴总原话（界面按此打水印） */
       mode: docs ? "docs_driven" : "corpus_driven",
-      unverifiedMark: docs ? "未验证底稿·非吴总原话，请先核对再发" : "",
+      authority: p.authority || "master",
+      unverifiedMark: docs ? (p.markText || "未验证底稿·请先核对再发") : "",
       riskAcceptedBy: (p.brain && p.brain.acceptedRiskBy) || "",
       playbookUnverifiedAllowed: !!(p.brain && p.brain.playbookUnverifiedAllowed),
       gate: p.brain && p.brain.corpusGate ? p.brain.corpusGate.minRealReplies : 0,
@@ -576,6 +611,20 @@
     p = p || current();
     if (!p) return true;
     return p.serverLine ? !!p.serverLineReady : true;
+  },
+  /* 回合库归属：行李箱之外的域默认没有回合库（未声明即 false），防止吴总回合跨域注入 */
+  turnLibrary: function (p) {
+    p = p || current();
+    return p ? p.turnLibrary === true : true;
+  },
+  /* 域内定位覆盖块（行李箱域为空串 → 提示词逐字节不变） */
+  promptOverrides: function (p) {
+    p = p || current();
+    return (p && p.promptOverrides) || "";
+  },
+  authority: function (p) {
+    p = p || current();
+    return (p && p.authority) || "master";
   },
     productLines: function (p) { p = p || current(); return p ? p.productLines : []; },
     facts: function (p) { p = p || current(); return p ? p.facts : { items: [] }; },

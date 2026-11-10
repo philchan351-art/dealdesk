@@ -81,7 +81,13 @@ let f = boot("functional-fabric");
 const fb = f.DealDomain.brainMode();
 ok("面料已开脑", fb.replyDraft === true, fb);
 ok("模式是 docs_driven（资料+棋谱驱动，非底稿替换）", fb.mode === "docs_driven");
-ok("每条底稿带未验证水印文案", /未验证/.test(fb.unverifiedMark), fb.unverifiedMark);
+ok("每条底稿带学徒期水印（不假装有基准可比）", /学徒期/.test(fb.unverifiedMark) && /核对/.test(fb.unverifiedMark), fb.unverifiedMark);
+ok("水印不提具体人名（面料域话稿归属未定）", /吴总|Cherry|Phil/.test(fb.unverifiedMark) === false, fb.unverifiedMark);
+ok("面料域定位 = novice（学徒）", fb.authority === "novice", fb.authority);
+ok("行李箱域定位 = master（已有基准）", c.DealDomain.brainMode().authority === "master");
+ok("面料客户拿不到回合库（按客户所属域判，非登录域）", f.DealDomain.turnLibrary(f.DealDomain.get("functional-fabric")) === false);
+ok("行李箱客户仍能拿到回合库", eScooterTurnLib() === true);
+function eScooterTurnLib() { return c.DealDomain.turnLibrary(c.DealDomain.get("e-scooter")); }
 ok("风险签核留痕", /Phil/.test(fb.riskAcceptedBy), fb.riskAcceptedBy);
 ok("事实未终裁 → factsReady=false", fb.factsReady === false);
 ok("状态卡/阶段判定/风险/复盘仍开", fb.statusCard && fb.stageDetection && fb.riskHints && fb.review);
@@ -188,7 +194,7 @@ ok("域角标不可切换", c.DealDomain.badge().switchable === false && f.DealD
 console.log("\n[8.5] 出稿/发送两个出口共用的域提示（draftNotes）");
 const notes = f.DealDomain.draftNotes(fabPack, { context: specCtx }, "Our price is USD 3.2 per meter", "pending-warn");
 ok("含域守卫红条", /域守卫/.test(notes.html));
-ok("含未验证底稿水印", /未验证底稿/.test(notes.html));
+ok("含学徒期水印", /学徒期草拟/.test(notes.html), notes.html.slice(0,80));
 ok("用的是待发确认卡的样式类", notes.html.indexOf('class="pending-warn"') >= 0, notes.html.slice(0, 60));
 ok("blocked=true", notes.blocked === true);
 ok("提示里的价格与文案已转义（不注入 HTML）", notes.html.indexOf("<script") < 0);
@@ -200,7 +206,7 @@ ok("档案值确实被拦在提示之外（缺的是克重/门幅等标签名）
 const npx = f.DealDomain.guardDraft(fabPack, { context: [] }, "unit price 0.32/m, valid 15 days");
 ok("没写币种的单价（0.32/m）也识别为价格", npx.hits.length > 0, npx.hits);
 const sNotes = c.DealDomain.draftNotes(null, { context: [{ k: "型号", v: "X1" }, { k: "数量", v: "1000 台" }] }, "USD 215 per unit");
-ok("行李箱域无水印（有底稿）", /未验证底稿/.test(sNotes.html) === false, sNotes.html);
+ok("行李箱域无水印（本域已有话稿基准）", /学徒期草拟/.test(sNotes.html) === false, sNotes.html);
 
 console.log("\n[9] 资料污染防线：服务端产品线（x-dealdesk-scope / nodocs）");
 const eScooter = c.DealDomain;

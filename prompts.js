@@ -76,9 +76,18 @@
       var kbBlock = window.KB ? KB.blockFor(b, lastBuyer) : "";
       var trustBlock = window.KB ? KB.trustBlock(b, lastBuyer) : "";
       var skillBlock = window.SKILLS ? "【当前技能】" + SKILLS.text(SKILLS.pick(b)) + "\n（参考句式只学结构与口吻，其中的数字/事实/认证一律以客户档案和对话为准）\n" : "";
-      /* v1.8.0 回合库：最相似真实回合（吴总原思路）作为底稿参考；无命中 → 强制通用草案标注 */
-      var turnBlock = window.TURNS ? window.TURNS.blockFor(b, lastBuyer) : "";
-      return BEND + CONCRETE + "背景：你代表中国的出口供应商/工厂，正在 WhatsApp 上跟采购商「" + b.name + "」谈单。当前阶段：" + (stage || "询盘") + "。\n" +
+      /* v1.8.0 回合库：最相似真实回合（吴总原思路）作为底稿参考；无命中 → 强制通用草案标注
+         2026-11-09 多业务域（Phil「面料和吴总话术没关系，从 0 开始」）：回合库是 53 条行李箱真实回合，
+         且在提示词里被标成"最高优先级参照"——面料域不关掉它，AI 就会拿零售锚点/整单重算/柜级口径去谈面料。
+         按域开关：行李箱域 turnLibrary=true → 与现网完全一致；其余域未声明即视为无回合库 */
+      /* 判据取「这个客户所属的域」而不是「当前登录域」：管理员切到面料域看行李箱客户时，
+         行李箱客户仍该用行李箱回合库；反之面料客户在任何视图下都不会拿到吴总回合 */
+      var dp = (window.DealDomain && DealDomain.of) ? DealDomain.of(b) : null;
+      var hasTurns = window.TURNS && (!dp || DealDomain.turnLibrary(dp));
+      var turnBlock = hasTurns ? window.TURNS.blockFor(b, lastBuyer) : "";
+      /* 学徒期等场景的域内定位块（行李箱域返回空串 → 提示词逐字节不变） */
+      var domainOverride = dp ? DealDomain.promptOverrides(dp) : "";
+      return BEND + CONCRETE + domainOverride + "背景：你代表中国的出口供应商/工厂，正在 WhatsApp 上跟采购商「" + b.name + "」谈单。当前阶段：" + (stage || "询盘") + "。\n" +
         "任务：先诊断这单、定好出招，再生成 3 条可以直接发给客户的回复。\n" +
         "诊断规则：nextGoal＝把这单往前推一步的最关键动作（不超过 10 个汉字，如：推动样品确认 / 拿到目标数量 / 确认付款条件）；blocker＝当前卡点（不超过 12 个汉字，没有则写\"无\"）；move＝这一轮用什么招（不超过 8 个汉字，从谈判动作里选：以量换价 / 给台阶不催 / 先答再推 / 守价亮专业 / 追问换承诺 / 亮案例降风险 / 小步试探）。\n" +
         "一致性要求：若简报里有「最近研判」一条，你的 diagnosis 必须与那个姿态一致（姿态是砍价就不能按寒暄回，是追问就不能岔开话题），并在 move 里给出对应该姿态的打法。\n" +
