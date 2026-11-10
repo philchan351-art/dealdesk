@@ -274,7 +274,19 @@
     var sc = document.getElementById("nbScope");
     if (sc) {
       var p = (f.product || "").toLowerCase();
-      var hit = /宠物|pet|dog|cat/.test(p) ? "pet" : /行李箱|suitcase|luggage/.test(p) ? "suitcase" : "";
+      /* 2026-11-09 多业务域：产品线只在「本域内部」细分，绝不跨域识别——
+         面料客户写了 "suitcase fabric" 也不能被自动打到行李箱线上 */
+      var dp = (window.DealDomain && DealDomain.current()) ? DealDomain.current() : null;
+      var hit = "";
+      if (!dp || !dp.productLines) {
+        hit = /宠物|pet|dog|cat/.test(p) ? "pet" : /行李箱|suitcase|luggage/.test(p) ? "suitcase" : "";
+      } else {
+        dp.productLines.forEach(function (l) {
+          if (!l.key || hit) return;
+          if (l.key === "fabric" ? /面料|fabric|cloth|涤纶|锦纶|polyester|polyester|nylon/.test(p) : new RegExp(l.key, "i").test(p)) hit = l.key;
+        });
+        if (!hit && dp.primaryLine && /面料|fabric|cloth/.test(p)) hit = dp.primaryLine;
+      }
       if (hit) {
         sc.value = hit;
         sc.classList.add("fbp-filled");
@@ -314,7 +326,12 @@
         /* 2026-10-23（Phil「报过价还显示待报价」）：金额首次有真实录入入口——报价/订单金额可录可改，
            客户卡/谈单页/详情优先显示金额，没录的按阶段证据显示"已报价/未报价" */
         field("nbAmount", "金额（美元）", "选填：报价或订单金额，如 111000", null, null, isEdit && editB.amount ? String(editB.amount) : "") +
-        field("nbProduct", "产品线 / 意向产品", "选填：如 电动行李箱", null, null, isEdit ? (editB.product && editB.product !== "待确认" ? editB.product : "") : "") +
+        field("nbProduct", "产品线 / 意向产品", (function () {
+          /* 示例文案跟域走：面料业务员不该在表单里被提示"如 电动行李箱" */
+          var pd = (window.DealDomain && DealDomain.current()) ? DealDomain.current() : null;
+          var hint = pd && pd.primaryLine ? (DealDomain.scopeLabel(pd.primaryLine) || pd.primaryLine) : "电动行李箱";
+          return "选填：如 " + hint;
+        })(), null, null, isEdit ? (editB.product && editB.product !== "待确认" ? editB.product : "") : "") +
       /* 2026-11-09 多业务域：产品线选项由当前域包给（面料域不会再看到"宠物用品/电动行李箱"），
          值顺序里第一个空值就是"未定"；跨域值即使被写进来，store.validScope 也会回落成未定 */
       '<label class="set-lbl">产品线（用于话术剧本 / 资料库隔离，可后补）</label>' +

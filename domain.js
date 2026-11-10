@@ -85,6 +85,8 @@
     authority: "master", /* 本域话稿基准已确立：吴总真实回复 + 棋谱 v1 + 技能库 */
     skillSet: "scooter",
     turnLibrary: true,   /* 回合库（53 条真实回合）只属于本域 */
+    primaryLine: "suitcase",
+    photoLibrary: true,    /* Titan 行李箱素材库属本域 */
 
     /* 客户产品线（沿用现网 scope 值域，避免第二套分类法） */
     productLines: [
@@ -240,12 +242,14 @@
       "4) 让步与例外不写任何具体人名，统一写「需我方确认后回复」。\n",
     markText: "学徒期草拟·本域尚无话稿基准，请逐句核对后再发",
 
+    /* 线值必须是服务端能认的 scope（fabric 即待加的第四条线）：用 functional/coated 这类
+       自定义 key，资料上传后 owner 反推为 null，会被自己的隔离规则挡在门外 */
     productLines: [
       { key: "", label: "未定" },
-      { key: "functional", label: "功能性面料" },
-      { key: "coated", label: "涂层面料" },
-      { key: "all", label: "通用" }
+      { key: "fabric", label: "功能性面料" }
     ],
+    primaryLine: "fabric", /* 学徒域内 scope 为空时按主产品线处理，避免"传了资料客户却看不到" */
+    photoLibrary: false,   /* 面料素材库尚未建立：不展示 Titan 行李箱产品图 */
 
     guards: {
       concessionMaxPoints: null,
@@ -383,15 +387,29 @@
   }
 
   /* ---------- 壳层：共享集合按域取数 ---------- */
+  /* 服务端资料/剧本只有 scope 字段，没有 domainId —— 之前按 d.domainId 过滤的条件永远不成立，
+     等于没过滤（Phil 实测"进面料域还是看到电动行李箱内容"就是这个）。scope 是唯一的归属线索：
+     suitcase/pet → 行李箱域；fabric → 面料域；all/未标 → 历史通用（行李箱时代建的参数表与底线手册）。
+     隔离规则刻意不对称：
+       · 行李箱域（现网）→ 本域 + 通用，行为与今天完全一致；
+       · 其它域 → 只认明确属于自己的 scope，连"通用"也不给。
+     因为现网所有 all 资料都是行李箱语境写的，放行"通用"等于把行李箱卖点当面料的共享知识灌进去。
+     新域要资料就自己上传——从 0 开始就该从 0 开始。 */
+  function ownerDomainOfScope(scope) {
+    var s = String(scope || "").toLowerCase();
+    if (s === "suitcase" || s === "pet") return "e-scooter";
+    if (s === "fabric") return "functional-fabric";
+    return null; /* all / 空 / 未知 */
+  }
   function filterShare(docs) {
+    var p = current();
+    if (!p) return (docs || []).slice();
+    var strict = p.authority !== "master"; /* 学徒域严格隔离；成熟域沿用现网口径 */
     return (docs || []).filter(function (d) {
       if (!d) return false;
-      if (d.domainId && current() && d.domainId !== currentId) return false;
-      if (!d.domainId) {
-        /* 现网共享话术/资料/棋谱只有行李箱内容：未打域标签 → 不属于新域（默认拒入非行李箱域），
-           当前域为行李箱时放行，保证现网零变化 */
-        return currentId === "e-scooter";
-      }
+      var owner = d.domainId ? d.domainId : ownerDomainOfScope(d.scope);
+      if (owner && owner !== currentId) return false;   /* 明确属于别的域 → 一律不给 */
+      if (!owner && strict) return false;               /* 无主的历史通用资料 → 学徒域不收 */
       return true;
     });
   }
@@ -585,6 +603,16 @@
     currentId: function () { return currentId; },
     of: of,
     filterShare: filterShare,
+  ownerDomainOfScope: ownerDomainOfScope,
+  /* 界面显示产品线名：先查本域产品线，再兜全局表（历史数据可能带跨域线值） */
+  scopeLabel: function (scope) {
+    var lines = (current() && current().productLines) || [];
+    for (var i = 0; i < lines.length; i++) if (lines[i].key === scope) return lines[i].label;
+    var g = { suitcase: "电动行李箱", pet: "宠物用品", fabric: "功能性面料", all: "通用" };
+    return g[String(scope || "")] || "未定";
+  },
+  primaryLine: function (p) { p = p || current(); return (p && p.primaryLine) || ""; },
+  photoLibrary: function (p) { p = p || current(); return p ? p.photoLibrary !== false : true; },
     brainMode: brainMode,
     stageNames: stageNames,
     dealStage: dealStage,

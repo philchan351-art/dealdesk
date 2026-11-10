@@ -124,12 +124,15 @@ ok("未知域抛错", /UNKNOWN_DOMAIN/.test(threw), threw);
 
 /* 两个域各建客户 → 互相看不见 */
 c.Store.addBuyer({ name: "LugBuyer", country: "美国", qty: "100 台", scope: "suitcase" });
-f.Store.addBuyer({ name: "FabBuyer", country: "德国", qty: "3000 米", scope: "functional" });
+f.Store.addBuyer({ name: "FabBuyer", country: "德国", qty: "3000 米", scope: "fabric" });
 ok("行李箱侧可见 1 个客户", c.Store.domainBuyers().length === 1, c.Store.domainBuyers().map(b => b.name));
 ok("面料侧可见 1 个客户", f.Store.domainBuyers().length === 1, f.Store.domainBuyers().map(b => b.name));
 ok("客户带上域标签", c.Store.domainBuyers()[0].domainId === "e-scooter" && f.Store.domainBuyers()[0].domainId === "functional-fabric");
 ok("面料侧看不到行李箱客户（按名字）", !f.Store.domainBuyers().some(b => b.name === "LugBuyer"));
-ok("面料侧建客户能选本域产品线", f.Store.domainBuyers()[0].scope === "functional");
+ok("面料侧建客户能选本域产品线", f.Store.domainBuyers()[0].scope === "fabric");
+/* 防回退锁：functional/coated 这类自造 key 服务端永远认不了（白名单只有 suitcase/pet/all/fabric），
+   用它当线值会让资料 owner 反推为 null，被自己的隔离规则挡在门外——所以必须继续被拒 */
+ok("自造线值 functional 被拒（不再是合法值）", (f.Store.addBuyer({ name: "Old", country: "德国", scope: "functional" }), f.Store.domainBuyers().find(b => b.name === "Old").scope === ""));
 ok("跨域产品线值被回落为未定", (f.Store.addBuyer({ name: "Bad", country: "美国", scope: "pet" }), f.Store.domainBuyers().find(b => b.name === "Bad").scope === ""));
 /* 两个 node 上下文同毫秒建客户会撞 id（"u"+Date.now()），所以直接改本地记录的域标签来验隔离：
    本域库里存在这条记录，但它不属于本域 → getBuyer 必须取不到（跨域 id 命中也拿不到人） */
@@ -227,6 +230,27 @@ const nb = n.Store.addBuyer({ name: "NoDomain", country: "美国", qty: "100 台
 ok("addBuyer 返回 null（不给盖域标签就不建）", nb === null);
 ok("客户列表没有凭空多出一条", n.Store.domainBuyers().length === 0, n.Store.domainBuyers().map(b => b.name));
 ok("给了可见提示而不是静默失败", /业务域/.test(seen.join(" ")), seen);
+
+console.log("\n[11] 内容资产层隔离（Phil 实测：进面料域仍看到电动行李箱内容）");
+const ASSETS = [
+  { key: "d1", title: "电动行李箱参数速查表", scope: "suitcase" },
+  { key: "d2", title: "宠物用品报价说明", scope: "pet" },
+  { key: "d3", title: "底线手册（历史通用）", scope: "all" },
+  { key: "d4", title: "210T 塔丝绒规格表", scope: "fabric" },
+  { key: "d5", title: "无 scope 的旧资料" }
+];
+const inScooter = c.DealDomain.filterShare(ASSETS).map(d => d.key);
+const inFabric = f.DealDomain.filterShare(ASSETS).map(d => d.key);
+ok("行李箱域：本域 + 历史通用全可见（现网不变）", inScooter.join(",") === "d1,d2,d3,d5", inScooter);
+ok("面料域：只剩面料自己的资料", inFabric.join(",") === "d4", inFabric);
+ok("面料域看不到行李箱/宠物资料", inFabric.indexOf("d1") < 0 && inFabric.indexOf("d2") < 0);
+ok("面料域连历史「通用」也不收（那些全是行李箱时代写的）", inFabric.indexOf("d3") < 0 && inFabric.indexOf("d5") < 0);
+ok("产品线名由域包给（面料域不显示电动行李箱）", f.DealDomain.scopeLabel("fabric") === "功能性面料" && c.DealDomain.scopeLabel("suitcase") === "电动行李箱");
+ok("面料主产品线 = fabric（对齐服务端待加的第四条线）", f.DealDomain.primaryLine() === "fabric");
+ok("scope→归属域 反推（服务端只有 scope，没有 domainId）",
+  c.DealDomain.ownerDomainOfScope("pet") === "e-scooter" &&
+  c.DealDomain.ownerDomainOfScope("fabric") === "functional-fabric" &&
+  c.DealDomain.ownerDomainOfScope("all") === null);
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);

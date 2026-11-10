@@ -1204,8 +1204,12 @@
           var box = root.querySelector("#photoCard");
           if (!box || b.outcome || b.scope === "pet") return;
           var pageBase = location.href.split("#")[0].replace(/[^/]*$/, "");
-          function onManifest(man) {
-            var data = man && man.suitcase;
+      function onManifest(man) {
+                /* 2026-11-09 多业务域：产品照片是 Titan 行李箱素材库，属行李箱域资产。
+                   闸门放在这里而不是 fetch 处——fetch、60s 内存缓存、localStorage 兜底三条路径
+                   都会汇到 onManifest，只堵 fetch 的话旧缓存照样把照片渲染出来。 */
+                if (window.DealDomain && DealDomain.current() && !DealDomain.photoLibrary()) { box.innerHTML = ""; return; }
+                var data = man && man.suitcase;
             if (!data || !data.groups || !data.groups.length) { box.innerHTML = ""; return; }
             var flat = [];
              data.groups.forEach(function (g) {
