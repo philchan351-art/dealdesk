@@ -365,9 +365,28 @@
      不在数据层抛错，是为了避免"页面白屏但不知道为什么"那种暗雷 */
   function bindFromStorage() {
     var a = readAccount();
+    /* 独立入口（fabric.html）：入口本身就声明了业务域，账号未绑域时按入口绑，
+       不再让新同事在面料工作台里选一次"电动行李箱还是面料"——选错就是把整条业务线走错。
+       已绑到别的域 → 不绑定，交给 app.js 拦住并提示换入口。 */
+    var entry = window.DEAL_DOMAIN_ENTRY || null;
+    if (entry && packs[entry]) {
+      if (!a || !a.domainId) { currentId = entry; return packs[entry]; }
+      if (a.domainId === entry) { currentId = entry; return packs[entry]; }
+      currentId = null;
+      return null;
+    }
     if (!a || !a.domainId || !packs[a.domainId]) { currentId = null; return null; }
     currentId = a.domainId;
     return packs[a.domainId];
+  }
+  /* 入口与账号是否搭：mismatch 时界面必须说清楚"去哪个入口"，不能只白屏 */
+  function entryState() {
+    var entry = window.DEAL_DOMAIN_ENTRY || null;
+    if (!entry) return { entry: null, state: "none" };
+    var a = readAccount();
+    if (!a || !a.domainId) return { entry: entry, state: "unbound" };
+    if (a.domainId === entry) return { entry: entry, state: "match" };
+    return { entry: entry, state: "mismatch", accountDomain: a.domainId, accountName: a.name || "" };
   }
   function setAccount(account) {
     var id = account && account.domainId;
@@ -607,6 +626,8 @@
     AUTH_KEY: AUTH_KEY,
     readAccount: readAccount,
     bindFromStorage: bindFromStorage,
+  entryState: entryState,
+  entryId: function () { return window.DEAL_DOMAIN_ENTRY || null; },
     validatePack: validatePack,
     rejected: rejected,
     packs: packs,

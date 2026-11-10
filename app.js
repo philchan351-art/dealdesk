@@ -206,6 +206,32 @@
       '<div class="set-note" id="domMsg"></div>' +
       "</div></div>";
   }
+  /* 走错入口的说明卡：说清"这个账号绑哪条线、该去哪个入口"，并给退出通道，不留白屏 */
+  function renderEntryMismatch(es) {
+    var el = $("#screen");
+    el.classList.remove("detail");
+    var accDom = (window.DealDomain && DealDomain.get) ? DealDomain.get(es.accountDomain) : null;
+    var accName = accDom ? accDom.name : (es.accountDomain || "其它业务线");
+    var here = (window.DealDomain && DealDomain.get) ? DealDomain.get(es.entry) : null;
+    var other = window.DEAL_DOMAIN_OTHER_ENTRY || "index.html";
+    el.innerHTML = '<div class="auth-wrap"><div class="auth-brand">' +
+      '<div class="auth-logo"><img src="logo.jpg?v=51" alt="谈单舱"/></div>' +
+      '<h1>入口不对</h1><p>这里是「' + escHtml(here ? here.name : "本业务线") + '」工作台</p></div>' +
+      '<div class="card" style="margin:0 16px"><div class="ctx-card">' +
+      '<div class="ctx-title">当前账号「' + escHtml(es.accountName) + '」绑的是「' + escHtml(accName) + '」</div>' +
+      '<div class="set-note" style="margin-top:8px">两个业务域的数据、资料与话术完全分开，所以不能交叉进入。' +
+      '要处理「' + escHtml(accName) + '」的客户，请回到 <b>' + escHtml(other) + '</b>；' +
+      '要用这个工作台，请退出后用「' + escHtml(here ? here.name : "本业务线") + '」的账号登录（或由管理员新建一个绑本域的账号）。</div>' +
+      '<button class="auth-btn" id="mmOut" style="margin-top:12px">退出，换账号</button>' +
+      '<a class="auth-btn ghost" href="' + escHtml(other) + '" style="display:block;text-align:center;margin-top:8px">去 ' + escHtml(other) + '</a>' +
+      "</div></div></div>";
+    document.title = "谈单舱 · 入口不对";
+    var p = phoneEl();
+    if (p) p.classList.add("auth-on");
+    var out = document.getElementById("mmOut");
+    if (out) out.addEventListener("click", function () { Auth.clear(); location.hash = "#/"; renderAuth(); });
+  }
+
   function renderDomainPicker() {
     var el = $("#screen");
     el.classList.remove("detail");
@@ -265,7 +291,16 @@
     /* 2026-11-09（Phil 裁决「一人绑一域」）：没绑定业务域就不进应用，也不替他猜一个。
        本次升级前建的老账号第一次登录会看到选择卡（一次性），之后由管理员在成员卡里改 */
     if (window.DealDomain) {
+      var es = DealDomain.entryState ? DealDomain.entryState() : { state: "none" };
+      /* 走错入口：账号绑的是另一条业务线。这里必须拦住——让行李箱账号进面料工作台，
+         等于把两个域的数据摆在同一屏上，正是 Phil 要根治的那个现象 */
+      if (es.state === "mismatch") { renderEntryMismatch(es); return; }
       var a0 = Auth.get() || {};
+      /* 独立入口自带业务域：没绑过就直接按入口绑，不再让新同事猜 */
+      if (es.state === "unbound" && es.entry) {
+        a0.domainId = es.entry;
+        Auth.save(a0);
+      }
       var ok = !!a0.domainId;
       if (ok) { try { DealDomain.setAccount(a0); } catch (e) { ok = false; console.warn("[域绑定失败]", e.message); } }
       if (!ok) { renderDomainPicker(); return; }

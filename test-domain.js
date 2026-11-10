@@ -288,5 +288,64 @@ const faNone = f.DealDomain.selectScripts([SCRIPTS[0], SCRIPTS[1]], "fabric");
 ok("面料域没有自己的剧本 → 返回空 + noneInDomain（绝不借Titan X六步）", faNone.scripts.length === 0 && faNone.noneInDomain === true, faNone);
 ok("行李箱域看不到面料剧本", c.DealDomain.selectScripts(SCRIPTS, "suitcase").scripts.map(d => d.key).indexOf("s3") < 0);
 
+console.log("\n[14] 面料独立入口：行李箱模块根本不加载（根治隔离）");
+const fabHtml = fs.readFileSync(__dirname + "/fabric.html", "utf8");
+const fabScripts = [...fabHtml.matchAll(/<script src="([^"?]+)/g)].map(m => m[1]);
+const LUGGAGE_MODULES = ["mock.js", "turns.js", "skills.js", "kb.js"];
+ok("fabric.html 不加载任何行李箱内容模块", LUGGAGE_MODULES.every(m => fabScripts.indexOf(m) < 0), fabScripts.filter(m => LUGGAGE_MODULES.indexOf(m) >= 0));
+ok("fabric.html 第一个脚本是入口声明", fabScripts[0] === "fabric-boot.js", fabScripts[0]);
+ok("fabric.html 用 domain-seed 顶替 mock", fabScripts.indexOf("domain-seed.js") >= 0 && fabScripts.indexOf("mock.js") < 0);
+ok("入口声明指向面料域", /functional-fabric/.test(fs.readFileSync(__dirname + "/fabric-boot.js", "utf8")));
+const idxHtml = fs.readFileSync(__dirname + "/index.html", "utf8");
+ok("index.html 仍加载行李箱模块（现网未受影响）", /mock\.js\?v=/.test(idxHtml) && /turns\.js\?v=/.test(idxHtml));
+
+/* 干净种子：加载 domain-seed 后，Mock 里不得出现任何行李箱字样 */
+const seedSrc = fs.readFileSync(__dirname + "/domain-seed.js", "utf8");
+ok("domain-seed 自身不含行李箱产品词", !/Titan|行李箱|宠物|壁灯|彩盒|Wh\b/.test(seedSrc.replace(/\/\*[\s\S]*?\*\//g, "")));
+console.log("\n[15] 入口与账号错配必须被拦住");
+const mm = boot("e-scooter");
+mm.DEAL_DOMAIN_ENTRY = "functional-fabric";
+const mmState = mm.DealDomain.entryState();
+ok("行李箱账号 + 面料入口 = mismatch", mmState.state === "mismatch", mmState);
+ok("错配时报的是账号所属域", mmState.accountDomain === "e-scooter", mmState);
+const ub = boot(null);
+ub.DEAL_DOMAIN_ENTRY = "functional-fabric";
+ok("未绑域 + 独立入口 = unbound（由 app.js 按入口自动绑，不再让人选）", ub.DealDomain.entryState().state === "unbound");
+const okm = boot("functional-fabric");
+okm.DEAL_DOMAIN_ENTRY = "functional-fabric";
+ok("账号域与入口一致 = match", okm.DealDomain.entryState().state === "match");
+ok("index.html 无入口声明时保持原逻辑（state=none）", boot("e-scooter").DealDomain.entryState().state === "none");
+
+console.log("\n[16] 归属修复只动勾选的记录");
+const rp = boot("functional-fabric");
+rp.App = { toast: function () {} };
+rp.Store.applySnapshot({ buyers: [
+  { id: "keep1", name: "FabricA", country: "意大利", scope: "fabric", domainId: "functional-fabric", product: "210T 塔丝绒 克重160" },
+  { id: "stray1", name: "LugStray", country: "美国", domainId: "functional-fabric", qty: "500" },
+  { id: "keep2", name: "NoTouch", country: "德国", domainId: "functional-fabric" }
+], followups: [{ id: "ff1", buyerId: "stray1", domainId: "functional-fabric", action: "跟进" }] });
+const stray = rp.Store.strayCandidates().map(b => b.id);
+ok("有面料特征的客户不进候选", stray.indexOf("keep1") < 0, stray);
+ok("通篇无本域特征的进候选", stray.indexOf("stray1") >= 0, stray);
+const before = rp.Store.domainBuyers().length;
+rp.Store.retagBuyers(["stray1"], "e-scooter");
+ok("未勾选的一律不动", rp.Store.domainBuyers().some(b => b.id === "keep2"));
+ok("勾选的已离开本域", rp.Store.domainBuyers().length === before - 1 && !rp.Store.domainBuyers().some(b => b.id === "stray1"));
+ok("其跟进随客户一起走", !rp.Store.domainFollowups().some(f => f.buyerId === "stray1"));
+ok("retag 返回受影响条数（客户+跟进）", typeof rp.Store.retagBuyers([], "e-scooter") === "number");
+
+console.log("\n[17] 入口即边界：两个入口都声明自己的域（防换网址绕过隔离）");
+const idxBoot = fs.readFileSync(__dirname + "/domain-boot.js", "utf8");
+const fabBoot = fs.readFileSync(__dirname + "/fabric-boot.js", "utf8");
+const idxScripts = [...fs.readFileSync(__dirname + "/index.html", "utf8").matchAll(/<script src="([^"?]+)/g)].map(x => x[1]);
+ok("index.html 第一个脚本是入口声明", idxScripts[0] === "domain-boot.js", idxScripts[0]);
+ok("index.html 声明的是电动行李箱域", /DEAL_DOMAIN_ENTRY\s*=\s*"e-scooter"/.test(idxBoot));
+ok("两个入口互相指认对方（走错时给得出正确链接）", /fabric\.html/.test(idxBoot) && /index\.html/.test(fabBoot));
+const swap = boot("functional-fabric");
+swap.DEAL_DOMAIN_ENTRY = "e-scooter";
+ok("面料账号直接打开 index.html 会被判为错配", swap.DealDomain.entryState().state === "mismatch", swap.DealDomain.entryState());
+const legacy = boot(null);
+legacy.DEAL_DOMAIN_ENTRY = "e-scooter";
+ok("老账号未绑域进 index.html → 按入口自动归遗留域（不再多问一次）", legacy.DealDomain.entryState().state === "unbound");
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);

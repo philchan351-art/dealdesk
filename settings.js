@@ -185,6 +185,26 @@
          '<div class="set-note">Key 只存这台设备浏览器本地，不上传。配置云同步后 Key 可留空（走云端代理）</div>' +
          "</div>" +
          "</div>" +
+         (isAdmin ? (function () {
+            /* 客户归属修复：只列候选、由人勾选，绝不自动搬（见 store.js strayCandidates 注释） */
+            var list = (window.Store && Store.strayCandidates) ? Store.strayCandidates() : [];
+            if (!list.length) return "";
+            var dn = (window.DealDomain && DealDomain.current()) ? DealDomain.current().name : "本域";
+            var to = (window.DealDomain && DealDomain.currentId()) === "e-scooter" ? "functional-fabric" : "e-scooter";
+            return '<div class="card card-pad" id="strayWrap">' +
+              '<div class="set-title">客户归属核对</div>' +
+              '<div class="set-note">下面这些客户目前挂在「' + esc(dn) + '」，但通篇找不到本业务线的特征' +
+              '（多数是 11-09 那次「切域改标签」缺陷搬进来的）。勾选后要退回的，去 ' + (to === "e-scooter" ? "电动行李箱" : "功能性面料") + '工作台登录本账号就能看到。' +
+              '<b>不勾选就一律不动。</b></div>' +
+              list.map(function (b) {
+                return '<label class="card set-row" style="margin:0 0 6px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start">' +
+                  '<input type="checkbox" class="strayChk" value="' + esc(b.id) + '" style="margin-top:3px" />' +
+                  '<span><b>' + esc(b.name) + '</b>' + (b.company ? " · " + esc(b.company) : "") +
+                  (b.country ? " · " + esc(b.country) : "") + (b.scope ? " · " + esc(scopeLabelOf(b.scope)) : " · 未定产品线") + "</span></label>";
+              }).join("") +
+              '<div class="set-actions"><button class="set-btn-inline danger" id="strayGo">退回选中的客户（' + list.length + ' 个候选）</button></div>' +
+            "</div>";
+          })() : "") +
          (isAdmin ? '<div class="card card-pad">' +
          '<div class="set-title">数据恢复（管理员应急）</div>' +
          '<div class="set-note">怀疑数据出错（客户/成员丢了）时，恢复到某天的每日快照或异常备份；恢复前系统会自动再备份一次当前状态，恢复后该时间点之后的变更会丢失，建议全员重新登录</div>' +
@@ -458,8 +478,25 @@
                anEl.value = ""; apEl.value = "";
                loadAdmin();
              }).catch(function (err) { App.toast("操作失败：" + err.message); });
-           });
-           loadAdmin();
+            });
+            loadAdmin();
+
+          /* 客户归属修复：只按勾选执行。目标域由当前页算出（只能"退回对面那条线"），
+             不给任意改域的口子；不勾选就什么都不动 */
+          (function () {
+            var go = root.querySelector("#strayGo");
+            if (!go) return;
+            go.addEventListener("click", function () {
+              var ids = [].slice.call(root.querySelectorAll(".strayChk:checked")).map(function (c) { return c.value; });
+              if (!ids.length) { App.toast("先勾选要退回的客户"); return; }
+              var to = (window.DealDomain && DealDomain.currentId()) === "e-scooter" ? "functional-fabric" : "e-scooter";
+              var nm = to === "e-scooter" ? "电动行李箱" : "功能性面料";
+              if (!confirm("确定把选中的 " + ids.length + " 个客户连同其跟进改到「" + nm + "」工作台？\n改完当前工作台就看不到他们了，去「" + nm + "」工作台登录本账号即可看到。")) return;
+              var moved = Store.retagBuyers(ids, to);
+              App.toast("已改到「" + nm + "」：" + moved + " 条记录（含跟进）");
+              App.refresh();
+            });
+          })();
 
           /* ===== 团队公共资料：管理员上传一次，所有人 AI 生成自动引用 ===== */
           var sharedListEl = root.querySelector("#sharedList");

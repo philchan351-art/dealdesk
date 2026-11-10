@@ -258,7 +258,40 @@
     if (moved) saveLocal();
     return moved;
   }
-  /* 产品线值域由域包给（行李箱：suitcase/pet/all；面料：functional/coated/all）。
+  /* 归属修复（管理员动作，带预览确认）：把指定客户连同其跟进改到目标域。
+     为什么不由我自动判：误标发生在业务域上线之前，而"给行李箱厂供面料"的客户描述里也会带 suitcase，
+     任何文本启发式都可能把真面料客户搬走。所以这里只执行人勾选的结果，不猜。 */
+  function retagBuyers(ids, toDomain) {
+    if (!ids || !ids.length || !toDomain) return 0;
+    var want = {}, moved = 0;
+    ids.forEach(function (id) { want[id] = 1; });
+    data.buyers.forEach(function (b) {
+      if (want[b.id] && b.domainId !== toDomain) { b.domainId = toDomain; moved++; }
+    });
+    data.followups.forEach(function (f) {
+      if (want[f.buyerId] && f.domainId !== toDomain) { f.domainId = toDomain; moved++; }
+    });
+    if (moved) save();
+    return moved;
+  }
+
+  /* 列出"看起来不属于本域"的客户供勾选：本域客户里没有任何本域特征的那些。
+     只是候选清单，不做任何自动改动。 */
+  function strayCandidates() {
+    var pack = (window.DealDomain && DealDomain.current) ? DealDomain.current() : null;
+    if (!pack) return [];
+    var line = (pack.productLines || []).map(function (l) { return l.key; }).filter(Boolean);
+    var mark = /(面料|fabric|克重|gsm|门幅|后整理|finishing|色号|pantone|成分|composition|涂层|coated|涤纶|polyester|锦纶|nylon|丹尼|denier|塔丝绒|牛津布|oxford)/i;
+    return domainBuyers().filter(function (b) {
+      if (line.indexOf(String(b.scope || "")) >= 0) return false;              /* 产品线就是本域 → 不动 */
+      var hay = [b.product, b.qty, b.note].concat((b.context || []).map(function (c) {
+        return c ? [c.k, c.v].join(" ") : "";
+      })).concat((b.messages || []).map(function (m) { return m && m.text; })).join(" ");
+      return !mark.test(hay);                                                   /* 通篇找不到本域特征 → 列为候选 */
+    });
+  }
+
+  /* 产品线值域由域包给（行李箱：suitcase/pet/all；面料：fabric）。
      写死值域就是第二个域一上线就报错的根因。非法值一律回落"未定"，不猜 */
   function validScope(scope) {
     var lines = (window.DealDomain && DealDomain.current() && DealDomain.productLines()) || null;
@@ -369,6 +402,8 @@
     currentDomainId: currentDomainId,
     migrateDomainTags: migrateDomainTags,
     repairMisTags: repairMisTags,
+    retagBuyers: retagBuyers,
+    strayCandidates: strayCandidates,
     validScope: validScope,
     /* 账号换域是管理员动作：本域标签不迁移，原域记录留在原域（该账号此后看不到） */
     rebindAccountDomain: function (domainId) {
