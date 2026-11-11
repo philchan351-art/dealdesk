@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -408,7 +408,8 @@ ok("选择页给两条业务线选择卡（data-line）", landSrc.indexOf('data-
 const ljs = fs.readFileSync(__dirname + "/landing.js", "utf8");
 ok("选完路由到对应工作台（ROUTES）", ljs.indexOf("workbench.html") >= 0 && ljs.indexOf("fabric/index.html") >= 0);
 /* 登录与选线同屏（Phil「登入的时候，需要有个电动行李箱和面料选择」） */
-ok("登录表单在选择页上（账号/密码/新账号/团队口令/登录按钮）", ["lName", "lPass", "lNew", "lTok", "lGo"].every(id => landSrc.indexOf('id="' + id + '"') >= 0));
+ok("登录表单在选择页上（登录/注册页签＋账号/密码/团队口令/按钮）", ["lName", "lPass", "lTok", "lGo", "tLogin", "tNew"].every(id => landSrc.indexOf('id="' + id + '"') >= 0));
+ok("注册是一级页签入口（不是小勾选）", landSrc.indexOf("注册新账号（首次用这条线）") >= 0 && landSrc.indexOf('id="lNew"') < 0);
 ok("登录契约与内核一致（POST /login＋register 模式＋token）", ljs.indexOf('"/login"') >= 0 && ljs.indexOf('"register"') >= 0 && ljs.indexOf("body.token = tok") >= 0);
 const wbSrc = fs.readFileSync(__dirname + "/workbench.html", "utf8");
 ok("电动行李箱工作台 = 原主入口内容（仍声明行李箱入口＋加载全套行李箱模块）", wbSrc.indexOf("domain-boot.js") >= 0 && wbSrc.indexOf("mock.js") >= 0 && wbSrc.indexOf("kb.js") >= 0 && wbSrc.indexOf("turns.js") >= 0);
@@ -451,6 +452,10 @@ ok("登录后仍在（记 hadAuth）", owCtx.LogoutWatch.shouldLeave(st1, { sess
 ok("登录态消失 → 回选线", owCtx.LogoutWatch.shouldLeave(st1, null) === true);
 const st2 = { hadAuth: true };
 ok("页面加载时已登录、随后退出 → 回选线", owCtx.LogoutWatch.shouldLeave(st2, null) === true);
+/* reload 桥接（v1.19.0）：内核设置页退出＝Auth.clear()+location.reload()，新页面用持久标记判断 */
+ok("刚退出（标记新鲜）→ 回选线", owCtx.LogoutWatch.shouldLeaveAfterReload({ at: Date.now() }) === true);
+ok("标记过期（>5 分钟）→ 匿名不赶走", owCtx.LogoutWatch.shouldLeaveAfterReload({ at: Date.now() - 6 * 60 * 1000 }) === false);
+ok("无标记 → 匿名直达不赶走", owCtx.LogoutWatch.shouldLeaveAfterReload(null) === false);
 const wb3 = fs.readFileSync(__dirname + "/workbench.html", "utf8");
 const fi3 = fs.readFileSync(__dirname + "/fabric/index.html", "utf8");
 ok("两个工作台入口都加载 logout-watch.js（app.js 之后）", wb3.indexOf("logout-watch.js") >= 0 && wb3.indexOf("logout-watch.js") > wb3.indexOf("app.js") && fi3.indexOf("../logout-watch.js") >= 0 && fi3.indexOf("../logout-watch.js") > fi3.indexOf("../app.js"));

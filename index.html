@@ -8,12 +8,12 @@
 <title>谈单舱 · 选择业务线</title>
 <meta name="theme-color" content="#B97516"/>
 <meta name="description" content="谈单舱 · 选择业务线（电动行李箱 / 功能性面料）并登录，直接进入对应工作台。两条业务线数据完全分开。"/>
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.18.0"/>
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=1.18.0"/>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1.18.0"/>
-<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png?v=1.18.0"/>
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.18.0"/>
-<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=1.18.0"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.19.0"/>
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=1.19.0"/>
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1.19.0"/>
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png?v=1.19.0"/>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.19.0"/>
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=1.19.0"/>
 <style>
   /* 落地选择+登录页自带样式，不加载任何内核 CSS：首屏零内核面 */
   *{box-sizing:border-box;margin:0;padding:0}
@@ -41,7 +41,9 @@
   .l-lbl{display:block;font-size:12px;color:#8a8a80;margin:8px 0 4px}
   .l-inp{width:100%;border:1.5px solid #ddd5c8;border-radius:10px;padding:9px 12px;font-size:14px;background:#fff;color:#3a3a35;outline:none}
   .l-inp:focus{border-color:#B97516}
-  .l-new{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#8a8a80;margin-top:10px;cursor:pointer}
+  .l-tabs{display:flex;gap:8px;margin-bottom:4px}
+  .l-tab{flex:1;text-align:center;border:1.5px solid #ddd5c8;border-radius:10px;padding:8px 0;font-size:13.5px;font-weight:600;color:#8a8a80;cursor:pointer;user-select:none}
+  .l-tab.on{border-color:#3a3a35;color:#2e2e2a;background:#f4f1ea}
   .l-go{width:100%;margin-top:12px;border:none;border-radius:12px;padding:11px 0;font-size:15px;font-weight:600;color:#fff;background:#b9b2a6;cursor:pointer}
   .l-go:disabled{opacity:.6;cursor:default}
   .l-msg{font-size:12px;color:#c0392b;min-height:18px;margin-top:8px;line-height:1.5}
@@ -78,11 +80,14 @@
 
   <div class="l-form">
     <div class="l-which" id="lWhich">先在上面选一条线</div>
+    <div class="l-tabs" role="tablist">
+      <span class="l-tab on" id="tLogin" role="tab" tabindex="0">登录</span>
+      <span class="l-tab" id="tNew" role="tab" tabindex="0">注册新账号（首次用这条线）</span>
+    </div>
     <label class="l-lbl" for="lName">账号</label>
     <input class="l-inp" id="lName" type="text" autocomplete="username" placeholder="账号"/>
     <label class="l-lbl" for="lPass">密码</label>
     <input class="l-inp" id="lPass" type="password" autocomplete="current-password" placeholder="密码"/>
-    <label class="l-new"><input type="checkbox" id="lNew"/> 新账号（首次需要团队口令）</label>
     <div id="lTokWrap" style="display:none">
       <label class="l-lbl" for="lTok">团队口令</label>
       <input class="l-inp" id="lTok" type="password" autocomplete="off" placeholder="找管理员要，不会保存"/>
@@ -96,6 +101,6 @@
     本机已登录 → 打开根地址直达所绑线；退出登录就回到这个选择页。改账号的线归属由管理员在「设置 → 成员」调整。 · <a href="manual.html?v=55">2 分钟使用手册</a>
   </div>
 </div>
-<script src="landing.js?v=1.18.0"></script>
+<script src="landing.js?v=1.19.0"></script>
 </body>
 </html>

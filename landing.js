@@ -1,4 +1,6 @@
-/* ===== 业务线选择 + 登录（v1.17.0，Phil「登入的时候，需要有个电动行李箱和面料选择」）=====
+/* ===== 业务线选择 + 登录（v1.17.0 起；v1.19.0 注册新账号升级为「登录/注册」一级页签）=====
+ * Phil「我找不到新账号注册的地方」：注册藏在 12px 灰色小勾选里，没人找得到。
+ * 改为表单顶部显式页签：登录 / 注册新账号（首次用这条线），按钮文案随模式切换。
  * 根 index.html 是唯一总入口：选线 → 登录/新账号注册 → 直达该线工作台。
  * 登录契约与内核完全同口径（app.js 登录 + sync.js authCall，端点/字段/错误文案逐字一致）：
  *   POST {proxyUrl}/login   {name, password, mode:"login"|"register"[, token]}
@@ -51,11 +53,13 @@
 
   /* node vm 测试环境没有表单元素：只暴露纯函数，跳过接线 */
   var which = document.getElementById("lWhich");
-  var lNew = document.getElementById("lNew");
+  var tLogin = document.getElementById("tLogin");
+  var tNew = document.getElementById("tNew");
+  var lPass = document.getElementById("lPass");
   var lTokWrap = document.getElementById("lTokWrap");
   var lGo = document.getElementById("lGo");
   var lMsg = document.getElementById("lMsg");
-  if (!which || !lNew || !lTokWrap || !lGo || !lMsg) return;
+  if (!which || !tLogin || !tNew || !lPass || !lTokWrap || !lGo || !lMsg) return;
 
   var selected = null;
   var cards = document.querySelectorAll(".l-dom[data-line]");
@@ -74,7 +78,20 @@
     which.textContent = "登录到「" + LINE_NAMES[selected] + "」";
     lGo.style.background = LINE_ACCENT[selected];
   }
-  lNew.addEventListener("change", function () { lTokWrap.style.display = lNew.checked ? "" : "none"; });
+  var mode = "login";
+  function setMode(m) {
+    mode = m;
+    tLogin.classList.toggle("on", m === "login");
+    tNew.classList.toggle("on", m === "new");
+    lTokWrap.style.display = (m === "new") ? "" : "none";
+    lPass.placeholder = (m === "new") ? "设置密码（至少 6 位，字母+数字）" : "密码";
+    lGo.textContent = (m === "new") ? "注册，进入工作台" : "登录，进入工作台";
+  }
+  tLogin.addEventListener("click", function () { setMode("login"); });
+  tNew.addEventListener("click", function () { setMode("new"); });
+  tLogin.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMode("login"); } });
+  tNew.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMode("new"); } });
+  setMode("login");
   lGo.addEventListener("click", submit);
 
   function msg(s) { lMsg.textContent = s; }
@@ -83,7 +100,7 @@
     if (!selected) { msg("先选一条线（电动行李箱 或 功能性面料）"); return; }
     var name = document.getElementById("lName").value.trim();
     var pass = document.getElementById("lPass").value;
-    var isNew = lNew.checked;
+    var isNew = (mode === "new");
     var tok = document.getElementById("lTok").value.trim();
     if (!name || !pass) { msg("请填写账号和密码"); return; }
     if (isNew && !tok) { msg("创建新账号需要团队口令（找管理员要）"); return; }
