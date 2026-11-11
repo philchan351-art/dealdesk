@@ -339,5 +339,67 @@ ok("面料账号直接打开 index.html 会被判为错配", swap.DealDomain.ent
 const legacy = boot(null);
 legacy.DEAL_DOMAIN_ENTRY = "e-scooter";
 ok("老账号未绑域进 index.html → 按入口自动归遗留域（不再多问一次）", legacy.DealDomain.entryState().state === "unbound");
+console.log("\n[18] 共享内核切换（v1.15.0）：面料入口 = 主工作台内核 + 独立大脑 + 独立数据命名空间");
+/* -- 入口结构：脚本清单纯净（行李箱内容模块物理不加载） -- */
+const fabIdx = fs.readFileSync(__dirname + "/fabric/index.html", "utf8");
+const fabScripts = [...fabIdx.matchAll(/<script src="([^"?]+)/g)].map(x => x[1]);
+ok("面料入口第一个脚本是入口声明", fabScripts[0] === "fabric-boot.js", fabScripts[0]);
+ok("域种子顶替 mock.js", fabScripts.indexOf("fabric-seed.js") >= 0);
+const noLoad = ["mock.js", "turns.js", "skills.js", "kb.js", "domain-boot.js"];
+ok("行李箱内容模块与行李箱入口声明在面料入口物理不加载", noLoad.every(x => fabScripts.indexOf(x) < 0 && fabScripts.indexOf("../" + x) < 0), noLoad);
+const kernelFiles = ["version.js", "domain.js", "country-profiles.js", "store.js", "docextract.js", "utils.js", "prompts.js", "llm.js", "sync.js", "voice.js", "components.js", "home.js", "buyers.js", "buyer-detail.js", "deals.js", "followup.js", "settings.js", "log-sheet.js", "buyer-sheet.js", "app.js"];
+ok("内核 20 个文件全部在面料入口（共享内核）", kernelFiles.every(x => fabScripts.indexOf("../" + x) >= 0), kernelFiles.filter(x => fabScripts.indexOf("../" + x) < 0));
+ok("面料入口脚本引用只来自 ../根目录 或 本目录两个声明文件", fabScripts.every(p => p.indexOf("../") === 0 || p === "fabric-boot.js" || p === "fabric-seed.js"), fabScripts);
+const fabCss = [...fabIdx.matchAll(/<link[^>]+href="([^"?]+)/g)].map(x => x[1]);
+ok("CSS/manifest/图标全部 ../ 指向根目录", fabCss.length >= 8 && fabCss.every(p => p.indexOf("../") === 0), fabCss);
+const fabBootSrc = fs.readFileSync(__dirname + "/fabric/fabric-boot.js", "utf8");
+ok("入口声明 = 功能性面料域", /DEAL_DOMAIN_ENTRY\s*=\s*"functional-fabric"/.test(fabBootSrc));
+ok("走错入口卡从子目录回主工作台", /DEAL_DOMAIN_OTHER_ENTRY\s*=\s*"\.\.\/index\.html"/.test(fabBootSrc));
+ok("数据命名空间 = dd.fabric.v1", /DEALDESK_KEY\s*=\s*"dd\.fabric\.v1"/.test(fabBootSrc));
+
+/* -- store.js 命名空间参数化（对冻结代码的唯一改动） -- */
+const storeSrc = fs.readFileSync(__dirname + "/store.js", "utf8");
+ok("store.js 命名空间参数化：默认值 = 原 key（主工作台零变化）", /window\.DEALDESK_KEY\s*\|\|\s*"dealdesk\.data\.v1"/.test(storeSrc));
+ok("主工作台（无 DEALDESK_KEY）写原 key、从不碰面料命名空间",
+  c.localStorage._mem["dealdesk.data.v1"] !== undefined && c.localStorage._mem["dd.fabric.v1"] === undefined,
+  Object.keys(c.localStorage._mem));
+
+/* -- 面料入口行为：命名空间 + v1.13/v1.14 遗留数据一次性迁移 -- */
+const fabCtx = makeCtx();
+fabCtx.localStorage.setItem("dd.fabric.v1", JSON.stringify({
+  v: 1, savedAt: "", deletedIds: [],
+  buyers: [{ id: "fb1", name: "LegacyFab", company: "OutdoorCo", country: "德国", wa: "49123456", stage: 2, stageLog: [], messages: [], spec: [], createdAt: "", updatedAt: "" }],
+  followups: [{ id: "ff1", buyerId: "fb1", action: "追洗水测试结果", dueDate: "2026-11-15", done: false }]
+}));
+fabCtx.DEAL_DOMAIN_ENTRY = "functional-fabric";
+load(fabCtx, "fabric/fabric-boot.js");
+load(fabCtx, "version.js");
+load(fabCtx, "domain.js");
+load(fabCtx, "fabric/fabric-seed.js");
+load(fabCtx, "country-profiles.js");
+load(fabCtx, "store.js");
+load(fabCtx, "utils.js");
+const fabDb = fabCtx.Store.domainBuyers();
+ok("手写工作台时期的存量客户在共享内核可见（切换不丢）", fabDb.length === 1 && fabDb[0].name === "LegacyFab", fabDb.map(b => b.name));
+ok("存量客户按命名空间归属打面料域标签（不是遗留行李箱域）", fabDb[0].domainId === "functional-fabric", fabDb[0].domainId);
+ok("存量跟进可见且归本域", fabCtx.Store.domainFollowups().length === 1 && fabCtx.Store.domainFollowups()[0].domainId === "functional-fabric");
+const migrated = JSON.parse(fabCtx.localStorage.getItem("dd.fabric.v1"));
+ok("一次性迁移补上 seedV/persona（内核 accept 这个 blob）", migrated.seedV === "v4-w4-fresh2" && !!migrated.persona && Array.isArray(migrated.deletedIds));
+const before2 = fabCtx.localStorage.getItem("dd.fabric.v1");
+load(fabCtx, "fabric/fabric-seed.js");
+ok("迁移幂等（重跑种子不再动数据）", fabCtx.localStorage.getItem("dd.fabric.v1") === before2);
+fabCtx.Store.addBuyer({ name: "NewFab", country: "意大利", qty: "1000 米", scope: "fabric" });
+const fMem = fabCtx.localStorage._mem;
+ok("面料工作台写入只落 dd.fabric.v1", fMem["dd.fabric.v1"] !== undefined && fMem["dealdesk.data.v1"] === undefined, Object.keys(fMem));
+ok("新建客户带面料域标签、阶段管道是 7 段", fabCtx.Store.domainBuyers().length === 2 && fabCtx.Mock.STAGES.length === 7, fabCtx.Mock.STAGES);
+
+/* -- 版本一致性：两个入口 HTML 与 version.js 同步 -- */
+const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d+\.\d+\.\d+)"/);
+const curV = verM ? verM[1] : "";
+ok("根入口与面料入口 HTML 全量当前版本（无上一版残留引用）", curV !== "" && ["index.html", "fabric/index.html"].every(h => {
+  const s = fs.readFileSync(__dirname + "/" + h, "utf8");
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0;
+}), curV);
+
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);

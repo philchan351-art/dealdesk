@@ -4,7 +4,10 @@
  */
 (function () {
   "use strict";
-  var KEY = "dealdesk.data.v1";
+  /* 2026-11-10 共享内核切换（Phil「共享内核，直接做」）：数据命名空间参数化。
+     默认值 = 原 key，主工作台逐字节零变化；面料入口的 fabric-boot.js 声明
+     window.DEALDESK_KEY 换到 dd.fabric.v1。本行是本次发版对冻结行李箱代码的唯一改动。 */
+  var KEY = window.DEALDESK_KEY || "dealdesk.data.v1";
   var VERSION = 1;
   var SEED_V = "v4-w4-fresh2"; // 种子数据版本：结构变化时递增，旧本地数据自动重建（w4-fresh2：清除 W4 验证产生的测试买家，试用起步）
   var seed = window.Mock; // mock.js 作为种子数据
