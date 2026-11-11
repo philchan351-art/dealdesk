@@ -293,8 +293,8 @@ const fabHtml = fs.readFileSync(__dirname + "/fabric.html", "utf8");
 ok("旧入口 fabric.html 是纯重定向页（不加载任何脚本）", !/<script/.test(fabHtml));
 ok("重定向目标为新面料工作台 fabric/index.html", /url=fabric\/index\.html/.test(fabHtml));
 ok("旧入口文件已退役（fabric-boot.js / domain-seed.js 不再存在）", !fs.existsSync(__dirname + "/fabric-boot.js") && !fs.existsSync(__dirname + "/domain-seed.js"));
-const idxHtml = fs.readFileSync(__dirname + "/index.html", "utf8");
-ok("index.html 仍加载行李箱模块（现网未受影响）", /mock\.js\?v=/.test(idxHtml) && /turns\.js\?v=/.test(idxHtml));
+const wbHtml = fs.readFileSync(__dirname + "/workbench.html", "utf8");
+ok("电动行李箱主入口（workbench.html，v1.16.0 起）仍加载全套行李箱模块", /mock\.js\?v=/.test(wbHtml) && /turns\.js\?v=/.test(wbHtml));
 console.log("\n[15] 入口与账号错配必须被拦住");
 const mm = boot("e-scooter");
 mm.DEAL_DOMAIN_ENTRY = "functional-fabric";
@@ -329,8 +329,8 @@ ok("retag 返回受影响条数（客户+跟进）", typeof rp.Store.retagBuyers
 
 console.log("\n[17] 入口即边界：行李箱入口声明自己的域，并指向新的面料独立工作台");
 const idxBoot = fs.readFileSync(__dirname + "/domain-boot.js", "utf8");
-const idxScripts = [...fs.readFileSync(__dirname + "/index.html", "utf8").matchAll(/<script src="([^"?]+)/g)].map(x => x[1]);
-ok("index.html 第一个脚本是入口声明", idxScripts[0] === "domain-boot.js", idxScripts[0]);
+const idxScripts = [...fs.readFileSync(__dirname + "/workbench.html", "utf8").matchAll(/<script src="([^"?]+)/g)].map(x => x[1]);
+ok("workbench.html 第一个脚本是入口声明", idxScripts[0] === "domain-boot.js", idxScripts[0]);
 ok("index.html 声明的是电动行李箱域", /DEAL_DOMAIN_ENTRY\s*=\s*"e-scooter"/.test(idxBoot));
 ok("行李箱侧「走错入口」卡指向新面料工作台 fabric/index.html", /fabric\/index\.html/.test(idxBoot));
 const swap = boot("functional-fabric");
@@ -396,10 +396,30 @@ ok("新建客户带面料域标签、阶段管道是 7 段", fabCtx.Store.domain
 /* -- 版本一致性：两个入口 HTML 与 version.js 同步 -- */
 const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d+\.\d+\.\d+)"/);
 const curV = verM ? verM[1] : "";
-ok("根入口与面料入口 HTML 全量当前版本（无上一版残留引用）", curV !== "" && ["index.html", "fabric/index.html"].every(h => {
+ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0;
 }), curV);
+
+console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
+const landSrc = fs.readFileSync(__dirname + "/index.html", "utf8");
+ok("根入口现在是选择页（零内核脚本加载）", landSrc.indexOf("landing.js") >= 0 && !/<script src="[^"]*(app\.js|store\.js|domain\.js|mock\.js)[^"]*"/.test(landSrc));
+ok("选择页给两条业务线入口", landSrc.indexOf('href="workbench.html"') >= 0 && landSrc.indexOf('href="fabric/index.html"') >= 0);
+const wbSrc = fs.readFileSync(__dirname + "/workbench.html", "utf8");
+ok("电动行李箱工作台 = 原主入口内容（仍声明行李箱入口＋加载全套行李箱模块）", wbSrc.indexOf("domain-boot.js") >= 0 && wbSrc.indexOf("mock.js") >= 0 && wbSrc.indexOf("kb.js") >= 0 && wbSrc.indexOf("turns.js") >= 0);
+ok("切换业务线链接两个工作台都有", wbSrc.indexOf('href="index.html"') >= 0 && fs.readFileSync(__dirname + "/fabric/index.html", "utf8").indexOf('href="../index.html"') >= 0);
+/* 跳转行为：绑定域决定工作台（与内核 entryState 同口径）；未登录/老账号→停留选择页 */
+const l1 = makeCtx();
+load(l1, "landing.js");
+ok("未登录 → 停留选择页", l1.LandingRedirect() === null);
+l1.localStorage.setItem("dealdesk.auth.v1", JSON.stringify({ name: "cherry", domainId: "e-scooter" }));
+ok("行李箱绑定账号 → 电动行李箱工作台", l1.LandingRedirect() === "workbench.html");
+l1.localStorage.setItem("dealdesk.auth.v1", JSON.stringify({ name: "fb-luo", domainId: "functional-fabric" }));
+ok("面料绑定账号 → 面料工作台", l1.LandingRedirect() === "fabric/index.html");
+l1.localStorage.setItem("dealdesk.auth.v1", JSON.stringify({ name: "old", domainId: "" }));
+ok("未绑域老账号 → 停留选择页（绑定由内核登录后完成）", l1.LandingRedirect() === null);
+l1.localStorage.setItem("dealdesk.auth.v1", "{broken json");
+ok("登录态损坏 → 停留选择页不抛错", l1.LandingRedirect() === null);
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);

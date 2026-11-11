@@ -3,109 +3,73 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<!-- P0（XSS 兜底）：禁止任何内联脚本/事件处理器——客户消息里就算藏了 <img onerror> 也执行不了 -->
+<!-- 与工作台同一套 CSP：禁止任何内联脚本/事件处理器 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
-<title>谈单舱 DealPilot · B2B 谈单工作台</title>
-<meta name="theme-color" content="#EFB530"/>
-<meta name="description" content="谈单舱 DealPilot · B2B 外贸谈单工作台：一屏看清谁在等你，买家管理、意向分级、报价跟踪、AI 回复建议。"/>
-<!-- 添加到主屏幕后按 App 方式运行（全屏、无浏览器栏） -->
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-<meta name="apple-mobile-web-app-title" content="谈单舱"/>
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.15.0"/>
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=1.15.0"/>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1.15.0"/>
-<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png?v=1.15.0"/>
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.15.0"/>
-<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=1.15.0"/>
-<link rel="manifest" href="manifest.json?v=1.15.0"/>
-<link rel="stylesheet" href="tokens.css?v=1.15.0"/>
-<link rel="stylesheet" href="base.css?v=1.15.0"/>
-  <link rel="stylesheet" href="components.css?v=1.15.0"/>
-  <link rel="stylesheet" href="screens.css?v=1.15.0"/>
+<title>谈单舱 · 选择业务线</title>
+<meta name="theme-color" content="#B97516"/>
+<meta name="description" content="谈单舱 · 先选业务线（电动行李箱 / 功能性面料），再进入对应工作台。两条业务线数据完全分开。"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.16.0"/>
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=1.16.0"/>
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1.16.0"/>
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png?v=1.16.0"/>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.16.0"/>
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=1.16.0"/>
+<style>
+  /* 落地选择页自带样式，不加载任何内核 CSS：首屏零内核面，选完立刻走人 */
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:linear-gradient(160deg,#f8f4ed 0%,#efe6d8 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;
+       font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;padding:24px 16px}
+  .l-card{background:#fff;border-radius:20px;box-shadow:0 12px 40px rgba(90,70,40,.14);max-width:460px;width:100%;padding:28px 24px 22px}
+  .l-brand{display:flex;align-items:center;gap:10px}
+  .l-brand img{width:40px;height:40px;border-radius:10px}
+  .l-brand b{font-size:17px;color:#3a3a35}
+  .l-brand small{display:block;color:#8a8a80;font-size:12px}
+  h1{font-size:20px;color:#2e2e2a;margin:18px 0 6px}
+  .l-sub{font-size:13px;color:#8a8a80;line-height:1.6;margin-bottom:14px}
+  .l-dom{display:flex;align-items:center;gap:12px;border:1.5px solid #e8e2d6;border-radius:14px;padding:13px 14px;margin-bottom:10px;
+        text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s,transform .15s}
+  .l-dom:hover{border-color:#B97516;box-shadow:0 6px 18px rgba(185,117,22,.16);transform:translateY(-1px)}
+  .l-dom.fab:hover{border-color:#0f8f6b;box-shadow:0 6px 18px rgba(15,143,107,.16)}
+  .l-ic{flex:0 0 40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff}
+  .l-dom b{font-size:15px;display:block}
+  .l-dom small{display:block;color:#8a8a80;font-size:12px;line-height:1.5;margin-top:3px}
+  .l-dom .go{margin-left:auto;color:#b6b0a4;font-size:18px}
+  .l-foot{margin-top:14px;font-size:12px;color:#a09a8e;line-height:1.8}
+  .l-foot a{color:#8a7a5f}
+</style>
 </head>
 <body>
-<div class="stage">
-  <div class="stage-side" aria-hidden="true">
-    <div class="side-brand">
-      <div class="side-mark">TD</div>
-      <div>
-        <div class="side-name">DealPilot</div>
-        <div class="side-cn">谈单舱 · B2B 谈单工作台</div>
-      </div>
-    </div>
-    <ul class="side-feats">
-      <li><i></i>买家管理与意向分级</li>
-      <li><i></i>报价与谈单阶段跟踪</li>
-      <li><i></i>沟通记录与跟进提醒</li>
-      <li><i></i>询盘转化数据看板</li>
-      <li><i></i>AI 回复建议</li>
-    </ul>
-    <div class="side-foot">一屏看清谁在等你<br/>模块化架构 · 支持持续迭代</div>
+<div class="l-card">
+  <div class="l-brand">
+    <img src="logo.jpg?v=51" alt="谈单舱"/>
+    <div><b>谈单舱 · DealPilot</b><small>一个谈单舱，B2B 谈单到成交</small></div>
   </div>
+  <h1>你这次要进哪条业务线？</h1>
+  <div class="l-sub">两个工作台同一个谈单舱，但数据、资料、话术完全分开。<br/>选好后进入对应工作台，登录 / 注册都在这一步完成。</div>
 
-  <div class="phone">
-    <div class="phone-cam" aria-hidden="true"></div>
-    <div class="statusbar">
-      <span class="sb-time">9:41</span>
-      <span class="sb-ico">
-        <i class="sig"><b></b><b></b><b></b></i>
-        <i class="batt"><b></b></i>
-      </span>
-    </div>
-    <main id="screen" class="screen" aria-live="polite"></main>
-    <button class="fab" id="fabLog">＋ 记一条</button>
-    <div class="sheet-backdrop" id="logSheet" hidden></div>
-    <div class="sheet-backdrop" id="buyerSheet" hidden></div>
-    <nav class="tabbar">
-      <a class="tab" data-tab="home" href="#/home">
-        <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>看板</span>
-      </a>
-      <a class="tab" data-tab="buyers" href="#/buyers">
-        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2c2.6.2 4.6 1.8 5.3 4.4"/></svg><span>买家</span>
-      </a>
-      <a class="tab" data-tab="deals" href="#/deals">
-        <svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="8" cy="8" r="1.6"/></svg><span>谈单</span>
-      </a>
-      <a class="tab" data-tab="followup" href="#/followup">
-        <svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9Z"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/></svg><span>跟进</span>
-      </a>
-    </nav>
+  <a class="l-dom" href="workbench.html">
+    <span class="l-ic" style="background:#B97516">箱</span>
+    <span>
+      <b style="color:#B97516">电动行李箱工作台</b>
+      <small>Titan 产品线 · 6 段管道 · 回合库 / 句式库 / 资料注入全开（成熟期）</small>
+    </span>
+    <span class="go">›</span>
+  </a>
+
+  <a class="l-dom fab" href="fabric/index.html">
+    <span class="l-ic" style="background:#0f8f6b">料</span>
+    <span>
+      <b style="color:#0f8f6b">功能性面料工作台</b>
+      <small>7 段管道（规格确认 → 寄样 → 测试 → 试单 → 大货报价 → 首单） · 学徒期，AI 只草拟</small>
+    </span>
+    <span class="go">›</span>
+  </a>
+
+  <div class="l-foot">
+    已登录过的账号会自动直达所绑业务线（一人一线，不再重复选）；换线先在工作台退出登录。<br/>
+    改账号的业务线归属，由管理员在「设置 → 成员」里调整。 · <a href="manual.html?v=55">2 分钟使用手册</a>
   </div>
-
-  <div class="stage-cap">谈单舱 DealPilot · 一屏看清谁在等你</div>
 </div>
-
-<script src="domain-boot.js?v=1.15.0"></script>
-<script src="version.js?v=1.15.0"></script>
-<script src="mock.js?v=1.15.0"></script>
-<script src="domain.js?v=1.15.0"></script>
-<script src="country-profiles.js?v=1.15.0"></script>
-  <script src="store.js?v=1.15.0"></script>
-  <script src="docextract.js?v=1.15.0"></script>
-<script src="utils.js?v=1.15.0"></script>
-<script src="kb.js?v=1.15.0"></script>
-<script src="turns.js?v=1.15.0"></script>
-<script src="skills.js?v=1.15.0"></script>
-<script src="prompts.js?v=1.15.0"></script>
-  <script src="llm.js?v=1.15.0"></script>
-  <script src="sync.js?v=1.15.0"></script>
-  <script src="voice.js?v=1.15.0"></script>
-  <script src="components.js?v=1.15.0"></script>
-  <script src="home.js?v=1.15.0"></script>
-<script src="buyers.js?v=1.15.0"></script>
-<script src="buyer-detail.js?v=1.15.0"></script>
-<script src="deals.js?v=1.15.0"></script>
-<script src="followup.js?v=1.15.0"></script>
-  <script src="settings.js?v=1.15.0"></script>
-<script src="log-sheet.js?v=1.15.0"></script>
-<script src="buyer-sheet.js?v=1.15.0"></script>
-<script src="app.js?v=1.15.0"></script>
+<script src="landing.js?v=1.16.0"></script>
 </body>
 </html>
-
-
-
-
-
