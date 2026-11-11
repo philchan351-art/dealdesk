@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -438,6 +438,24 @@ ok("换账号登录 → 不受他人绑定影响，所选线生效", l2.LandingR
 ok("无共享设置 → 内置默认云地址", l2.LandingFcUrl() === "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run");
 l2.localStorage.setItem("dealdesk.settings.v1", JSON.stringify({ cloud: { proxyUrl: "https://example.cn.fcapp.run/" } }));
 ok("共享设置有云地址 → 使用它", l2.LandingFcUrl() === "https://example.cn.fcapp.run/");
+
+console.log("\n[20] 退出账号后回选线（v1.18.0）：一个人做两个项目，退出必回到选线");
+const owCtx = makeCtx();
+load(owCtx, "logout-watch.js");
+ok("行李箱工作台 → 选线页是根 index.html", owCtx.LogoutWatch.landingFor("/dealdesk/workbench.html") === "index.html");
+ok("面料工作台（子目录）→ 选线页回上一层", owCtx.LogoutWatch.landingFor("/dealdesk/fabric/index.html") === "../index.html");
+ok("根路径/其它路径 → index.html", owCtx.LogoutWatch.landingFor("/dealdesk/index.html") === "index.html" && owCtx.LogoutWatch.landingFor("/") === "index.html");
+const st1 = {};
+ok("匿名直达工作台不被赶走（从未有登录态）", owCtx.LogoutWatch.shouldLeave(st1, null) === false);
+ok("登录后仍在（记 hadAuth）", owCtx.LogoutWatch.shouldLeave(st1, { session: "s1" }) === false && st1.hadAuth === true);
+ok("登录态消失 → 回选线", owCtx.LogoutWatch.shouldLeave(st1, null) === true);
+const st2 = { hadAuth: true };
+ok("页面加载时已登录、随后退出 → 回选线", owCtx.LogoutWatch.shouldLeave(st2, null) === true);
+const wb3 = fs.readFileSync(__dirname + "/workbench.html", "utf8");
+const fi3 = fs.readFileSync(__dirname + "/fabric/index.html", "utf8");
+ok("两个工作台入口都加载 logout-watch.js（app.js 之后）", wb3.indexOf("logout-watch.js") >= 0 && wb3.indexOf("logout-watch.js") > wb3.indexOf("app.js") && fi3.indexOf("../logout-watch.js") >= 0 && fi3.indexOf("../logout-watch.js") > fi3.indexOf("../app.js"));
+const land3 = fs.readFileSync(__dirname + "/index.html", "utf8");
+ok("选线页写明「两条线用独立账号、退出回本页选线」机制", land3.indexOf("独立账号") >= 0 && land3.indexOf("回到本页选线") >= 0);
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);
