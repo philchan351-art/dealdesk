@@ -295,7 +295,9 @@
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* 买家列表：姓名后的国家标签（2026-10-15） */
-.b-country{font-size:11px;font-weight:400;color:var(--ink-faint);background:var(--surface-2);border:1px solid var(--line);padding:1px 7px;border-radius:8px;vertical-align:1px}
+/* v1.21.0：国家角标不许折行（Phil 实测「新西兰」被挤成三行）——卡片行被长名字压缩时
+   角标保持一行，宁可挤名字（名字本来就有省略号），也不能把国家名拆行 */
+.b-country{font-size:11px;font-weight:400;color:var(--ink-faint);background:var(--surface-2);border:1px solid var(--line);padding:1px 7px;border-radius:8px;vertical-align:1px;white-space:nowrap}
 
 /* 新客话术播放器卡（2026-10-15） */
 .sp-hint{margin:8px 0 2px;font-size:12px;line-height:1.6;background:#FFF7E8;border:1px solid #FFD591;border-radius:10px;padding:8px 10px;color:#8a6d1a}

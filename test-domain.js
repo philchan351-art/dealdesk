@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -474,8 +474,15 @@ ok("busy 锁：进行中按钮禁用＋文案变更防并发上传", bsh.indexOf
 ok("弹窗打开期间防二次唤起＋3 分钟兜底", bsh.indexOf("fbpImgIn.disabled = true") >= 0 && bsh.indexOf("180000") >= 0);
 const smk21 = makeCtx();
 let smkErr21 = null;
-try { load(smk21, "country-profiles.js"); load(smk21, "buyer-sheet.js"); } catch (e) { smkErr21 = e; }
+try { load(smk21, "country-profiles.js"); load(smk21, "buyer-sheet.js"); } catch (e) { smk21 = null; smkErr21 = e; }
 ok("buyer-sheet.js 加载冒烟（假 DOM 不抛异常）", smk21 !== null && smkErr21 === null, smkErr21 && String(smkErr21.message));
+
+console.log("\n[22] 买家卡片·国家角标不折行（v1.21.0）：「新西兰」被挤成三行 → 角标保一行、压缩名字");
+const css22 = fs.readFileSync(__dirname + "/components.css", "utf8");
+const bCountryRule = (css22.match(/\.b-country\{[^}]*\}/) || [""])[0];
+ok(".b-country 带 white-space:nowrap（角标不许折行）", bCountryRule.indexOf("white-space:nowrap") >= 0, bCountryRule);
+const scr22 = fs.readFileSync(__dirname + "/screens.css", "utf8");
+ok("名字 bmid-top b 保留省略号（空间不够压名字不压国家）", /\.bmid-top b\{[^}]*text-overflow:ellipsis[^}]*\}/.test(scr22));
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);
