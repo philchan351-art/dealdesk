@@ -118,6 +118,9 @@
       at: new Date().toISOString(),
       way: o.way || ""
     };
+    /* 交接状态必须随消息落库：「已预填到 WhatsApp · 还没发送」的待确认态全靠它 */
+    if (o.status) m.status = o.status;
+    if (o.sentAt) m.sentAt = o.sentAt;
     if (!m.text) return null;
     b.messages.push(m);
     b.updatedAt = new Date().toISOString();

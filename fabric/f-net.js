@@ -104,6 +104,26 @@
         messages: [{ role: "system", content: system }, { role: "user", content: user }],
         temperature: 0.4, max_tokens: 600, stream: false
       }, { "x-dealdesk-nodocs": "1" }, 60000);
+    },
+
+    /* 中文对照通道（Phil 规范：英文必附中文对照，不让人手动翻）：
+       客户消息与我方英文消息统一自动补中文；保留原文中的中文只译外文 */
+    translate: function (text) {
+      if (!session()) return Promise.reject(new Error("还没登录，先登录面料账号"));
+      return post("/llm", {
+        model: "qwen-flash",
+        messages: [
+          { role: "system", content: "你是翻译引擎。把用户给的文字翻译成简体中文。原文中的中文保留不动，只译外文部分；专业术语准确。只输出译文本身，不要解释、不要前后缀。" },
+          { role: "user", content: String(text || "").slice(0, 2000) }
+        ],
+        temperature: 0.1, max_tokens: 700, stream: false
+      }, { "x-dealdesk-nodocs": "1" }, 45000);
+    },
+
+    /* /llm 返回体兼容：text / content / choices 三种形状都取得到 */
+    pickText: function (j) {
+      var c = j && (j.text || j.content || (j.choices && j.choices[0] && (j.choices[0].text || (j.choices[0].message || {}).content)));
+      return String(c == null ? "" : c);
     }
   };
 })(window);

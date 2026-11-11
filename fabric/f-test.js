@@ -183,7 +183,7 @@ let L = null, lerr = null;
 try { L = loadAll(); } catch (e) { lerr = e; }
 ok("* 全部模块加载期不抛异常", lerr === null, lerr && String(lerr.message));
 if (L) {
-  ["home", "buyers", "newBuyer", "detail", "backup", "followup", "login", "draftCard"].forEach(function (k) {
+  ["home", "buyers", "newBuyer", "detail", "backup", "followup", "deals", "login"].forEach(function (k) {
     ok("页面已注册 " + k, typeof L.g.Pages[k] === "function");
   });
   const html = String(L.view.innerHTML);
@@ -201,6 +201,22 @@ if (L) {
   ok("未登录时无会话→出稿通道会明确拒绝而不是静默", L.g.FabricNet.session() === "");
   ok("云地址内置默认：hasCloud=true 且无需手填", L.g.FabricNet.hasCloud() === true && L.g.FabricNet.cfg().proxyUrl === "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run");
   ok("导入函数已移除（不再引用另一条线）", typeof L.g.FabricNet.borrowCfg === "undefined");
+  ok("f-net 有中文对照通道 translate/pickText", typeof L.g.FabricNet.translate === "function" && typeof L.g.FabricNet.pickText === "function");
+  ok("pickText 兼容三种返回形状", L.g.FabricNet.pickText({ text: "A" }) === "A" && L.g.FabricNet.pickText({ content: "B" }) === "B" && L.g.FabricNet.pickText({ choices: [{ message: { content: "C" } }] }) === "C");
+
+  /* ---------- 对话框内核（与主工作台同结构，大脑只用本线） ---------- */
+  ok("气泡函数就位（详情渲染与外科替换共用）", typeof L.g.F.bubble === "function" && typeof L.g.F.mtime === "function");
+  L.g.FabricStore.addMessage(fuBuyer.id, "Hi, do you have waterproof 150D?", "", { from: "buyer" });
+  L.g.FabricStore.addMessage(fuBuyer.id, "Yes, what GSM and width do you need?", "有的，请问克重和门幅需求？", { from: "me", status: "handed" });
+  const dHtml = String(L.g.Pages.detail(L.g.FabricStore.getBuyer(fuBuyer.id)));
+  ok("客户详情是对话框页（对话区+记客户+记我发+AI 回复）", dHtml.indexOf("fMsgs") >= 0 && dHtml.indexOf("wa-chat") >= 0 && dHtml.indexOf("log-buyer") >= 0 && dHtml.indexOf("log-me") >= 0 && dHtml.indexOf("btnReply") >= 0);
+  ok("气泡双侧渲染 + 交接待确认态", dHtml.indexOf("msg-buyer") >= 0 && dHtml.indexOf("msg-me") >= 0 && dHtml.indexOf("handed-bar") >= 0 && dHtml.indexOf("waterproof 150D") >= 0);
+  const stMsg = L.g.FabricStore.getBuyer(fuBuyer.id).messages[1];
+  ok("交接消息落库时保留 handed 状态（预填未发的确认流程靠它）", stMsg.status === "handed");
+  const deHtml = String(L.g.Pages.deals());
+  ok("成交页渲染（空态有口径说明）", deHtml.indexOf("成交") >= 0 && deHtml.indexOf("FuTest") < 0);
+  L.g.FabricStore.markDeal(fuBuyer.id, "样品定金确认");
+  ok("标成交后成交页能显示", String(L.g.Pages.deals()).indexOf("FuTest") >= 0);
   ok("面料会话/配置只用自己的 key，不读另一条线的存储",
     L.g.FabricNet.CFG_KEY === "dd.fabric.cfg.v1" && L.g.FabricNet.AUTH_KEY === "dd.fabric.auth.v1");
 }
