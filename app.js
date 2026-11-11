@@ -231,6 +231,37 @@
     var out = document.getElementById("mmOut");
     if (out) out.addEventListener("click", function () { Auth.clear(); location.hash = "#/"; renderAuth(); });
   }
+  /* v1.20.0 云槽线不符卡：该账号的云端数据属于另一条业务线（按云端槽内容判定，
+     不是本地绑定——本地绑定会被历史登录翻转，2026-11-10 Phil 实测即栽在这）。
+     数据一个都没 apply（app.js 在 pull 回调里拦在 applySnapshot 之前）；本机已被
+     污染的命名空间先清掉，再说明情况。不清登录态：让用户读完说明，
+     「回选线页」是唯一出口（选线页 → 给这条线注册专属账号 = 全新世界）。 */
+  function renderSlotConflict(slotLine, server) {
+    try { if (Store.wipeLocal) Store.wipeLocal(); } catch (e) {}
+    var el = $("#screen");
+    el.classList.remove("detail");
+    var a = Auth.get() || {};
+    var dom = (window.DealDomain && DealDomain.get) ? DealDomain.get(slotLine) : null;
+    var slotName = dom ? dom.name : (slotLine || "另一条业务线");
+    var here = (window.DealDomain && DealDomain.get && window.DEAL_DOMAIN_ENTRY) ? DealDomain.get(window.DEAL_DOMAIN_ENTRY) : null;
+    var hereName = here ? here.name : "本业务线";
+    var root = String(location.pathname).indexOf("/fabric") >= 0 ? "../index.html" : "index.html";
+    var n = (server && server.buyers && server.buyers.length) ? server.buyers.length : 0;
+    el.innerHTML = '<div class="auth-wrap"><div class="auth-brand">' +
+      '<div class="auth-logo"><img src="logo.jpg?v=51" alt="谈单舱"/></div>' +
+      '<h1>该账号属于另一条业务线</h1><p>' + escHtml(hereName) + '</p></div>' +
+      '<div class="card" style="margin:0 16px"><div class="ctx-card">' +
+      '<div class="ctx-title">账号「' + escHtml(a.name || "") + '」的云端数据属于「' + escHtml(slotName) + '」线' + (n ? "（" + n + " 位客户）" : "") + '</div>' +
+      '<div class="set-note" style="margin-top:8px">两条业务线的客户、话术与资料完全独立，同一个账号只能服务其中一条线——混用会把两边的云端数据互相覆盖。' +
+      '要在「' + escHtml(hereName) + '」工作，请回选线页给这条线注册一个专属账号（首次用这条线需要团队口令）——全新的工作台、零客户，与另一条线互不干扰。</div>' +
+      '<button class="auth-btn" id="scBack" style="margin-top:12px">回选线页</button>' +
+      '</div></div></div>';
+    document.title = "谈单舱 · 账号业务线不符";
+    var p = phoneEl();
+    if (p) p.classList.add("auth-on");
+    var b = document.getElementById("scBack");
+    if (b) b.addEventListener("click", function () { Auth.clear(); location.replace(root); });
+  }
 
   function renderDomainPicker() {
     var el = $("#screen");
@@ -294,8 +325,20 @@
       var es = DealDomain.entryState ? DealDomain.entryState() : { state: "none" };
       /* 走错入口：账号绑的是另一条业务线。这里必须拦住——让行李箱账号进面料工作台，
          等于把两个域的数据摆在同一屏上，正是 Phil 要根治的那个现象 */
-      if (es.state === "mismatch") { renderEntryMismatch(es); return; }
-      var a0 = Auth.get() || {};
+       if (es.state === "mismatch") { renderEntryMismatch(es); return; }
+       /* v1.20.0 云槽线归属预检（同步、渲染前）：本设备已记过"当前账号的云数据属于另一条线"
+          → 还没画任何客户就拦下。上次"行李箱账号进面料工作台，老客户先闪一屏"的漏网正在这：
+          entryState 只看本地绑定（会被历史登录翻转），云槽内容才是事实。按账号 key 绑定记忆，
+          同设备换过账号不误拦。 */
+       if (DealDomain.slotConflict && Store.getSlotOwner) {
+         var so0 = Store.getSlotOwner();
+         var au0 = Auth.get() || {};
+         if (so0 && so0.line && so0.key === (au0.key || "")) {
+           var clash0 = DealDomain.slotConflict({ line: so0.line }, window.DEAL_DOMAIN_ENTRY);
+           if (clash0) { renderSlotConflict(clash0, null); return; }
+         }
+       }
+       var a0 = Auth.get() || {};
       /* 独立入口自带业务域：没绑过就直接按入口绑，不再让新同事猜 */
       if (es.state === "unbound" && es.entry) {
         a0.domainId = es.entry;
@@ -319,6 +362,18 @@
     nav();
     if (window.Sync && Sync.enabled()) {
       Sync.pull().then(function (server) {
+        /* v1.20.0 云槽线归属终审（拉到了数据、apply 之前）：该账号的云槽属于另一条线 →
+           不 apply、清本机污染、出说明卡、记住事实（下次渲染前就拦）。
+           行李箱线零行为变化：无 line 的存量槽 = e-scooter，与主工作台入口一致，恒放行；
+           空槽 = 未占有，放行后首次推送即打上本入口的线戳（入口即身份）。 */
+        if (window.DealDomain && DealDomain.slotConflict) {
+          var clash = DealDomain.slotConflict(server, window.DEAL_DOMAIN_ENTRY);
+          if (clash) {
+            try { if (Store.rememberSlotLine) Store.rememberSlotLine((Auth.get() || {}).key || "", clash); } catch (e) {}
+            renderSlotConflict(clash, server);
+            return;
+          }
+        }
         /* 三种必须应用云端的情况：重新登录（本地刚清空）/ 本地是空的（防"卡空"）/ 云端更新
            修复（审计 M3）：cur 用"上次同步到的云端版本"(serverAt) 而非本机 savedAt——
            本机时钟偏快会让 server.updatedAt 永远不大于本地时间，导致这台设备再也拉不到新数据 */

@@ -388,6 +388,27 @@
     if (a.domainId === entry) return { entry: entry, state: "match" };
     return { entry: entry, state: "mismatch", accountDomain: a.domainId, accountName: a.name || "" };
   }
+  /* ===== 云端数据槽的线归属（v1.20.0，根治"行李箱账号进面料线还带着老客户"）=====
+     FC 的数据槽按账号唯一（users[key].data），两个工作台共用同一个槽——本地绑定
+     会被历史登录翻转（入口自动绑定/选线页残留），只有槽里的内容才是事实：
+     快照的 line 字段是槽的"线戳"（归属证书）。entryState 管的是"本地绑定"，
+     本组函数管的是"云端槽"，两层判据互补，缺任一层都会漏。
+     推断规则（landing.js 有同规则副本，test-domain [21] 断言两者逐条一致）：
+       有 line → 认它；无 line 但有客户 → e-scooter（面料线出现之前只有这一条线，事实推断）；
+       无 line 无客户 → 空槽 = 未占有，归先用哪个入口（入口即身份）。 */
+  function slotLineOf(server) {
+    if (!server || typeof server !== "object") return "";
+    if (typeof server.line === "string" && server.line) return server.line;
+    if (server.buyers && server.buyers.length) return "e-scooter";
+    return "";
+  }
+  /* 槽归属与入口线不一致 = 冲突（返回槽属线，供界面说明）；一致或空槽 = null（放行） */
+  function slotConflict(server, entry) {
+    var slot = slotLineOf(server);
+    if (!slot) return null;
+    var entryLine = (typeof entry === "string" && entry) ? entry : "e-scooter";
+    return slot === entryLine ? null : slot;
+  }
   function setAccount(account) {
     var id = account && account.domainId;
     if (!id) throw new Error("ACCOUNT_WITHOUT_DOMAIN: 账号 " + ((account && account.name) || "?") + " 未绑定业务域");
@@ -628,6 +649,8 @@
     bindFromStorage: bindFromStorage,
   entryState: entryState,
   entryId: function () { return window.DEAL_DOMAIN_ENTRY || null; },
+  slotLineOf: slotLineOf,
+  slotConflict: slotConflict,
     validatePack: validatePack,
     rejected: rejected,
     packs: packs,

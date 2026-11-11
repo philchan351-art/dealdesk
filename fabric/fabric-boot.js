@@ -17,3 +17,8 @@ window.DEAL_DOMAIN_ENTRY_LABEL = "功能性面料工作台";
 window.DEAL_DOMAIN_OTHER_ENTRY = "../index.html";
 /* 数据命名空间：本页只读写这个 key；主工作台不声明 → 走 store.js 默认值（原 key 不变） */
 window.DEALDESK_KEY = "dd.fabric.v1";
+/* v1.20.0 云槽线戳：本工作台推送的快照携带 line=functional-fabric（槽的归属证书）。
+   内核拉取时核对"该账号云端槽属于哪条线"与入口线是否一致，不一致当场拦下——
+   行李箱账号（槽无 line 或 line=e-scooter）进本页不会再拉到行李箱客户。
+   主工作台不声明此值 → 默认 e-scooter（本来的线，行为不变）。 */
+window.DEALDESK_LINE = "functional-fabric";

@@ -410,6 +410,8 @@
 .fbp-status{font-size:11px;line-height:1.5;margin-top:6px;color:var(--ink-faint);min-height:14px}
 .fbp-status.ok{color:var(--a)}
 .fbp-status.err{color:var(--hot)}
+/* v1.20.0：上传/识别等待态——14px 加粗主题色，一眼可见（Phil「等待中要很明确」） */
+.fbp-status.busy{font-size:14px;font-weight:600;color:var(--a)}
 .fbp-filled{border-color:var(--brand-deep);background:rgba(18,138,95,.07)}
 /* 表单截图识别行（2026-10-17） */
 .fbp-imgrow{display:flex;align-items:center;gap:8px;margin-top:8px}

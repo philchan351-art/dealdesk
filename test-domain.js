@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -461,6 +461,21 @@ const fi3 = fs.readFileSync(__dirname + "/fabric/index.html", "utf8");
 ok("两个工作台入口都加载 logout-watch.js（app.js 之后）", wb3.indexOf("logout-watch.js") >= 0 && wb3.indexOf("logout-watch.js") > wb3.indexOf("app.js") && fi3.indexOf("../logout-watch.js") >= 0 && fi3.indexOf("../logout-watch.js") > fi3.indexOf("../app.js"));
 const land3 = fs.readFileSync(__dirname + "/index.html", "utf8");
 ok("选线页写明「两条线用独立账号、退出回本页选线」机制", land3.indexOf("独立账号") >= 0 && land3.indexOf("回到本页选线") >= 0);
+
+console.log("\n[21] 新增买家·截图上传修复（v1.20.0）：等待态明确＋取消/失败后可再传");
+const bsh = fs.readFileSync(__dirname + "/buyer-sheet.js", "utf8");
+ok("按钮解锁统一走终态 end()（旧 st() 盲解锁已移除）", bsh.indexOf("function end(cls, msg)") >= 0 && bsh.indexOf("if (btn) btn.disabled = false;") < 0);
+ok("终态恢复按钮原文案", bsh.indexOf('btn.textContent = "📷 上传表单截图识别"') >= 0);
+ok("等待态显示 busy 状态行（14px 粗体）", bsh.indexOf('st("busy"') >= 0);
+const css21 = fs.readFileSync(__dirname + "/components.css", "utf8");
+ok(".fbp-status.busy 样式存在", css21.indexOf(".fbp-status.busy") >= 0);
+ok("选图弹窗不选图就关（cancel）→ 释放可再传", bsh.indexOf('"cancel"') >= 0 && bsh.indexOf("oncancel") >= 0);
+ok("busy 锁：进行中按钮禁用＋文案变更防并发上传", bsh.indexOf("fbpBusy") >= 0 && bsh.indexOf("⏳ 识别中…请稍候") >= 0);
+ok("弹窗打开期间防二次唤起＋3 分钟兜底", bsh.indexOf("fbpImgIn.disabled = true") >= 0 && bsh.indexOf("180000") >= 0);
+const smk21 = makeCtx();
+let smkErr21 = null;
+try { load(smk21, "country-profiles.js"); load(smk21, "buyer-sheet.js"); } catch (e) { smkErr21 = e; }
+ok("buyer-sheet.js 加载冒烟（假 DOM 不抛异常）", smk21 !== null && smkErr21 === null, smkErr21 && String(smkErr21.message));
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);

@@ -680,10 +680,18 @@
       return data.persona.docs;
     },
     snapshot: function () {
-      return { buyers: data.buyers, followups: data.followups, persona: data.persona, updatedAt: data.savedAt, deletedIds: data.deletedIds };
+      /* v1.20.0 线戳：快照推送进云槽时携带本工作台的业务线身份（内核拉取时核对槽归属）。
+         主工作台不声明 DEALDESK_LINE → 默认 e-scooter（本来的线，行为不变）；
+         这是快照顶层的元数据字段，客户记录本身一个字段都不动。 */
+      return { buyers: data.buyers, followups: data.followups, persona: data.persona, updatedAt: data.savedAt, deletedIds: data.deletedIds, line: (window.DEALDESK_LINE || "e-scooter") };
     },
     applySnapshot: function (snap) {
       if (!snap || !snap.buyers) return false;
+      /* v1.20.0：记下该账号云端槽的线归属（按账号 key 绑定，防止同设备换账号误拦）。
+         推断规则与 DealDomain.slotLineOf 一致：有 line 认 line，无 line 有客户 = e-scooter */
+      var ak = "";
+      try { var au = window.Auth && Auth.get(); ak = (au && au.key) || ""; } catch (e) {}
+      data.slotOwner = { key: ak, line: (typeof snap.line === "string" && snap.line) ? snap.line : ((snap.buyers && snap.buyers.length) ? "e-scooter" : "") };
       /* P0：云端墓碑并入本地黑名单（多设备删除同步） */
       if (snap.tombstones && typeof snap.tombstones === "object") {
         Object.keys(snap.tombstones).forEach(function (id) { tombAdd(id); });
@@ -719,6 +727,17 @@
       return true;
     },
     getServerAt: function () { return data.serverAt || ""; },
+    /* v1.20.0 云槽线归属记忆（按账号 key 绑定；只写本地，绝不上云——它是本设备的
+       拦截记忆，不是用户数据；换设备丢了也只是退回到"渲染后拦"，不会误拦别人） */
+    getSlotOwner: function () {
+      if (!data.slotOwner || !data.slotOwner.key) return null;
+      return { key: data.slotOwner.key, line: data.slotOwner.line || "" };
+    },
+    rememberSlotLine: function (key, line) {
+      if (!key) return; /* 空 key = 归属不清，宁可不记（误拦比漏拦轻） */
+      data.slotOwner = { key: key, line: line || "" };
+      saveLocal();
+    },
     toggleFollowup: function (fid, done) {
       for (var i = 0; i < data.followups.length; i++) {
         if (data.followups[i].id === fid) {

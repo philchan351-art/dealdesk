@@ -190,24 +190,33 @@
   }
 
   /* 表单截图识别：/import 视觉模型 → fields/convo 归一成 "标签: 值" 行 → 走既有 ruleParse，
-     与粘贴文字共用同一套字段映射/国家归一/要点沉淀（2026-10-17，零 FC 改动） */
-  function parseFormImage(file, bd, btn) {
+     与粘贴文字共用同一套字段映射/国家归一/要点沉淀（2026-10-17，零 FC 改动）
+     v1.20.0（Phil「等待中要很明确：字体小、没提示、还能上传；上传失败后第二次无法上传」）：
+     · 旧 st() 每次调用都无条件 btn.disabled=false——识别一启动就把点击时设置的"置灰防重"
+       解掉，5–15 秒等待期按钮可点，会发起第二次并发上传。现在按钮只由终态 end() 释放；
+     · 等待提示升级：14px 加粗 busy 状态行＋按钮文案「⏳ 识别中…请稍候」；
+     · 所有出口（缺配置/未登录/超限/读取失败/成功/失败）统一走 end()，经 finish 释放外层 busy 锁 */
+  function parseFormImage(file, bd, btn, finish) {
     var fbpSt = bd.querySelector('[data-act="fbp-status"]');
     function st(cls, msg) {
       if (fbpSt) { fbpSt.className = "fbp-status " + cls; fbpSt.textContent = msg; }
-      if (btn) btn.disabled = false;
     }
-    st("", "📷 图片识别中…（表单截图约 5–15 秒）");
+    function end(cls, msg) {
+      st(cls, msg);
+      if (btn) { btn.disabled = false; btn.textContent = "📷 上传表单截图识别"; }
+      if (finish) finish();
+    }
+    st("busy", "⏳ 图片上传识别中…约 5–15 秒，请勿关闭本页");
     var stt = (window.Store && Store.getSettings) ? (Store.getSettings() || {}) : {};
     var c = stt.llm || {}, cl = stt.cloud || {};
     var proxy = c.proxyUrl || cl.proxyUrl;
-    if (!proxy) { st("err", "未配置云同步/云代理，图片识别暂不可用（粘贴文字仍可用）"); return; }
+    if (!proxy) { end("err", "未配置云同步/云代理，图片识别暂不可用（粘贴文字仍可用）"); return; }
     var au = window.Auth && Auth.get();
-    if (!au || !au.session) { st("err", "请先登录后再使用图片识别"); return; }
-    if (file.size > 15 * 1048576) { st("err", "图片太大（单张 ≤15MB），请截图小一点"); return; }
+    if (!au || !au.session) { end("err", "请先登录后再使用图片识别"); return; }
+    if (file.size > 15 * 1048576) { end("err", "图片太大（单张 ≤15MB），请截图小一点"); return; }
     imgToB64(file, function (b64, fmt) {
-      if (!b64) { st("err", "图片读取失败，请换一张或改用粘贴文字"); return; }
-      if (b64.length > 4 * 1048576) { st("err", "图片压缩后仍超限，请重新截图（单屏一张最好）"); return; }
+      if (!b64) { end("err", "图片读取失败，请换一张或改用粘贴文字"); return; }
+      if (b64.length > 4 * 1048576) { end("err", "图片压缩后仍超限，请重新截图（单屏一张最好）"); return; }
       fetch(String(proxy).replace(/\/+$/, "") + "/import", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-dealdesk-session": au.session },
@@ -230,12 +239,12 @@
         }
         pendingCtx = r2.ctx || [];
         var filled = fillFields(r2.f, bd);
-        st(filled.length ? "ok" : "err",
+        end(filled.length ? "ok" : "err",
           (filled.length ? "✅ 图片识别：已填入 " + filled.length + " 个字段" : "⚠️ 图片识别：字段没对上，请检查截图") +
           (pendingCtx.length ? "，" + pendingCtx.length + " 条要点将存入档案（" + pendingCtx.map(function (cc) { return cc.k; }).join("、") + "）" : "") +
           (filled.length ? " —— 请核对后保存" : "，也可改用粘贴文字"));
       }).catch(function (e) {
-        st("err", "⚠️ 图片识别失败：" + String(e.message || e).slice(0, 60) + "（可改用粘贴文字）");
+        end("err", "⚠️ 图片识别失败：" + String(e.message || e).slice(0, 60) + "（可改用粘贴文字，也可直接再传一次）");
       });
     });
   }
@@ -409,21 +418,35 @@
         fbpBody.hidden = !fbpBody.hidden;
         fbpX.textContent = fbpBody.hidden ? "展开" : "收起";
       });
-      /* 表单截图识别（2026-10-17）：选图即开始，期间按钮置灰防重复 */
+      /* 表单截图识别（2026-10-17；v1.20.0 修两个真实 bug）：
+         ① 系统选图弹窗不选图就关掉（cancel）→ change 不触发 → 按钮永久置灰，"第二次无法上传"。
+            现在置灰状态由 input 自身携带（弹窗打开期间 input.disabled），change/cancel 都会释放，
+            另有 3 分钟兜底防"弹窗被系统吞掉"的极端情况；
+         ② 识别期间按钮可点（旧 st() 盲解锁）→ 等待期能发起第二次并发上传。
+            现在 busy 锁：进行中按钮禁用＋文案「⏳ 识别中…请稍候」，终态统一释放 */
       var fbpImgBtn = bd.querySelector('[data-act="fbp-img"]');
       var fbpImgIn = bd.querySelector("#fbpImg");
       if (fbpImgBtn && fbpImgIn) {
+        var fbpBusy = false;
         fbpImgBtn.addEventListener("click", function () {
-          if (fbpImgBtn.disabled) return;
-          fbpImgBtn.disabled = true;
+          if (fbpBusy || fbpImgIn.disabled) return;
+          fbpImgIn.disabled = true; /* 弹窗打开期间禁用 input，防二次唤起 */
           fbpImgIn.click();
+          setTimeout(function () { fbpImgIn.disabled = false; }, 180000); /* 兜底：弹窗被弃、change/cancel 都没来 */
         });
         fbpImgIn.addEventListener("change", function (e) {
           var f = e.target.files && e.target.files[0];
           e.target.value = "";
-          if (!f) { fbpImgBtn.disabled = false; return; }
-          parseFormImage(f, bd, fbpImgBtn);
+          fbpImgIn.disabled = false; /* 弹窗已关 */
+          if (!f || fbpBusy) return;
+          fbpBusy = true;
+          fbpImgBtn.disabled = true;
+          fbpImgBtn.textContent = "⏳ 识别中…请稍候";
+          parseFormImage(f, bd, fbpImgBtn, function () { fbpBusy = false; });
         });
+        if (typeof fbpImgIn.oncancel !== "undefined") {
+          fbpImgIn.addEventListener("cancel", function () { fbpImgIn.disabled = false; }); /* 取消选图 → 立即释放，可再传 */
+        }
       }
       fbpGo.addEventListener("click", function () {
         var ta = document.getElementById("fbpText");
