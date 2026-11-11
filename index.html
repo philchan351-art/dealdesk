@@ -7,34 +7,45 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <title>谈单舱 · 选择业务线</title>
 <meta name="theme-color" content="#B97516"/>
-<meta name="description" content="谈单舱 · 先选业务线（电动行李箱 / 功能性面料），再进入对应工作台。两条业务线数据完全分开。"/>
-<link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.16.0"/>
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=1.16.0"/>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1.16.0"/>
-<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png?v=1.16.0"/>
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.16.0"/>
-<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=1.16.0"/>
+<meta name="description" content="谈单舱 · 选择业务线（电动行李箱 / 功能性面料）并登录，直接进入对应工作台。两条业务线数据完全分开。"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.17.0"/>
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=1.17.0"/>
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1.17.0"/>
+<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png?v=1.17.0"/>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.17.0"/>
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=1.17.0"/>
 <style>
-  /* 落地选择页自带样式，不加载任何内核 CSS：首屏零内核面，选完立刻走人 */
+  /* 落地选择+登录页自带样式，不加载任何内核 CSS：首屏零内核面 */
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:linear-gradient(160deg,#f8f4ed 0%,#efe6d8 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;
        font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;padding:24px 16px}
-  .l-card{background:#fff;border-radius:20px;box-shadow:0 12px 40px rgba(90,70,40,.14);max-width:460px;width:100%;padding:28px 24px 22px}
+  .l-card{background:#fff;border-radius:20px;box-shadow:0 12px 40px rgba(90,70,40,.14);max-width:460px;width:100%;padding:26px 24px 20px}
   .l-brand{display:flex;align-items:center;gap:10px}
   .l-brand img{width:40px;height:40px;border-radius:10px}
   .l-brand b{font-size:17px;color:#3a3a35}
   .l-brand small{display:block;color:#8a8a80;font-size:12px}
-  h1{font-size:20px;color:#2e2e2a;margin:18px 0 6px}
-  .l-sub{font-size:13px;color:#8a8a80;line-height:1.6;margin-bottom:14px}
-  .l-dom{display:flex;align-items:center;gap:12px;border:1.5px solid #e8e2d6;border-radius:14px;padding:13px 14px;margin-bottom:10px;
-        text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s,transform .15s}
-  .l-dom:hover{border-color:#B97516;box-shadow:0 6px 18px rgba(185,117,22,.16);transform:translateY(-1px)}
-  .l-dom.fab:hover{border-color:#0f8f6b;box-shadow:0 6px 18px rgba(15,143,107,.16)}
+  h1{font-size:20px;color:#2e2e2a;margin:16px 0 6px}
+  .l-sub{font-size:13px;color:#8a8a80;line-height:1.6;margin-bottom:12px}
+  .l-dom{display:flex;align-items:center;gap:12px;border:1.5px solid #e8e2d6;border-radius:14px;padding:12px 14px;margin-bottom:9px;
+        cursor:pointer;user-select:none;transition:border-color .15s,box-shadow .15s,background .15s}
+  .l-dom:hover{transform:translateY(-1px)}
+  .l-dom.sel{background:#fdf9f3}
+  .l-dom[data-line="e-scooter"]:hover,.l-dom[data-line="e-scooter"].sel{border-color:#B97516;box-shadow:0 5px 16px rgba(185,117,22,.16)}
+  .l-dom[data-line="functional-fabric"]:hover,.l-dom[data-line="functional-fabric"].sel{border-color:#0f8f6b;box-shadow:0 5px 16px rgba(15,143,107,.16);background:#f3faf7}
   .l-ic{flex:0 0 40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff}
   .l-dom b{font-size:15px;display:block}
   .l-dom small{display:block;color:#8a8a80;font-size:12px;line-height:1.5;margin-top:3px}
-  .l-dom .go{margin-left:auto;color:#b6b0a4;font-size:18px}
-  .l-foot{margin-top:14px;font-size:12px;color:#a09a8e;line-height:1.8}
+  .l-tick{margin-left:auto;font-size:16px;font-weight:700;width:20px;text-align:center}
+  .l-form{border-top:1px dashed #e8e2d6;margin-top:14px;padding-top:12px}
+  .l-which{font-size:13px;font-weight:600;color:#5a5a52;margin-bottom:10px}
+  .l-lbl{display:block;font-size:12px;color:#8a8a80;margin:8px 0 4px}
+  .l-inp{width:100%;border:1.5px solid #ddd5c8;border-radius:10px;padding:9px 12px;font-size:14px;background:#fff;color:#3a3a35;outline:none}
+  .l-inp:focus{border-color:#B97516}
+  .l-new{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#8a8a80;margin-top:10px;cursor:pointer}
+  .l-go{width:100%;margin-top:12px;border:none;border-radius:12px;padding:11px 0;font-size:15px;font-weight:600;color:#fff;background:#b9b2a6;cursor:pointer}
+  .l-go:disabled{opacity:.6;cursor:default}
+  .l-msg{font-size:12px;color:#c0392b;min-height:18px;margin-top:8px;line-height:1.5}
+  .l-foot{margin-top:10px;font-size:11.5px;color:#a09a8e;line-height:1.8}
   .l-foot a{color:#8a7a5f}
 </style>
 </head>
@@ -44,32 +55,47 @@
     <img src="logo.jpg?v=51" alt="谈单舱"/>
     <div><b>谈单舱 · DealPilot</b><small>一个谈单舱，B2B 谈单到成交</small></div>
   </div>
-  <h1>你这次要进哪条业务线？</h1>
-  <div class="l-sub">两个工作台同一个谈单舱，但数据、资料、话术完全分开。<br/>选好后进入对应工作台，登录 / 注册都在这一步完成。</div>
+  <h1>你这次要接哪条线？</h1>
+  <div class="l-sub">选一条业务线，登录（或新账号注册），直接进入该线工作台。<br/>两条线的客户、数据、资料、话术完全分开。</div>
 
-  <a class="l-dom" href="workbench.html">
+  <div class="l-dom" data-line="e-scooter" role="button" tabindex="0">
     <span class="l-ic" style="background:#B97516">箱</span>
     <span>
       <b style="color:#B97516">电动行李箱工作台</b>
       <small>Titan 产品线 · 6 段管道 · 回合库 / 句式库 / 资料注入全开（成熟期）</small>
     </span>
-    <span class="go">›</span>
-  </a>
+    <span class="l-tick"></span>
+  </div>
 
-  <a class="l-dom fab" href="fabric/index.html">
+  <div class="l-dom" data-line="functional-fabric" role="button" tabindex="0">
     <span class="l-ic" style="background:#0f8f6b">料</span>
     <span>
       <b style="color:#0f8f6b">功能性面料工作台</b>
       <small>7 段管道（规格确认 → 寄样 → 测试 → 试单 → 大货报价 → 首单） · 学徒期，AI 只草拟</small>
     </span>
-    <span class="go">›</span>
-  </a>
+    <span class="l-tick"></span>
+  </div>
+
+  <div class="l-form">
+    <div class="l-which" id="lWhich">先在上面选一条线</div>
+    <label class="l-lbl" for="lName">账号</label>
+    <input class="l-inp" id="lName" type="text" autocomplete="username" placeholder="账号"/>
+    <label class="l-lbl" for="lPass">密码</label>
+    <input class="l-inp" id="lPass" type="password" autocomplete="current-password" placeholder="密码"/>
+    <label class="l-new"><input type="checkbox" id="lNew"/> 新账号（首次需要团队口令）</label>
+    <div id="lTokWrap" style="display:none">
+      <label class="l-lbl" for="lTok">团队口令</label>
+      <input class="l-inp" id="lTok" type="password" autocomplete="off" placeholder="找管理员要，不会保存"/>
+    </div>
+    <button class="l-go" id="lGo" type="button">登录，进入工作台</button>
+    <div class="l-msg" id="lMsg" role="alert"></div>
+  </div>
 
   <div class="l-foot">
-    已登录过的账号会自动直达所绑业务线（一人一线，不再重复选）；换线先在工作台退出登录。<br/>
+    本机登录过 → 打开根地址会直达所绑业务线（一人一线，看不到本页）；换线请先在工作台退出登录。<br/>
     改账号的业务线归属，由管理员在「设置 → 成员」里调整。 · <a href="manual.html?v=55">2 分钟使用手册</a>
   </div>
 </div>
-<script src="landing.js?v=1.16.0"></script>
+<script src="landing.js?v=1.17.0"></script>
 </body>
 </html>

@@ -398,13 +398,18 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
 const landSrc = fs.readFileSync(__dirname + "/index.html", "utf8");
 ok("根入口现在是选择页（零内核脚本加载）", landSrc.indexOf("landing.js") >= 0 && !/<script src="[^"]*(app\.js|store\.js|domain\.js|mock\.js)[^"]*"/.test(landSrc));
-ok("选择页给两条业务线入口", landSrc.indexOf('href="workbench.html"') >= 0 && landSrc.indexOf('href="fabric/index.html"') >= 0);
+ok("选择页给两条业务线选择卡（data-line）", landSrc.indexOf('data-line="e-scooter"') >= 0 && landSrc.indexOf('data-line="functional-fabric"') >= 0);
+const ljs = fs.readFileSync(__dirname + "/landing.js", "utf8");
+ok("选完路由到对应工作台（ROUTES）", ljs.indexOf("workbench.html") >= 0 && ljs.indexOf("fabric/index.html") >= 0);
+/* 登录与选线同屏（Phil「登入的时候，需要有个电动行李箱和面料选择」） */
+ok("登录表单在选择页上（账号/密码/新账号/团队口令/登录按钮）", ["lName", "lPass", "lNew", "lTok", "lGo"].every(id => landSrc.indexOf('id="' + id + '"') >= 0));
+ok("登录契约与内核一致（POST /login＋register 模式＋token）", ljs.indexOf('"/login"') >= 0 && ljs.indexOf('"register"') >= 0 && ljs.indexOf("body.token = tok") >= 0);
 const wbSrc = fs.readFileSync(__dirname + "/workbench.html", "utf8");
 ok("电动行李箱工作台 = 原主入口内容（仍声明行李箱入口＋加载全套行李箱模块）", wbSrc.indexOf("domain-boot.js") >= 0 && wbSrc.indexOf("mock.js") >= 0 && wbSrc.indexOf("kb.js") >= 0 && wbSrc.indexOf("turns.js") >= 0);
 ok("切换业务线链接两个工作台都有", wbSrc.indexOf('href="index.html"') >= 0 && fs.readFileSync(__dirname + "/fabric/index.html", "utf8").indexOf('href="../index.html"') >= 0);
@@ -420,6 +425,19 @@ l1.localStorage.setItem("dealdesk.auth.v1", JSON.stringify({ name: "old", domain
 ok("未绑域老账号 → 停留选择页（绑定由内核登录后完成）", l1.LandingRedirect() === null);
 l1.localStorage.setItem("dealdesk.auth.v1", "{broken json");
 ok("登录态损坏 → 停留选择页不抛错", l1.LandingRedirect() === null);
+/* 域优先级（与内核登录同口径）：服务端 > 同账号已有绑定 > 本次所选线 */
+const l2 = makeCtx();
+load(l2, "landing.js");
+l2.localStorage.setItem("dealdesk.auth.v1", JSON.stringify({ key: "cherry", name: "cherry", role: "admin", session: "s1", domainId: "e-scooter" }));
+ok("服务端（管理员）指定域优先于所选线", l2.LandingResolveDomain({ key: "cherry", domain: "functional-fabric" }, "e-scooter") === "functional-fabric");
+ok("同账号已有绑定不被所选线静默改绑", l2.LandingResolveDomain({ key: "cherry" }, "functional-fabric") === "e-scooter");
+ok("新账号 → 按所选线写域", l2.LandingResolveDomain({ key: "newbie" }, "functional-fabric") === "functional-fabric");
+l2.localStorage.setItem("dealdesk.auth.v1", JSON.stringify({ key: "other", name: "other", role: "rep", session: "s2", domainId: "functional-fabric" }));
+ok("换账号登录 → 不受他人绑定影响，所选线生效", l2.LandingResolveDomain({ key: "fresh" }, "e-scooter") === "e-scooter");
+/* 云地址：共享设置优先（与主工作台同源），缺省内置默认 */
+ok("无共享设置 → 内置默认云地址", l2.LandingFcUrl() === "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run");
+l2.localStorage.setItem("dealdesk.settings.v1", JSON.stringify({ cloud: { proxyUrl: "https://example.cn.fcapp.run/" } }));
+ok("共享设置有云地址 → 使用它", l2.LandingFcUrl() === "https://example.cn.fcapp.run/");
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);
