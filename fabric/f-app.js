@@ -322,19 +322,12 @@
   var esc = F.esc;
 
   function login() {
-    var c = N.cfg();
     var logged = N.auth();
     return '<div class="topbar"><div class="tb-title"><h1>面料工作台</h1>' +
       '<span class="tb-chip" style="background:#0f8f6b">' + (logged ? esc(logged.name) : "未登录") + "</span></div>" +
       (logged ? '<button class="topbar-add" id="btnOut">退出</button>' : "") + "</div>" +
       '<div class="pad"><div class="card card-pad">' +
-      '<div class="set-title">云服务地址</div>' +
-      '<input class="set-inp" id="cfgUrl" value="' + esc(c && c.proxyUrl ? c.proxyUrl : "") + '" placeholder="https://…fcapp.run" />' +
-      '<div class="set-actions"><button class="set-btn-inline" id="btnSaveUrl">保存地址</button>' +
-      '<button class="set-btn-inline" id="btnBorrow">用同一云服务地址</button></div>' +
-      '<div class="set-note">地址只存在本工作台。AI 出稿走「不带资料注入」通道：服务端只转发，不塞任何产品线资料。</div>' +
-      "</div>" +
-      '<div class="card card-pad"><div class="set-title">登录</div>' +
+      '<div class="set-title">登录</div>' +
       '<label class="set-lbl">账号（自动加前缀 fb-）</label><input class="set-inp" id="lName" placeholder="如 luo" />' +
       '<label class="set-lbl">密码</label><input class="set-inp" id="lPass" type="password" />' +
       '<div class="set-actions"><button class="set-btn-inline" id="btnLogin">登录</button>' +
@@ -353,18 +346,6 @@
   }
 
   function wireAuth(goHome) {
-    F.on("#btnSaveUrl", "click", function () {
-      var u = F.val("#cfgUrl");
-      if (!/^https?:\/\//i.test(u)) { F.toast("地址要以 http(s):// 开头"); return; }
-      N.saveCfg(u); F.toast("地址已保存");
-    });
-    F.on("#btnBorrow", "click", function () {
-      var u = N.borrowCfg();
-      var el = doc.querySelector("#cfgUrl");
-      if (!u) { F.toast("没找到可带入的地址，请手填"); return; }
-      if (el) el.value = u;
-      N.saveCfg(u); F.toast("已带入，只取了地址这一项");
-    });
     F.on("#btnLogin", "click", function () { doAuth("login", goHome); });
     F.on("#btnReg", "click", function () { doAuth("register", goHome); });
     F.on("#btnOut", "click", function () { N.clearAuth(); F.toast("已退出"); goHome(); });

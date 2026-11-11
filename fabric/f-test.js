@@ -23,6 +23,7 @@ files.forEach(f => {
   const src = fs.readFileSync(path.join(DIR, f), "utf8");
   const hit = LUGGAGE_WORDS.filter(w => src.includes(w)).concat(src.match(/\d+\s*台|一台/g) || []);
   ok(`${f} 不含另一条业务线的产品词`, hit.length === 0, hit);
+  ok(`${f} 不引用主工作台存储键`, src.indexOf("dealdesk.data.v1") < 0);
 });
 
 /* ---------- 装载（假 localStorage，记录每一次写入的 key） ---------- */
@@ -186,7 +187,8 @@ if (L) {
     ok("页面已注册 " + k, typeof L.g.Pages[k] === "function");
   });
   const html = String(L.view.innerHTML);
-  ok("* 未登录首屏渲染出登录闸门（非白屏）", html.indexOf("云服务地址") >= 0, html.slice(0, 60));
+  ok("* 未登录首屏渲染出登录闸门（非白屏）", html.indexOf("登录") >= 0 && html.indexOf("lName") >= 0, html.slice(0, 60));
+  ok("* 登录页没有云服务地址输入框与导入按钮", html.indexOf("云服务地址") < 0 && html.indexOf("cfgUrl") < 0 && html.indexOf("btnBorrow") < 0 && html.indexOf("btnSaveUrl") < 0);
   ok("* 首屏不含任何业务内容", html.indexOf("阶段分布") < 0 && html.indexOf("草稿体检") < 0);
   const fuBuyer = L.g.FabricStore.addBuyer({ name: "FuTest" });
   const fuTask = L.g.FabricStore.addFollowup(fuBuyer.id, "追洗水测试结果", "2026-11-15");
@@ -197,7 +199,8 @@ if (L) {
   ok("账号前缀自动补 fb-（已带前缀不重复补）",
     L.g.FabricNet.full("luo") === "fb-luo" && L.g.FabricNet.full("fb-luo") === "fb-luo");
   ok("未登录时无会话→出稿通道会明确拒绝而不是静默", L.g.FabricNet.session() === "");
-  ok("未配置云地址时 hasCloud=false", L.g.FabricNet.hasCloud() === false);
+  ok("云地址内置默认：hasCloud=true 且无需手填", L.g.FabricNet.hasCloud() === true && L.g.FabricNet.cfg().proxyUrl === "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run");
+  ok("导入函数已移除（不再引用另一条线）", typeof L.g.FabricNet.borrowCfg === "undefined");
   ok("面料会话/配置只用自己的 key，不读另一条线的存储",
     L.g.FabricNet.CFG_KEY === "dd.fabric.cfg.v1" && L.g.FabricNet.AUTH_KEY === "dd.fabric.auth.v1");
 }

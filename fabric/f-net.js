@@ -13,6 +13,8 @@
   var CFG_KEY = "dd.fabric.cfg.v1";
   var AUTH_KEY = "dd.fabric.auth.v1";
   var PREFIX = "fb-"; /* 面料账号前缀：账号列表里一眼分清是谁家的，且它不是记录上的归属字段 */
+  /* 云服务地址内置默认（与主工作台同源）：入口页不让人填地址，地址这类配置不该出现在业务员面前 */
+  var DEFAULT_FC = "https://dealdes-clnhfkexse.cn-hangzhou.fcapp.run";
 
   function read(key) {
     try { return JSON.parse(global.localStorage.getItem(key)) || null; } catch (e) { return null; }
@@ -28,7 +30,10 @@
   }
 
   function auth() { return read(AUTH_KEY); }
-  function cfg() { return read(CFG_KEY); }
+  function cfg() {
+    var c = read(CFG_KEY) || {};
+    return { proxyUrl: c.proxyUrl || DEFAULT_FC, model: c.model || "qwen-flash", temp: c.temp == null ? 0.7 : c.temp };
+  }
   function hasCloud() { var c = cfg(); return !!(c && c.proxyUrl); }
   function session() { var a = auth(); return (a && a.session) || ""; }
 
@@ -66,20 +71,6 @@
     PREFIX: PREFIX, CFG_KEY: CFG_KEY, AUTH_KEY: AUTH_KEY,
     full: full, auth: auth, cfg: cfg, clearAuth: clearAuth,
     hasCloud: hasCloud, session: session,
-
-    saveCfg: function (proxyUrl) { return write(CFG_KEY, { proxyUrl: String(proxyUrl || "").trim() }); },
-
-    /* 从另一条业务线带入云服务地址：只在面料还没有配置时提供，且必须由人点一下触发。
-       只取地址这一个配置项，绝不读它的业务数据。 */
-    borrowCfg: function () {
-      try {
-        var raw = global.localStorage.getItem("dealdesk.data.v1");
-        if (!raw) return "";
-        var st = (JSON.parse(raw) || {}).settings;
-        var u = st && st.cloud && st.cloud.proxyUrl;
-        return /^https?:\/\//i.test(u || "") ? u : "";
-      } catch (e) { return ""; }
-    },
 
     login: function (name, password) {
       if (!hasCloud()) return Promise.reject(new Error("先填云服务地址"));
