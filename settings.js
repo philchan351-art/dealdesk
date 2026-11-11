@@ -79,30 +79,26 @@
       }).join("");
 
         var au = au0;
+        /* v1.22.0（Phil「设置这里要做个内容的梳理，信息太多，太杂」）：11 张卡按
+           「账号与团队 / AI 训练 / 数据 / 系统」四组重排（组间小标题分隔）；
+           版本卡降到底部（更新日志折叠）、"我的称呼"并入"当前账号"、长说明收进 details。
+           功能零删除，只归位＋降噪。 */
+        function grp(label) { return '<div class="set-group-hd">' + label + '</div>'; }
         return '<div class="topbar">' +
          '<div class="tb-back" data-act="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></div>' +
-          '<div class="tb-title"><h1>设置</h1><div class="tb-sub">账号 · 团队 · 数据</div></div>' +
+          '<div class="tb-title"><h1>设置</h1><div class="tb-sub">账号与团队 · AI 训练 · 数据 · 系统</div></div>' +
          "</div>" +
           '<div class="set-stack">' +
-          (function () {
-            /* 2026-10-19（Phil：更新也要有版本号）：版本卡 = 当前 v + 日期 + 说明 + 最近 3 版变更（单一事实源 version.js） */
-            var AV = window.APP_VERSION || { v: "?", date: "", note: "" };
-            var cl = (AV.changelog || []).slice(0, 3).map(function (c) {
-              return "<b>v" + esc(c.v) + " · " + esc(c.date) + "</b><br>" + (c.items || []).map(esc).join("<br>");
-            }).join("<br><br>");
-            return '<div class="card card-pad">' +
-              '<div class="set-title">版本</div>' +
-               '<div class="set-sub" style="margin-top:2px">v' + esc(AV.v) + ' · ' + esc(AV.date) + (AV.note ? " — " + esc(AV.note) : "") + "</div>" +
-               '<div class="set-sub" style="margin-top:6px">本地数据体量：' + (window.Store && Store.dataSizeMB ? Store.dataSizeMB().toFixed(1) : "—") + ' MB' +
-               (window.Store && Store.dataSizeMB && Store.dataSizeMB() > 4 ? ' <span style="color:#C0392B">（接近上限，新保存可能不生效——先清理旧对话里的大图）</span>' : "") + "</div>" +
-               '<div class="set-sub" style="margin-top:8px;line-height:1.7">' + cl + "</div>" +
-               "</div>";
-          })() +
+          grp("账号与团队") +
           '<div class="card card-pad">' +
           '<div class="set-title">当前账号</div>' +
           '<div class="card set-row"><span class="set-k">业务员</span><b>' + esc(au ? au.name : "未登录") + (au && au.role === "admin" ? " · 管理员" : "") + "</b></div>" +
-          '<div class="set-actions"><button class="set-btn-inline danger" data-act="logout">切换账号 / 退出登录</button></div>' +
-          '<div class="set-note">退出后本机数据清空并回到登录页；你的客户数据安全存在云端，重新登录即可恢复。每个账号只看自己的客户</div>' +
+          '<div style="display:flex;gap:8px;align-items:center;margin-top:6px">' +
+          '<input class="set-inp" id="setName" type="text" maxlength="10" placeholder="你的名字（首页问候用 · 只存本机）" style="flex:1;min-width:0" value="' + esc(s.name || "") + '"/>' +
+          '<button class="set-btn-inline" data-act="save-name" style="flex:none">保存</button>' +
+          "</div>" +
+          '<div class="set-actions" style="margin-top:8px"><button class="set-btn-inline danger" data-act="logout">切换账号 / 退出登录</button></div>' +
+          '<div class="set-note">退出后本机数据清空并回到选线页；你的客户数据安全存在云端，重新登录即可恢复。每个账号只看自己的客户</div>' +
           "</div>" +
             (isAdmin ? '<div class="card card-pad">' +
              '<div class="set-title">团队成员</div>' +
@@ -115,7 +111,8 @@
             '<button class="set-btn" data-act="admin-add" style="flex:none">增加</button>' +
             "</div></div>" +
             '<div id="adminList"><div class="set-note">加载中…</div></div>' +
-             '<div class="set-note">重置密码：对方旧密码立即作废。改名：登录账号改名，密码与客户数据全部保留（对方需重新登录）。停用：立即不能登录/同步（数据保留）。删除：账号删除，客户数据归档 30 天（可找管理员恢复），只是不能登录请用「停用」。设为管理员：对方也能管理成员和资料。</div>' +
+              '<div class="set-note">重置/改名都不动客户数据 · 停用＝不能登录但数据保留 · 删除＝数据归档 30 天（可恢复）——只想不让对方登录请用「停用」</div>' +
+              '<details class="set-note"><summary style="cursor:pointer">操作说明</summary><div style="margin-top:4px;line-height:1.7">重置密码：对方旧密码立即作废，已登录设备被强制重登。改名：登录账号改名，密码与客户数据全部保留（对方需重新登录）。停用：立即不能登录/同步（数据保留，随时可恢复）。删除：账号删除，客户数据归档 30 天（可找管理员恢复），30 天后彻底删除。设为管理员：对方也能管理成员和团队公共资料。</div></details>' +
              "</div>" +
              '<div class="card card-pad">' +
              '<div class="set-title">团队资料 & 剧本</div>' +
@@ -130,17 +127,12 @@
              '<label class="set-lbl" style="margin-top:8px">普通资料的产品线</label>' +
              '<select class="set-inp" id="sharedScope">' + scopeOptionsHtml("all") + '</select>' +
               '<div id="sharedPreview"></div>' +
-               '<div class="set-note">📜 话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：按产品线打包给 AI（行李箱客户只吃行李箱+通用），每线最多 10 份、单份前 12,000 字、整线总预算 36,000 字，内容业务员不可见。「📌 置顶」的资料永远排在最前、优先进包——参数速查表、底线手册建议置顶。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。支持 Word(.docx)/PDF/纯文本，旧 .doc 请先另存为 .docx。</div>' +
+               '<div class="set-note">📜 剧本＝按「一…五」自动拆步，业务员在客户页一步步发；普通资料＝按产品线打包给 AI（支持 .docx / PDF / 纯文本，旧 .doc 请先另存为 .docx）</div>' +
+               '<details class="set-note"><summary style="cursor:pointer">资料规则详细说明</summary><div style="margin-top:4px;line-height:1.7">话术剧本：上传 Word/文本后按「一…五」自动拆步，确认后可编辑标题与文字；业务员在客户页一步步发给客户（署名自动换成发送人）。普通资料：按产品线打包给 AI（行李箱客户只吃行李箱+通用），每线最多 10 份、单份前 12,000 字、整线总预算 36,000 字，内容业务员不可见。「📌 置顶」的资料永远排在最前、优先进包——参数速查表、底线手册建议置顶。每份资料都带产品线，客户页只显示该产品线 + 通用的资料。</div></details>' +
              "</div>" : "") +
+         grp("AI 训练") +
          '<div class="card card-pad">' +
-         '<div class="set-title" style="font-size:13px">我的称呼</div>' +
-         '<div style="display:flex;gap:8px;align-items:center;margin-top:6px">' +
-         '<input class="set-inp" id="setName" type="text" maxlength="10" placeholder="你的名字（首页问候用 · 只存本机）" style="flex:1;min-width:0" value="' + esc(s.name || "") + '"/>' +
-         '<button class="set-btn-inline" data-act="save-name" style="flex:none">保存</button>' +
-         "</div>" +
-         "</div>" +
-        '<div class="card card-pad">' +
-        '<div class="set-title" data-act="toggle-persona" style="cursor:pointer">我的思路与话术（训练 AI）<span class="llm-dot ' + (personaOn ? "on" : "") + '" id="personaDot"></span></div>' +
+         '<div class="set-title" data-act="toggle-persona" style="cursor:pointer">我的思路与话术（训练 AI）<span class="llm-dot ' + (personaOn ? "on" : "") + '" id="personaDot"></span></div>' +
         '<div id="personaSummary" class="set-note" style="margin:6px 0 0">' + (personaOn ? "已训练 · " + (p.updated ? new Date(p.updated).toLocaleString("zh-CN") : "") + (p.docs && p.docs.length ? " · " + p.docs.length + " 份资料" : "") : "还没训练 · 点进来写你的思路和话术，AI 就按你的风格说话") + "</div>" +
         '<div id="personaBody" style="display:none;margin-top:8px">' +
         '<label class="set-lbl">我的谈单思路（你怎么谈、先问什么、什么节奏）</label>' +
@@ -161,9 +153,10 @@
         '<div class="set-note">每个业务员各填各的，按账号单独保存在云端，互不串味；保存后 AI 翻译、扩充、回复建议都会自动贴近你的思路和语气</div>' +
         "</div>" +
         "</div>" +
-         /* 2026-10-15 v62：数据同步 + 智能引擎合并为一卡（两行状态 + 常用按钮），细节全收进"高级设置" */
-         '<div class="card card-pad">' +
-         '<div class="set-title">数据同步 & 智能引擎</div>' +
+          grp("数据") +
+          /* 2026-10-15 v62：数据同步 + 智能引擎合并为一卡（两行状态 + 常用按钮），细节全收进"高级设置" */
+          '<div class="card card-pad">' +
+          '<div class="set-title">数据同步 & 智能引擎</div>' +
          '<div style="display:flex;align-items:center;gap:6px;margin-top:2px"><span class="llm-dot ' + (cloudOn ? "on" : "") + '"></span><span class="set-note" id="cloudStatus" style="flex:1;min-width:0">' + (cloudOn ? "云同步 已连接 · 变更自动上云，开 App 自动拉取" : "云同步 未连接 · 单机模式（先登录账号）") + '</span></div>' +
          '<div class="set-note" style="margin:2px 0 6px">买家 <b>' + s.buyers + '</b> · 消息 <b>' + s.messages + '</b> · 最近保存 <b>' + saved + '</b></div>' +
          '<div style="display:flex;align-items:center;gap:6px"><span class="llm-dot ' + (on ? "on" : "") + '"></span><span class="set-note" id="llmStatus" style="flex:1;min-width:0">' + (on ? "AI 已配置 · " + (llm.model || "qwen-flash") : "AI 未配置 · 手动模式") + '</span></div>' +
@@ -219,12 +212,28 @@
         '<button class="set-btn danger" data-act="clear">清空全部买家（真实数据起步）</button>' +
         '<div class="set-note">清空会清除全部客户、跟进与手动记录的消息（LLM 配置保留）。清空后从"＋ 新增"开始录真实客户，建议先导出 CSV 备份</div>' +
         "</div>" +
-        '<div class="card card-pad">' +
-        '<div class="set-title">关于</div>' +
-          '<div class="set-note">谈单舱 DealPilot · B2B 谈单工作台<br/>通道：WhatsApp 过渡模式（官方 wa.me 一键交接）<br/>数据：云端同步（多设备一致）+ 本机缓存</div>' +
-          '<div class="set-actions" style="margin-top:10px"><button class="set-btn-inline ghost" data-act="open-manual" style="text-decoration:underline">📖 查看使用手册（长期有效网址）</button></div>' +
-        "</div>" +
-        "</div>";
+         grp("系统") +
+         '<div class="card card-pad">' +
+         '<div class="set-title">关于</div>' +
+           '<div class="set-note">谈单舱 DealPilot · B2B 谈单工作台<br/>通道：WhatsApp 过渡模式（官方 wa.me 一键交接）<br/>数据：云端同步（多设备一致）+ 本机缓存</div>' +
+           '<div class="set-actions" style="margin-top:10px"><button class="set-btn-inline ghost" data-act="open-manual" style="text-decoration:underline">📖 查看使用手册（长期有效网址）</button></div>' +
+         "</div>" +
+         (function () {
+           /* v1.22.0：版本卡从顶部降到底部（系统组最后一条）——设置页先操作后信息；
+              更新日志收进 details 默认折叠，需要核对版本时才展开。数据体量警示保留。 */
+           var AV = window.APP_VERSION || { v: "?", date: "", note: "" };
+           var cl = (AV.changelog || []).slice(0, 3).map(function (c) {
+             return "<b>v" + esc(c.v) + " · " + esc(c.date) + "</b><br>" + (c.items || []).map(esc).join("<br>");
+           }).join("<br><br>");
+           return '<div class="card card-pad">' +
+             '<div class="set-title">版本</div>' +
+             '<div style="margin-top:2px">v' + esc(AV.v) + " · " + esc(AV.date) + (AV.note ? " — " + esc(AV.note) : "") + "</div>" +
+             '<div class="set-note" style="margin-top:6px">本地数据体量：' + (window.Store && Store.dataSizeMB ? Store.dataSizeMB().toFixed(1) : "—") + " MB" +
+             (window.Store && Store.dataSizeMB && Store.dataSizeMB() > 4 ? "（接近上限，新保存可能不生效——先清理旧对话里的大图）" : "") + "</div>" +
+             '<details class="set-note" style="margin-top:8px"><summary style="cursor:pointer">更新日志（最近 3 版）</summary><div style="margin-top:4px;line-height:1.7">' + cl + "</div></details>" +
+             "</div>";
+         })() +
+         "</div>";
     },
 
      init: function (param, root) {

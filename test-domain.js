@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -483,6 +483,23 @@ const bCountryRule = (css22.match(/\.b-country\{[^}]*\}/) || [""])[0];
 ok(".b-country 带 white-space:nowrap（角标不许折行）", bCountryRule.indexOf("white-space:nowrap") >= 0, bCountryRule);
 const scr22 = fs.readFileSync(__dirname + "/screens.css", "utf8");
 ok("名字 bmid-top b 保留省略号（空间不够压名字不压国家）", /\.bmid-top b\{[^}]*text-overflow:ellipsis[^}]*\}/.test(scr22));
+
+console.log("\n[23] 设置页四组重排＋降噪（v1.22.0）：「信息太多，太杂」→ 先操作后信息");
+const st23 = fs.readFileSync(__dirname + "/settings.js", "utf8");
+ok("四组小标题齐：账号与团队 / AI 训练 / 数据 / 系统",
+  ["grp(\"账号与团队\")", "grp(\"AI 训练\")", "grp(\"数据\")", "grp(\"系统\")"].every(g => st23.indexOf(g) >= 0));
+ok(".set-group-hd 组小标题样式已定义", /\.set-group-hd\{[^}]*\}/.test(css22));
+ok("版本卡降到「关于」之后，更新日志收进 details 折叠",
+  st23.indexOf("grp(\"系统\")") < st23.indexOf("关于") && st23.indexOf("关于") < st23.indexOf("版本</div>")
+  && /<details[^>]*><summary[^>]*>更新日志（最近 3 版）<\/summary>/.test(st23));
+ok("「我的称呼」独立卡已移除（并入当前账号卡，setName 输入框仍在）",
+  st23.indexOf("我的称呼</div>") < 0 && st23.indexOf('id="setName"') >= 0);
+ok("成员/资料长说明各收成一句话＋details 折叠（两处 summary 在）",
+  /<summary[^>]*>操作说明<\/summary>/.test(st23) && /<summary[^>]*>资料规则详细说明<\/summary>/.test(st23));
+let smk23 = makeCtx();
+let smkErr23 = null;
+try { load(smk23, "mock.js"); load(smk23, "store.js"); load(smk23, "settings.js"); } catch (e) { smk23 = null; smkErr23 = e; }
+ok("settings.js 加载冒烟（假 DOM 不抛异常）", smk23 !== null && smkErr23 === null, smkErr23 && String(smkErr23.message));
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);

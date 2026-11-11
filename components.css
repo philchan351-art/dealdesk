@@ -437,6 +437,8 @@
 .set-row b{font:700 15px var(--font-num)}
 .set-time{font:500 11px var(--font-num);color:var(--ink-soft)}
 .set-title{font-size:13.5px;font-weight:900;margin-bottom:10px}
+/* v1.22.0 设置梳理（Phil「信息太多，太杂」）：四组小标题分隔，比卡片间隙再多一点距离=视觉分组 */
+.set-group-hd{font-size:12px;font-weight:900;color:var(--ink-faint);letter-spacing:.05em;margin-top:6px}
 .set-btn{
   display:block;width:100%;text-align:left;font-size:13px;font-weight:700;
   padding:12px 13px;border-radius:11px;border:1px solid var(--line);
