@@ -73,6 +73,27 @@ BS.parseForm(GEORGE).then(function (r) {
     });
   });
 }).then(function () {
+  /* T5/T6：v1.24.0 无标签短行（Phil 实测格式「harry，美国，英语，+1932132483439，需求200台」）→ 强制规则路径 */
+  delete window.LLM;
+  delete global.LLM;
+  var compact = "harry, 美国, 英语, +1932132483439, 需求200台";
+  return BS.parseForm(compact).then(function (r5) {
+    assert.equal(r5.f.name, "harry", "compact name: " + r5.f.name);
+    assert.equal(r5.f.country, "美国", "compact country: " + r5.f.country);
+    assert.equal(r5.f.lang, "英语", "compact lang: " + r5.f.lang);
+    assert.equal(r5.f.wa, "+1932132483439", "compact wa: " + r5.f.wa);
+    assert.equal(r5.f.qty, "200", "compact qty: " + r5.f.qty);
+    console.log("T5 规则路径(无标签短行·半角逗号) PASS");
+    return BS.parseForm(compact.replace(/,/g, "，")).then(function (r6) {
+      assert.equal(r6.f.name, "harry", "全角 name");
+      assert.equal(r6.f.country, "美国", "全角 country");
+      assert.equal(r6.f.lang, "英语", "全角 lang");
+      assert.equal(r6.f.wa, "+1932132483439", "全角 wa");
+      assert.equal(r6.f.qty, "200", "全角 qty");
+      console.log("T6 规则路径(无标签短行·全角逗号) PASS");
+    });
+  });
+}).then(function () {
   console.log("ALL PASS");
 }).catch(function (e) {
   console.error("FAIL:", e.message);

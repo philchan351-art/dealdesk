@@ -52,9 +52,9 @@
      两条链路：配了云代理 → AI 识别（长问题句/任意语言/CSV 通吃）；否则或 AI 失败 → 本地规则兜底 */
   var pendingCtx = []; /* 识别出的扩展档案要点（邮箱/首单计划/业务类型…），保存时随 addBuyer 入档 */
 
-  var PARSE_SYS = "你是外贸 CRM 的表单解析器。用户粘贴了 Facebook 投流表单的客户信息（字段名可能是任何语言的长问题句，格式含\"字段: 值\"、\"问题?: 值\"或 CSV 两行）。" +
+  var PARSE_SYS = "你是外贸 CRM 的表单解析器。用户粘贴了 Facebook 投流表单的客户信息（字段名可能是任何语言的长问题句；格式含\"字段: 值\"、\"问题?: 值\"、CSV 两行（表头+数据）、或逗号分隔的无标签短字段（如 \"harry, 美国, 英语, +1932132483439, 需求200台\"——按内容映射：人名→name、国家→country、语言→lang、电话→wa、需求描述→product/qty，不要因格式不典型就输出空字段））。" +
     "严格依据内容提取，绝不编造，只输出一个 JSON（不要解释、不要 markdown 代码块），字段：" +
-    '{"name":"客户姓名","country":"国家（中文国家名，如 美国/澳大利亚；判断不了用原文）","company":"公司名","wa":"WhatsApp号（优先，含+原文）","phone":"普通电话（无则空）","product":"意向产品或采购需求（从答案归纳，无则空）","qty":"数量","email":"邮箱","budget":"预算","extra":[{"k":"简短中文标签(≤6字)","v":"值(原文)"}]}' +
+    '{"name":"客户姓名","country":"国家（中文国家名，如 美国/澳大利亚；判断不了用原文）","lang":"语言（如 英语/中文；无则空）","company":"公司名","wa":"WhatsApp号（优先，含+原文）","phone":"普通电话（无则空）","product":"意向产品或采购需求（从答案归纳，无则空）","qty":"数量","email":"邮箱","budget":"预算","extra":[{"k":"简短中文标签(≤6字)","v":"值(原文)"}]}' +
     "extra 收录除上述字段外对跟进有价值的问答（如 首单计划/业务类型/采购类型），最多 5 条；不存在的字段输出空字符串，extra 无内容输出 []。出现多个客户时只输出第一个。";
 
   function extractJson(raw) {
@@ -87,13 +87,42 @@
     if (!value || value.length > 160) return;
     if (!f[key]) f[key] = value;
   }
+  /* v1.24.0（Phil 实测「harry，美国，英语，+1932132483439，需求200台」粘贴无法识别）：
+     无标签短行/多行值——整段没有任何 "标签:" 前缀。按内容类型分类（电话/国家/语言/数量/人名），
+     全角半角逗号通吃。必须在 CSV 两行判定之后走（CSV 表头行也没冒号，顺序反了会把表头当值） */
+  var LANG_ALIASES = { "英语": "英语", "english": "英语", "中文": "中文", "chinese": "中文", "普通话": "中文",
+    "西班牙语": "西班牙语", "spanish": "西班牙语", "español": "西班牙语", "法语": "法语", "french": "法语",
+    "德语": "德语", "german": "德语", "葡萄牙语": "葡萄牙语", "portuguese": "葡萄牙语",
+    "阿拉伯语": "阿拉伯语", "arabic": "阿拉伯语", "俄语": "俄语", "russian": "俄语",
+    "日语": "日语", "japanese": "日语", "韩语": "韩语", "korean": "韩语", "印地语": "印地语", "hindi": "印地语", "土耳其语": "土耳其语" };
+  var HEADER_WORDS = /^(full\s*name|name|姓名|名字|国家|country|电话|手机|phone\s*number|mobile|tel(?:ephone)?|whatsapp\s*(number)?|邮箱|e-?mail|公司|company\s*name?|产品|product( of interest)?|数量|quantity|qty|预算|budget|语言|language)$/i;
+  function isPhoneTok(tok) { return /^[+\d][\d\s\-()]{6,17}$/.test(tok) && (tok.match(/\d/g) || []).length >= 8; }
+  function classifyToken(tok, f, extra) {
+    tok = clean(tok);
+    if (!tok || tok.length > 60) return;
+    if (isPhoneTok(tok)) { assignRule(f, "wa", tok); return; }
+    var lc = tok.toLowerCase();
+    for (var i = 0; i < KNOWN.length; i++) if (KNOWN[i].toLowerCase() === lc) { assignRule(f, "country", KNOWN[i]); return; }
+    if (COUNTRY_ALIAS[lc]) { assignRule(f, "country", COUNTRY_ALIAS[lc]); return; }
+    if (LANG_ALIASES[lc]) { assignRule(f, "lang", LANG_ALIASES[lc]); return; }
+    var qm = tok.match(/^需[求要]?\s*(\d{1,6})\s*(台|件|个|套|片|卷|pcs|units?)?$/i);
+    if (qm) { assignRule(f, "qty", qm[1]); return; }
+    if (/需[求要]|looking\s+for|interested|want\s+to|采购/.test(tok)) {
+      assignRule(f, "product", tok);
+      var q = tok.match(/(\d{1,6})/);
+      if (q) assignRule(f, "qty", q[1]);
+      return;
+    }
+    if (!f.name && !HEADER_WORDS.test(tok) && /^[\p{L}][\p{L}\s.'’-]{0,39}$/u.test(tok)) { assignRule(f, "name", tok); return; }
+    if (extra.length < 6) extra.push({ k: tok.slice(0, 8), v: tok.slice(0, 160) });
+  }
   function ruleParse(text) {
-    var f = { name: "", country: "", company: "", wa: "", phone: "", product: "", qty: "", email: "", budget: "" };
+    var f = { name: "", country: "", company: "", wa: "", phone: "", product: "", qty: "", email: "", budget: "", lang: "" };
     var extra = [];
     var lines = String(text).split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
-    var csv = lines.length >= 2 && (lines[0].match(/,/g) || []).length >= 2 && (lines[1].match(/,/g) || []).length >= 2;
+    var csv = lines.length >= 2 && (lines[0].match(/[,，]/g) || []).length >= 2 && (lines[1].match(/[,，]/g) || []).length >= 2;
     if (csv) {
-      var head = lines[0].split(","), row = lines[1].split(",");
+      var head = lines[0].split(/[,，]/), row = lines[1].split(/[,，]/);
       for (var i = 0; i < head.length; i++) {
         var hv = row[i] ? row[i].trim() : "";
         if (!hv) continue;
@@ -102,6 +131,10 @@
         if (mapped) assignRule(f, mapped, hv);
         else extra.push({ k: String(head[i]).trim().slice(0, 8), v: hv });
       }
+    } else if (!/[:：]/.test(String(text)) && ((String(text).match(/[,，]/g) || []).length >= 2 || lines.length >= 3)) {
+      String(text).split(/[,，\r\n]+/).forEach(function (tok) { classifyToken(tok, f, extra); });
+      f.country = normCountry(f.country);
+      return { f: f, ctx: mergeCtx(f, extra) };
     } else {
       for (var j = 0; j < lines.length; j++) {
         var hit = null;
@@ -147,6 +180,7 @@
     var f = {
       name: g("name"),
       country: normCountry(g("country")),
+      lang: g("lang"),
       company: g("company"),
       wa: g("wa") || g("phone"),
       phone: g("phone") && g("phone") !== g("wa") ? g("phone") : "",
@@ -270,7 +304,7 @@
 
   /* 识别结果 → 表单预填（高亮闪烁提示哪些是机器填的） */
   function fillFields(f, bd) {
-    var map = { nbName: f.name, nbCountry: f.country, nbCompany: f.company, nbWa: f.wa, nbProduct: f.product, nbQty: f.qty };
+    var map = { nbName: f.name, nbCountry: f.country, nbLang: f.lang, nbCompany: f.company, nbWa: f.wa, nbProduct: f.product, nbQty: f.qty };
     var filled = [];
     Object.keys(map).forEach(function (id) {
       var el = document.getElementById(id);

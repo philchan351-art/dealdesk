@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
