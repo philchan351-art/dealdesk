@@ -12,17 +12,17 @@
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="apple-mobile-web-app-title" content="面料工作台"/>
-<link rel="apple-touch-icon" href="../apple-touch-icon.png?v=1.25.0"/>
-<link rel="icon" type="image/png" sizes="512x512" href="../icon-512.png?v=1.25.0"/>
-<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png?v=1.25.0"/>
-<link rel="icon" type="image/png" sizes="48x48" href="../favicon-48.png?v=1.25.0"/>
-<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png?v=1.25.0"/>
-<link rel="icon" type="image/png" sizes="16x16" href="../favicon-16.png?v=1.25.0"/>
-<link rel="manifest" href="../manifest.json?v=1.25.0"/>
-<link rel="stylesheet" href="../tokens.css?v=1.25.0"/>
-<link rel="stylesheet" href="../base.css?v=1.25.0"/>
-  <link rel="stylesheet" href="../components.css?v=1.25.0"/>
-  <link rel="stylesheet" href="../screens.css?v=1.25.0"/>
+<link rel="apple-touch-icon" href="../apple-touch-icon.png?v=1.26.0"/>
+<link rel="icon" type="image/png" sizes="512x512" href="../icon-512.png?v=1.26.0"/>
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png?v=1.26.0"/>
+<link rel="icon" type="image/png" sizes="48x48" href="../favicon-48.png?v=1.26.0"/>
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png?v=1.26.0"/>
+<link rel="icon" type="image/png" sizes="16x16" href="../favicon-16.png?v=1.26.0"/>
+<link rel="manifest" href="../manifest.json?v=1.26.0"/>
+<link rel="stylesheet" href="../tokens.css?v=1.26.0"/>
+<link rel="stylesheet" href="../base.css?v=1.26.0"/>
+  <link rel="stylesheet" href="../components.css?v=1.26.0"/>
+  <link rel="stylesheet" href="../screens.css?v=1.26.0"/>
 </head>
 <body>
 <div class="stage">
@@ -77,33 +77,33 @@
 </div>
 
 <!-- 入口声明必须排第一：它决定本页属于哪条业务域、读写哪个数据命名空间 -->
-<script src="fabric-boot.js?v=1.25.0"></script>
-<script src="../version.js?v=1.25.0"></script>
-<script src="../domain.js?v=1.25.0"></script>
+<script src="fabric-boot.js?v=1.26.0"></script>
+<script src="../version.js?v=1.26.0"></script>
+<script src="../domain.js?v=1.26.0"></script>
 <!-- fabric-seed.js 顶替 mock.js：只提供本域形状的空种子（含 v1.13/v1.14 遗留数据一次性迁移），行李箱演示数据一行都不进内存 -->
-<script src="fabric-seed.js?v=1.25.0"></script>
-<script src="../country-profiles.js?v=1.25.0"></script>
-  <script src="../store.js?v=1.25.0"></script>
-  <script src="../docextract.js?v=1.25.0"></script>
-<script src="../utils.js?v=1.25.0"></script>
+<script src="fabric-seed.js?v=1.26.0"></script>
+<script src="../country-profiles.js?v=1.26.0"></script>
+  <script src="../store.js?v=1.26.0"></script>
+  <script src="../docextract.js?v=1.26.0"></script>
+<script src="../utils.js?v=1.26.0"></script>
 <!-- 刻意不加载：mock.js（行李箱演示种子）、kb.js（行李箱资料段）、turns.js（53 条吴总回合）、
      skills.js（行李箱句式库）、domain-boot.js（行李箱入口声明，由本页 fabric-boot.js 取代）。
      前三者的对外调用都有 window.X 存在性判断，缺模块自动降级为空，不会白屏 -->
-<script src="../prompts.js?v=1.25.0"></script>
-  <script src="../llm.js?v=1.25.0"></script>
-  <script src="../sync.js?v=1.25.0"></script>
-  <script src="../voice.js?v=1.25.0"></script>
-  <script src="../components.js?v=1.25.0"></script>
-  <script src="../home.js?v=1.25.0"></script>
-<script src="../buyers.js?v=1.25.0"></script>
-<script src="../buyer-detail.js?v=1.25.0"></script>
-<script src="../deals.js?v=1.25.0"></script>
-<script src="../followup.js?v=1.25.0"></script>
-  <script src="../settings.js?v=1.25.0"></script>
-<script src="../log-sheet.js?v=1.25.0"></script>
-<script src="../buyer-sheet.js?v=1.25.0"></script>
-<script src="../app.js?v=1.25.0"></script>
+<script src="../prompts.js?v=1.26.0"></script>
+  <script src="../llm.js?v=1.26.0"></script>
+  <script src="../sync.js?v=1.26.0"></script>
+  <script src="../voice.js?v=1.26.0"></script>
+  <script src="../components.js?v=1.26.0"></script>
+  <script src="../home.js?v=1.26.0"></script>
+<script src="../buyers.js?v=1.26.0"></script>
+<script src="../buyer-detail.js?v=1.26.0"></script>
+<script src="../deals.js?v=1.26.0"></script>
+<script src="../followup.js?v=1.26.0"></script>
+  <script src="../settings.js?v=1.26.0"></script>
+<script src="../log-sheet.js?v=1.26.0"></script>
+<script src="../buyer-sheet.js?v=1.26.0"></script>
+<script src="../app.js?v=1.26.0"></script>
 <!-- 退出登录（设置页 / 走错入口卡）后自动回选线页；匿名直达登录不受影响 -->
-<script src="../logout-watch.js?v=1.25.0"></script>
+<script src="../logout-watch.js?v=1.26.0"></script>
 </body>
 </html>

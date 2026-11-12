@@ -544,7 +544,7 @@
      ② 命中 → 强纠正重试一次（对话与底稿逐句翻译成目标语言）
      ③ 仍错 → suggest/expand 打 ⛔ 标（人工改完再发）、localize 显式报错——绝不静默放行英语 */
   /* v1.25.0（Phil「日语、德语等还是有问题」）：[一-龥] 区间与日文字形完全重叠——
-     三条生成路（suggest/localize/translateScript）都拿"含 CJK＝中文泄漏"判定，正确日语
+     四条生成路（suggest/localize/translateScript/expand）都拿"含 CJK＝中文泄漏"判定，正确日语
      （必然含汉字）必被误标「含中文」→ 强纠正重试时还劝模型"不得出现中文"→ 要么报错、
      要么逼出无汉字纯假名日语。判据：目标日语且文本含平/片假名＝日语文本，汉字是合法日语汉字；
      无假名而有 CJK＝真中文，照拦 */
@@ -553,13 +553,25 @@
     if (target === "日语" && /[\u3040-\u30ff]/.test(s)) return false;
     return /[一-龥]/.test(s);
   }
+  /* v1.26.0（Phil「还有哪些外语有问题」全语种审计）三处修：
+     ① 土耳其语误伤：旧判据"无 [ığşöüİĞŞ] 字符＝串台"——土耳其语常用 ASCII 拼写
+        （Merhaba, evet, fiyat 10$ 一个特征字符都没有）→ 正常输出必被误拦。改德语同款正向闸门：
+        ≥2 土耳其功能词＝确认土耳其语；含特征字符＝确认；零特征＋≥4 拉丁词＝串台；短消息放行
+     ② 罗曼语漏判（西/法/意/葡）：isEnglishLike 见"带变音符号"即否决——英语里含一个带重音的
+        专有名词（Hello we ship to São Paulo, the price is...）整句漏过。补密度闸：
+        ≥3 个英语功能词＝实质英语，不管有没有变音符号
+     ③ 混写误伤（日/韩/俄/阿/中目标）：JS \b 词边界按 ASCII 算——目标文字里嵌 2 个英语商务借词
+        （네, sample price 확인합니다）就被判英语。目标文字系统在场时阈值 2→3；
+        中文目标补"全无 CJK＝非中文"检查（旧闸只拦无变音符号且功能词≥2 的英语） */
   var LATIN_DIACRITICS = /[àáâãäçèéêëìíîïðñòóôõöøùúûüýœ]/;
   var EN_FUNC = /\b(the|you|your|we|our|is|are|was|were|for|with|can|will|would|that|this|these|it|its|if|not|please|thank|thanks|hello|ok|okay|fine|good|sure|right|now|price|units?|order|sample|factory|shipping|delivery|product|start|need|want|get|same|stays?|keeps?|ships?|send|sent|low|best|more|new)\b/i;
   var DE_FUNC = /\b(und|oder|aber|der|die|das|den|dem|ist|sind|war|wir|ihr|nicht|auch|noch|sehr|bitte|danke|guten|gute|hallo|preis|lieferung|lieferzeit|menge|stück|bestellung|senden|erhalten|können|konnen|woche|tag|zahlung|versand)\b/i;
+  var TR_FUNC = /\b(merhaba|selam|ve|ama|veya|mi|mı|mu|mü|ne|nedir|lutfen|lütfen|tesekkurler|teşekkürler|tesekkur|teşekkür|fiyat|fiyati|fiyatı|fiyatlar|fiyatları|aded|adet|miktar|siparis|sipariş|kargo|teslim|teslimat|odeme|ödeme|evet|hayir|hayır|bizim|sizin|icin|için|daha|cok|çok|iyi|gun|gün|hafta|yeni|ucuz|parca|parça|ucret|ücret|ucreti|ücreti|urun|ürün|boyut|renk|toplam|diger|diğer|gore|göre|hazir|olur|tabii|elbette|bir|az|biraz|kapi|kapı|yuksek|yüksek|gonder|gönder|gonderim|gönderim|kalite|tedarik|stok)\b/i;
+  var ROMANCE = { "西班牙语": 1, "法语": 1, "意大利语": 1, "葡萄牙语": 1 };
   function isEnglishLike(t) {
     t = String(t || "");
     if (!/[a-zA-Z]/.test(t)) return false;
-    if (LATIN_DIACRITICS.test(t)) return false; /* 带变音符号 ≠ 纯英语 */
+    if (LATIN_DIACRITICS.test(t)) return false; /* 带变音符号 ≠ 纯英语（罗曼语目标另有 ≥3 密度闸兜底） */
     var hits = t.match(new RegExp(EN_FUNC.source, "gi")) || [];
     return hits.length >= 2; /* 阈值 2：单词误伤（如葡语里的 "ok"）不算英语 */
   }
@@ -568,12 +580,32 @@
     if (!target || target === "英语") return false; /* 英语=兜底语言，不拦 */
     var t = String(text || "");
     if (!t.trim()) return false;
-    if (isEnglishLike(t)) return true; /* 目标非英语却输出英语——Phil 实锤场景（含目标中文出英语） */
+    var enHits = (t.match(new RegExp(EN_FUNC.source, "gi")) || []).length;
+    /* v1.26.0③：目标有专属文字系统时——在场：混入 ≥3 英语功能词才算实质英语（2 个商务借词放行）；
+       缺席：≥2 即拦（与旧 isEnglishLike 同口径，且不因变音符号漏判） */
+    var ownScript = target === "日语" ? /[\u3040-\u30ff]/
+      : target === "韩语" ? /[\uac00-\ud7a3]/
+      : target === "俄语" ? /[\u0400-\u04ff]/
+      : target === "阿拉伯语" ? /[\u0600-\u06ff]/
+      : target === "中文" ? /[一-龥]/ : null;
+    if (ownScript) {
+      if (ownScript.test(t)) { if (enHits >= 3) return true; }
+      else if (enHits >= 2) return true;
+    } else if (isEnglishLike(t)) return true; /* 目标非英语却输出英语——Phil 实锤场景（含目标中文出英语） */
     if (target === "日语" && !/[\u3040-\u30ff]/.test(t)) return true;
     if (target === "韩语" && !/[\uac00-\ud7a3]/.test(t)) return true;
     if (target === "阿拉伯语" && !/[\u0600-\u06ff]/.test(t)) return true;
     if (target === "俄语" && !/[\u0400-\u04ff]/.test(t)) return true;
-    if (target === "土耳其语" && !/[ığşöüİĞŞ]/.test(t)) return true;
+    if (target === "中文" && !/[一-龥]/.test(t)) return true; /* v1.26.0③：中文目标全无 CJK＝非中文（纯假名日语/纯拉丁文） */
+    if (target === "土耳其语") {
+      /* v1.26.0①：正向特征闸门（镜像德语）——ASCII 拼写的土耳其语不再误拦 */
+      var trHits = (t.match(TR_FUNC) || []).length;
+      if (trHits >= 2) return false;
+      if (/[ığşöüİĞŞ]/.test(t)) return false;
+      var trLat = t.split(/\s+/).filter(function (w) { return /[a-zA-Z]{2,}/.test(w); }).length;
+      if (trLat >= 4) return true; /* 零土耳其特征＋≥4 拉丁词＝串台（如 "OK, yes, ten dollars each"） */
+      return false;
+    }
     if (target === "德语") {
       /* v1.25.0：德语加正向特征闸门——≥2 个德语功能词＝确认德语（变音符号已让 isEnglishLike 放行，
          这里兜住"无变音符号的德语"）；0 个德语特征＋≥4 个拉丁词＝误发（英语功能词不足 2 个的漏网/
@@ -584,7 +616,10 @@
       if (latWords >= 4) return true;
       return false;
     }
-    return false; /* 西/法/意：拉丁语系互混无法机械区分，isEnglishLike 是主闸 */
+    /* v1.26.0②：罗曼语目标——带重音专有名词的英语（isEnglishLike 变音符号否决已放行）按密度拦：
+       ≥3 个英语功能词＝实质英语；正确罗曼语混 1-2 个英语借词（ok/sample）不误伤 */
+    if (ROMANCE[target] && enHits >= 3) return true;
+    return false; /* 罗曼语之间互混无法机械区分，上述两闸为主 */
   }
 
   window.LLM = {
@@ -804,8 +839,8 @@
           if (!langErr) br = bloatReason(t) || curReason(t);
           if (langErr || br) {
              var why = langErr ? (/含中文/.test(langErr.message) ? "上一次输出含中文" : "上一次输出仍是英语") : br;
-             var noZh = lang === "日语" ? "不得出现中文句子（日语正常使用的汉字保留）" : "不得出现中文"; /* v1.25.0：纠正日语时劝删汉字＝逼出坏译文 */
-             var fixup = langErr ? "正文必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），" + noZh + "。"
+             var noZh = lang === "日语" ? "不得出现中文句子（日语正常使用的汉字保留）" : lang === "中文" ? "" : "不得出现中文"; /* v1.25.0：纠正日语劝删汉字＝逼出坏译文；v1.26.0：目标是中文时此句自相矛盾，去掉 */
+             var fixup = langErr ? "正文必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "）" + (noZh ? "，" + noZh : "") + "。"
               : (/^币种错配/.test(br) ? "每个数字的币种必须照原文/档案原样写（RMB 就是 RMB、USD 就是 USD），一个都不许换。"
                 : "译文必须与原文句数、信息一一对应：删掉所有原文没有的句子/卖点/结尾，不许出现原文以外的数字。");
             return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】" + why + "，错误。" + fixup + "\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2, scope: buyer.scope })
@@ -837,8 +872,9 @@
         return chat(sys, user, { max_tokens: 600, temp: 0.2, scope: buyer.scope })
           .then(function (t) {
             try { return settled(t); } catch (e) {
-              var why = String(e.message).indexOf("含中文") >= 0 ? "上一次输出含中文" : "上一次输出仍是英语";
-               return chat(sys, prompt + "\n\n【纠正】" + why + "，错误。译文必须全部用纯" + lang + "书写，" + (lang === "日语" ? "不得出现中文句子（日语正常使用的汉字保留）" : "不得出现中文") + "。数字/术语/人名逐字保留。\n\n中文原文：" + text, { max_tokens: 600, temp: 0.1, scope: buyer.scope })
+               var why = String(e.message).indexOf("含中文") >= 0 ? "上一次输出含中文" : "上一次输出仍是英语";
+               var noZh2 = lang === "日语" ? "，不得出现中文句子（日语正常使用的汉字保留）" : lang === "中文" ? "" : "，不得出现中文"; /* v1.26.0：中文目标去掉自相矛盾句 */
+               return chat(sys, prompt + "\n\n【纠正】" + why + "，错误。译文必须全部用纯" + lang + "书写" + noZh2 + "。数字/术语/人名逐字保留。\n\n中文原文：" + text, { max_tokens: 600, temp: 0.1, scope: buyer.scope })
                 .then(settled);
             }
           });
@@ -848,12 +884,12 @@
        var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
        var needForeign = lang !== "中文";
        var base = Prompts.expand(buyer) + "\n\n卖家写的意图：" + text;
-       function settle(o) {
-         if (!o || !o.text) throw new Error("扩充结果无法解析");
-         if (needForeign && /[一-龥]/.test(String(o.text))) throw new Error("含中文");
-         if (wrongLang(o.text, lang)) throw new Error("仍是英语");
-         return o;
-       }
+      function settle(o) {
+        if (!o || !o.text) throw new Error("扩充结果无法解析");
+        if (needForeign && cjkLeak(String(o.text), lang)) throw new Error("含中文"); /* v1.26.0：与 suggest/localize 同口径，日语汉字不再误判（v1.25.0 漏了这条路） */
+        if (wrongLang(o.text, lang)) throw new Error("仍是英语");
+        return o;
+      }
        return fullSystem(buyer).then(function (sys) {
            /* 2026-11-02：max_tokens 500→600，容纳"先看后写"骨架字段（buyerLast/check）
               2026-11-02（Phil：模型升档）：方式①扩充单独升 qwen-plus——"先看后写"骨架 + 15 条上下文
@@ -868,11 +904,11 @@
                if (!why) throw e1; /* 解析类错误不重试，直接抛 */
                   return chat(sys, base + "\n\n【纠正】" + why + "，错误。text 必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），只有 zh 允许中文。", { model: "qwen-plus", fallbackModel: "qwen-flash", max_tokens: 600, temp: 0.2, scope: buyer.scope })
                .then(function (t2) {
-                 var o2 = parseJSON(t2);
-                 if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
-                 if (needForeign && /[一-龥]/.test(String(o2.text))) o2.wrongLang = "含中文";
-                 else if (wrongLang(o2.text, lang)) o2.wrongLang = "仍是英语（应" + lang + "）";
-                 return o2;
+                var o2 = parseJSON(t2);
+                if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
+                if (needForeign && cjkLeak(String(o2.text), lang)) o2.wrongLang = "含中文"; /* v1.26.0：日语汉字不再误判 */
+                else if (wrongLang(o2.text, lang)) o2.wrongLang = "仍是英语（应" + lang + "）";
+                return o2;
                });
              }
            });

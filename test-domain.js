@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0 && s.indexOf("1.24.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0 && s.indexOf("1.24.0") < 0 && s.indexOf("1.25.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -521,6 +521,38 @@ if (llm24 !== null && llm24.window.LLM) {
   ok("德语：短消息不误伤（Ja, klar.）", WL.wrongLang("Ja, klar.", "德语") === false);
   ok("日语提示词改禁中文句子（不再禁汉字）", (function () { const P = llm24.window.Prompts; const b = { name: "x", country: "日本", stage: 0, messages: [] }; return P.suggest(b).indexOf("text 中严禁出现中文句子") >= 0 && P.suggest(b).indexOf("严禁出现任何中文汉字") < 0; })());
   ok("德语提示词不受影响（仍禁汉字）", (function () { const P = llm24.window.Prompts; const b = { name: "x", country: "德国", stage: 0, messages: [] }; return P.suggest(b).indexOf("text 中严禁出现任何中文汉字") >= 0; })());
+}
+
+console.log("\n[25] F5 语言闸门全语种审计（v1.26.0）：「还有哪些外语有问题」");
+if (llm24 !== null && llm24.window.LLM) {
+  const WL = llm24.window.LLM;
+  /* ① 土耳其语：ASCII 拼写不再误伤（旧判据"无特征字符＝串台"必误拦） */
+  ok("土耳其语：正常 ASCII 拼写放行", WL.wrongLang("Merhaba, evet, fiyat 10$.", "土耳其语") === false);
+  ok("土耳其语：短 ASCII 回复放行（Evet, 10$）", WL.wrongLang("Evet, 10$.", "土耳其语") === false);
+  ok("土耳其语：带特征字母长句放行", WL.wrongLang("Selam, kargo ücreti ne kadar? Lütfen teklif verin.", "土耳其语") === false);
+  ok("土耳其语：纯英语仍拦", WL.wrongLang("Hello, we can ship to İstanbul. The price is our best.", "土耳其语") === true);
+  ok("土耳其语：零特征＋≥4 拉丁词串台拦", WL.wrongLang("OK, yes, ten dollars each unit", "土耳其语") === true);
+  /* ② 罗曼语：带重音专有名词的英语不再漏（isEnglishLike 变音符号否决的洞） */
+  ok("西语：含带重音专有名词的英语拦（旧闸漏判）", WL.wrongLang("Hello, we can ship to México. The price is our best.", "西班牙语") === true);
+  ok("葡语：含 São Paulo 的英语拦（旧闸漏判）", WL.wrongLang("Hi, we can ship to São Paulo. The price stays the same.", "葡萄牙语") === true);
+  ok("西语：正常西语放行", WL.wrongLang("Hola, el precio es 10$. ¿Cuántas unidades necesita?", "西班牙语") === false);
+  ok("法语：正常法语放行", WL.wrongLang("Bonjour, le prix est de 10$. Merci.", "法语") === false);
+  ok("意语：正常意语放行", WL.wrongLang("Ciao, il prezzo è 10$. Grazie.", "意大利语") === false);
+  ok("葡语（巴西）：归一后正常巴葡放行", WL.wrongLang("Olá, o preço é 10$ na China. Obrigado.", "葡萄牙语（巴西）") === false);
+  /* ③ 混写：目标文字在场＋2 个英语借词不再误伤；≥3 功能词仍拦 */
+  ok("韩语：谚文＋2 英语借词放行（旧闸误伤）", WL.wrongLang("네, sample price 10$입니다.", "韩语") === false);
+  ok("日语：假名＋2 英语借词放行（旧闸误伤）", WL.wrongLang("はい、sample price で確認します。", "日语") === false);
+  ok("日语：假名＋3 英语功能词仍拦（实质英语）", WL.wrongLang("はい、the price is good.", "日语") === true);
+  ok("韩语：纯英语仍拦", WL.wrongLang("The price stays the same, we can start with 50 units.", "韩语") === true);
+  ok("俄语：西里尔＋2 英语借词放行", WL.wrongLang("Да, sample price 10$, ок.", "俄语") === false);
+  ok("阿语：阿拉伯文＋2 英语借词放行", WL.wrongLang("مرحبا، sample price 10$.", "阿拉伯语") === false);
+  ok("阿语：纯英语仍拦", WL.wrongLang("Hello, the price is 10 dollars.", "阿拉伯语") === true);
+  /* ④ 中文目标：全无 CJK＝非中文；提示词自相矛盾消除 */
+  ok("中文目标：短英语（功能词<2）也拦", WL.wrongLang("OK, no problem.", "中文") === true);
+  ok("中文目标：正常中文放行", WL.wrongLang("好的，价格保持不变，50 台起订。", "中文") === false);
+  ok("中文目标：无汉字纯假名日语拦", WL.wrongLang("はい、いいです。", "中文") === true);
+  ok("中文目标提示词：无「必须用中文＋禁汉字」矛盾", (function () { const P = llm24.window.Prompts; const b = { name: "x", country: "中国", stage: 0, messages: [] }; return P.suggest(b).indexOf("必须全部用中文书写") >= 0 && P.suggest(b).indexOf("严禁出现任何中文汉字") < 0; })());
+  ok("西语目标提示词：禁令措辞与 v1.25.0 逐字节一致（平价抽查）", (function () { const P = llm24.window.Prompts; const b = { name: "x", country: "西班牙", stage: 0, messages: [] }; return P.suggest(b).indexOf("text 中严禁出现任何中文汉字") >= 0; })());
 }
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
