@@ -543,8 +543,19 @@
      ① 确定性检测：目标非英语而输出是英语（无变音符号+英语功能词≥2）/ 目标文字系统缺失（日韩俄阿土）
      ② 命中 → 强纠正重试一次（对话与底稿逐句翻译成目标语言）
      ③ 仍错 → suggest/expand 打 ⛔ 标（人工改完再发）、localize 显式报错——绝不静默放行英语 */
+  /* v1.25.0（Phil「日语、德语等还是有问题」）：[一-龥] 区间与日文字形完全重叠——
+     三条生成路（suggest/localize/translateScript）都拿"含 CJK＝中文泄漏"判定，正确日语
+     （必然含汉字）必被误标「含中文」→ 强纠正重试时还劝模型"不得出现中文"→ 要么报错、
+     要么逼出无汉字纯假名日语。判据：目标日语且文本含平/片假名＝日语文本，汉字是合法日语汉字；
+     无假名而有 CJK＝真中文，照拦 */
+  function cjkLeak(s, target) {
+    s = String(s || "");
+    if (target === "日语" && /[\u3040-\u30ff]/.test(s)) return false;
+    return /[一-龥]/.test(s);
+  }
   var LATIN_DIACRITICS = /[àáâãäçèéêëìíîïðñòóôõöøùúûüýœ]/;
-  var EN_FUNC = /\b(the|you|your|we|our|is|are|was|were|for|with|can|will|would|that|this|these|it|its|if|not|please|thank|thanks|hello|ok|okay|fine|good|sure|right|now|price|units?|order|sample|factory|shipping|delivery|product|start|need|want|get)\b/i;
+  var EN_FUNC = /\b(the|you|your|we|our|is|are|was|were|for|with|can|will|would|that|this|these|it|its|if|not|please|thank|thanks|hello|ok|okay|fine|good|sure|right|now|price|units?|order|sample|factory|shipping|delivery|product|start|need|want|get|same|stays?|keeps?|ships?|send|sent|low|best|more|new)\b/i;
+  var DE_FUNC = /\b(und|oder|aber|der|die|das|den|dem|ist|sind|war|wir|ihr|nicht|auch|noch|sehr|bitte|danke|guten|gute|hallo|preis|lieferung|lieferzeit|menge|stück|bestellung|senden|erhalten|können|konnen|woche|tag|zahlung|versand)\b/i;
   function isEnglishLike(t) {
     t = String(t || "");
     if (!/[a-zA-Z]/.test(t)) return false;
@@ -563,7 +574,17 @@
     if (target === "阿拉伯语" && !/[\u0600-\u06ff]/.test(t)) return true;
     if (target === "俄语" && !/[\u0400-\u04ff]/.test(t)) return true;
     if (target === "土耳其语" && !/[ığşöüİĞŞ]/.test(t)) return true;
-    return false; /* 西/法/德/意：拉丁语系互混无法机械区分，isEnglishLike 是主闸 */
+    if (target === "德语") {
+      /* v1.25.0：德语加正向特征闸门——≥2 个德语功能词＝确认德语（变音符号已让 isEnglishLike 放行，
+         这里兜住"无变音符号的德语"）；0 个德语特征＋≥4 个拉丁词＝误发（英语功能词不足 2 个的漏网/
+         其他语言串台）；短消息（<4 拉丁词）放行，防误伤 "Ja, klar." 这类 */
+      var deHits = (t.match(DE_FUNC) || []).length;
+      if (deHits >= 2) return false;
+      var latWords = t.split(/\s+/).filter(function (w) { return /[a-zA-Z]{2,}/.test(w); }).length;
+      if (latWords >= 4) return true;
+      return false;
+    }
+    return false; /* 西/法/意：拉丁语系互混无法机械区分，isEnglishLike 是主闸 */
   }
 
   window.LLM = {
@@ -572,6 +593,7 @@
     active: function () { return _inFlight; }, /* 2026-11-02 导出：在飞的 LLM/FC 调用数（voice.js 判断"云端忙"，STT 熔断延长用） */
     wrongLang: wrongLang, /* 2026-10-30 导出：F5 语言闸门，测试回归用 */
     isEnglishLike: isEnglishLike,
+    cjkLeak: cjkLeak, /* v1.25.0 导出：中文泄漏判定（日语汉字感知），测试回归用 */
     situationScan: situationScan, /* 2026-10-30 导出：考试回归用（F1 局面路由） */
     scanLineOf: scanLineOf, /* 2026-10-30 导出：考试回归用（F1 扫描行文本） */
     postcheck: postcheck, /* 2026-10-30 导出：考试回归用（F4 后置校验） */
@@ -658,10 +680,9 @@
      suggest: function (buyer, onChunk) {
        var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
       var needForeign = lang !== "中文";
-      function hasCjk(s) { return /[一-龥]/.test(String(s || "")); }
       function leak(list) {
         if (!needForeign || !list) return false;
-        for (var i = 0; i < list.length; i++) if (hasCjk(list[i].text)) return true;
+        for (var i = 0; i < list.length; i++) if (cjkLeak(list[i].text, lang)) return true; /* v1.25.0：日语汉字不再误判为中文泄漏 */
         return false;
       }
       function parse(t) {
@@ -771,19 +792,20 @@
         return bad.length ? "币种错配（" + bad.join("；") + "）" : "";
       }
       /* F5（2026-10-30）：直译也过语言闸门——仍错显式报错（toast 出原因），不静默给英语 */
-      function settled(t) {
-        if (needForeign && /[一-龥]/.test(String(t || ""))) throw new Error("语言未生效：译文含中文（目标" + lang + "）");
-        if (wrongLang(t, lang)) throw new Error("语言未生效：输出仍是英语（目标" + lang + "），点重试或换按意图扩充");
-        return t;
-      }
+       function settled(t) {
+         if (needForeign && cjkLeak(t, lang)) throw new Error("语言未生效：译文含中文（目标" + lang + "）"); /* v1.25.0：日语汉字放行 */
+         if (wrongLang(t, lang)) throw new Error("语言未生效：输出仍是英语（目标" + lang + "），点重试或换按意图扩充");
+         return t;
+       }
       return chat(sys, user, { max_tokens: 400, temp: 0.3, scope: buyer.scope })
         .then(function (t) {
           var br = "", langErr = null;
           try { t = settled(t); } catch (e) { langErr = e; }
           if (!langErr) br = bloatReason(t) || curReason(t);
           if (langErr || br) {
-            var why = langErr ? (/含中文/.test(langErr.message) ? "上一次输出含中文" : "上一次输出仍是英语") : br;
-            var fixup = langErr ? "正文必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），不得出现中文。"
+             var why = langErr ? (/含中文/.test(langErr.message) ? "上一次输出含中文" : "上一次输出仍是英语") : br;
+             var noZh = lang === "日语" ? "不得出现中文句子（日语正常使用的汉字保留）" : "不得出现中文"; /* v1.25.0：纠正日语时劝删汉字＝逼出坏译文 */
+             var fixup = langErr ? "正文必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），" + noZh + "。"
               : (/^币种错配/.test(br) ? "每个数字的币种必须照原文/档案原样写（RMB 就是 RMB、USD 就是 USD），一个都不许换。"
                 : "译文必须与原文句数、信息一一对应：删掉所有原文没有的句子/卖点/结尾，不许出现原文以外的数字。");
             return chat(sys, Prompts.localize(buyer) + "\n\n【纠正】" + why + "，错误。" + fixup + "\n\n中文原文：" + text, { max_tokens: 400, temp: 0.2, scope: buyer.scope })
@@ -805,7 +827,7 @@
         function settled(t) {
           var s = String(t || "").trim();
           if (!s) throw new Error("返回空译文");
-          if (needForeign && /[一-龥]/.test(s)) throw new Error("语言未生效：译文含中文（目标" + lang + "）");
+          if (needForeign && cjkLeak(s, lang)) throw new Error("语言未生效：译文含中文（目标" + lang + "）"); /* v1.25.0：日语汉字放行 */
           if (wrongLang(s, lang)) throw new Error("语言未生效：输出仍是英语（目标" + lang + "）");
           return s;
         }
@@ -816,7 +838,7 @@
           .then(function (t) {
             try { return settled(t); } catch (e) {
               var why = String(e.message).indexOf("含中文") >= 0 ? "上一次输出含中文" : "上一次输出仍是英语";
-              return chat(sys, prompt + "\n\n【纠正】" + why + "，错误。译文必须全部用纯" + lang + "书写，不得出现中文。数字/术语/人名逐字保留。\n\n中文原文：" + text, { max_tokens: 600, temp: 0.1, scope: buyer.scope })
+               return chat(sys, prompt + "\n\n【纠正】" + why + "，错误。译文必须全部用纯" + lang + "书写，" + (lang === "日语" ? "不得出现中文句子（日语正常使用的汉字保留）" : "不得出现中文") + "。数字/术语/人名逐字保留。\n\n中文原文：" + text, { max_tokens: 600, temp: 0.1, scope: buyer.scope })
                 .then(settled);
             }
           });

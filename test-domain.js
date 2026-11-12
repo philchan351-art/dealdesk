@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0 && s.indexOf("1.24.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -503,6 +503,25 @@ let smk23 = makeCtx();
 let smkErr23 = null;
 try { load(smk23, "mock.js"); load(smk23, "store.js"); load(smk23, "settings.js"); } catch (e) { smk23 = null; smkErr23 = e; }
 ok("settings.js 加载冒烟（假 DOM 不抛异常）", smk23 !== null && smkErr23 === null, smkErr23 && String(smkErr23.message));
+
+console.log("\n[24] F5 语言闸门日语汉字误判＋德语特征闸门（v1.25.0）：「日语、德语等还是有问题」");
+let llm24 = makeCtx();
+let llmErr24 = null;
+try { load(llm24, "country-profiles.js"); load(llm24, "prompts.js"); load(llm24, "llm.js"); } catch (e) { llm24 = null; llmErr24 = e; }
+ok("llm.js 加载冒烟（假 DOM）", llm24 !== null && llmErr24 === null, llmErr24 && String(llmErr24.message));
+if (llm24 !== null && llm24.window.LLM) {
+  const WL = llm24.window.LLM;
+  ok("日语：正常日语（汉字＋假名）不再误判为中文泄漏", WL.cjkLeak("価格について確認させてください。", "日语") === false);
+  ok("日语：纯中文句子仍判泄漏", WL.cjkLeak("你好，价格保持不变。", "日语") === true);
+  ok("英语目标：中文仍判泄漏", WL.cjkLeak("你好，价格保持不变。", "英语") === true);
+  ok("日语：英语输出仍被闸门拦（kana 缺失+英语特征）", WL.wrongLang("The price stays the same.", "日语") === true);
+  ok("德语：德语特征（≥2 功能词）放行", WL.wrongLang("Der Preis bleibt gleich, wir können 50 Stück liefern.", "德语") === false);
+  ok("德语：纯英语被拦", WL.wrongLang("The price stays the same, we can start with 50 units.", "德语") === true);
+  ok("德语：英语功能词不足 2 个的漏网也被拦（≥4 拉丁词且无德语特征）", WL.wrongLang("We will send you the document tomorrow morning.", "德语") === true);
+  ok("德语：短消息不误伤（Ja, klar.）", WL.wrongLang("Ja, klar.", "德语") === false);
+  ok("日语提示词改禁中文句子（不再禁汉字）", (function () { const P = llm24.window.Prompts; const b = { name: "x", country: "日本", stage: 0, messages: [] }; return P.suggest(b).indexOf("text 中严禁出现中文句子") >= 0 && P.suggest(b).indexOf("严禁出现任何中文汉字") < 0; })());
+  ok("德语提示词不受影响（仍禁汉字）", (function () { const P = llm24.window.Prompts; const b = { name: "x", country: "德国", stage: 0, messages: [] }; return P.suggest(b).indexOf("text 中严禁出现任何中文汉字") >= 0; })());
+}
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
 process.exit(fail ? 1 : 0);

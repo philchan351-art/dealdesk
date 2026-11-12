@@ -1511,7 +1511,7 @@
            bindSugg(wrap);
            /* 2026-10-18：诊断行与"已存"角标已按 Phil 要求删除（UI 精简），不再回填 */
            if (regen) regen.textContent = "✦ 重新生成";
-          var leaked = lang !== "中文" && items.some(function (s) { return /[一-龥]/.test(s.text || ""); });
+           var leaked = lang !== "中文" && items.some(function (s) { return (window.LLM && LLM.cjkLeak) ? LLM.cjkLeak(s.text || "", lang) : /[一-龥]/.test(s.text || ""); }); /* v1.25.0：日语汉字不再误报"AI 仍输出了中文" */
           App.toast(leaked ? "注意：AI 仍输出了中文，建议在设置里换成更强模型后重试" : "已生成并保存 · 含谈单诊断");
         }).catch(function (e) {
           App.toast("生成失败：" + e.message);
