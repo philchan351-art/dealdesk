@@ -418,35 +418,32 @@
         fbpBody.hidden = !fbpBody.hidden;
         fbpX.textContent = fbpBody.hidden ? "展开" : "收起";
       });
-      /* 表单截图识别（2026-10-17；v1.20.0 修两个真实 bug）：
-         ① 系统选图弹窗不选图就关掉（cancel）→ change 不触发 → 按钮永久置灰，"第二次无法上传"。
-            现在置灰状态由 input 自身携带（弹窗打开期间 input.disabled），change/cancel 都会释放，
-            另有 3 分钟兜底防"弹窗被系统吞掉"的极端情况；
-         ② 识别期间按钮可点（旧 st() 盲解锁）→ 等待期能发起第二次并发上传。
-            现在 busy 锁：进行中按钮禁用＋文案「⏳ 识别中…请稍候」，终态统一释放 */
+      /* 表单截图识别（2026-10-17 上线）：
+         v1.20.0 修两个真实 bug：① 选图弹窗 cancel 不触发 change → 按钮永久置灰"第二次无法上传"；
+         ② 识别期间按钮可点（旧 st() 盲解锁）→ 等待期能并发再传。
+         v1.23.0（Phil 实机「上传表单截图识别无法工作」）：v1.20.0 的修法①引入了新回归——
+         .click() 之前把 input 置 disabled，而所有浏览器里 disabled 的 file input 对
+         程序化点击是 no-op，选图弹窗根本不弹，功能整体失效。正确模型：选图弹窗是系统模态，
+         打开期间页面本就点不到任何按钮，"防二次唤起"不需要禁用任何东西；
+         唯一要锁的是识别进行中（fbpBusy）——按钮禁用＋「⏳ 识别中…请稍候」，终态 end() 统一释放。
+         cancel = 什么都不发生 = 按钮仍在，随时可再点 */
       var fbpImgBtn = bd.querySelector('[data-act="fbp-img"]');
       var fbpImgIn = bd.querySelector("#fbpImg");
       if (fbpImgBtn && fbpImgIn) {
         var fbpBusy = false;
         fbpImgBtn.addEventListener("click", function () {
-          if (fbpBusy || fbpImgIn.disabled) return;
-          fbpImgIn.disabled = true; /* 弹窗打开期间禁用 input，防二次唤起 */
+          if (fbpBusy) return; /* input 永远保持启用态——disabled 的 file input 不响应 .click() */
           fbpImgIn.click();
-          setTimeout(function () { fbpImgIn.disabled = false; }, 180000); /* 兜底：弹窗被弃、change/cancel 都没来 */
         });
         fbpImgIn.addEventListener("change", function (e) {
           var f = e.target.files && e.target.files[0];
           e.target.value = "";
-          fbpImgIn.disabled = false; /* 弹窗已关 */
           if (!f || fbpBusy) return;
           fbpBusy = true;
           fbpImgBtn.disabled = true;
           fbpImgBtn.textContent = "⏳ 识别中…请稍候";
           parseFormImage(f, bd, fbpImgBtn, function () { fbpBusy = false; });
         });
-        if (typeof fbpImgIn.oncancel !== "undefined") {
-          fbpImgIn.addEventListener("cancel", function () { fbpImgIn.disabled = false; }); /* 取消选图 → 立即释放，可再传 */
-        }
       }
       fbpGo.addEventListener("click", function () {
         var ta = document.getElementById("fbpText");
