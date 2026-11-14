@@ -543,6 +543,22 @@
      ① 确定性检测：目标非英语而输出是英语（无变音符号+英语功能词≥2）/ 目标文字系统缺失（日韩俄阿土）
      ② 命中 → 强纠正重试一次（对话与底稿逐句翻译成目标语言）
      ③ 仍错 → suggest/expand 打 ⛔ 标（人工改完再发）、localize 显式报错——绝不静默放行英语 */
+  /* v1.28.0→v1.28.2：F5 救援通道统一助手——o.text 语言错误（重试后仍错，或整段英语直接跳过重试）→
+     喂 localize 译员引擎（句数/事实/币种守恒，只换语言）：成功＝换文＋rescued 标＋清语言类标记
+     （业务红线 blockReasons 不受影响）；失败（译文再未过闸）＝保留原标记，绝不静默放行 */
+  function rescueLang(o, lang, needForeign, buyer) {
+    return window.LLM.localize(String(o.text || ""), buyer).then(function (rr) {
+      var tr = (rr && rr.text) ? String(rr.text).trim() : "";
+      if (!tr || (needForeign && cjkLeak(tr, lang)) || wrongLang(tr, lang)) throw new Error("救援译文未过语言闸门");
+      o.text = tr; o.rescued = true;
+      if (o.wrongLang) o.wrongLang = "";
+      if (o.blockReasons) {
+        o.blockReasons = o.blockReasons.filter(function (x) { return !/仍是英语|含中文/.test(String(x)); });
+        o.blocked = o.blockReasons.length > 0;
+      }
+      return o;
+    }).catch(function () { return o; });
+  }
   /* v1.25.0（Phil「日语、德语等还是有问题」）：[一-龥] 区间与日文字形完全重叠——
      四条生成路（suggest/localize/translateScript/expand）都拿"含 CJK＝中文泄漏"判定，正确日语
      （必然含汉字）必被误标「含中文」→ 强纠正重试时还劝模型"不得出现中文"→ 要么报错、
@@ -751,7 +767,12 @@
         return call(Prompts.suggest(buyer)).then(function (r) {
           var bad = badReasons(r.list);
           if (!bad.length) return r;
-          return call(Prompts.suggest(buyer) + "\n\n[纠正] " + bad.join("，") + "，都是错误的。text 必须全部用" + lang + "书写——对话记录和底稿如果是英语，必须逐句翻译成" + lang + "再改写，严禁保留任何英语句子；只有 zh 字段允许中文。").then(function (r2) {
+          /* v1.28.2（Phil「写韩语 71 秒才成功」）：纯语言错位（全部条目"仍是英语"）＝模型顽固——
+             纠正重试对顽固成功率极低（Phil 韩/德/西实测全部失败），每重试一次白烧 20-30 秒：
+             跳过重试，直接逐条救援（localize 译员引擎，句数/事实守恒）。
+             混中文（模型音色基本对）保留一次纠正重试。 */
+          var langOnly = bad.every(function (x) { return /英语/.test(x); });
+          return (langOnly ? Promise.resolve(r) : call(Prompts.suggest(buyer) + "\n\n[纠正] " + bad.join("，") + "，都是错误的。text 必须全部用" + lang + "书写——对话记录和底稿如果是英语，必须逐句翻译成" + lang + "再改写，严禁保留任何英语句子；只有 zh 字段允许中文。")).then(function (r2) {
             if (r2 && r2.list) for (var i = 0; i < r2.list.length; i++) {
               var it = r2.list[i];
               var probs = [];
@@ -759,22 +780,14 @@
               if (wrongLang(it.text, lang)) probs.push("仍是英语（应" + lang + "）");
               if (probs.length) { it.blocked = true; it.blockReasons = (it.blockReasons || []).concat(probs); }
             }
-            /* v1.28.0（Phil「选西语法语，代写/扩充仍是英语」根治·救援通道）：纠正重试后仍语言错 →
-               不再留裸 ⛔ 等人手改，把该条英语自动喂给 localize 译员引擎（句数/事实守恒，只换语言）：
-               救援成功＝换文＋打 rescued 标（界面琥珀色「已自动转直译」）；救援失败（译文再未过闸）＝保留原 ⛔。
-               效果：只要直译引擎在该语言稳定，输出必为目标语言——不再依赖模型一次听话 */
+            /* v1.28.0→v1.28.2 救援通道：语言错条目自动转 localize 直译——成功＝换文＋rescued 标
+               （界面琥珀色「已自动转直译」）；失败＝保留原 ⛔ 绝不静默放行。
+               效果：只要直译引擎在该语言稳定，输出必为目标语言，且顽固场景少烧一次纠正调用 */
             var resJobs = [];
             if (needForeign && r2.list) r2.list.forEach(function (it) {
               var langBad = (it.blockReasons || []).some(function (x) { return /仍是英语|含中文/.test(String(x)); });
               if (!langBad) return;
-              resJobs.push(window.LLM.localize(String(it.text || ""), buyer).then(function (rr) {
-                var tr = (rr && rr.text) ? String(rr.text).trim() : "";
-                /* v1.28.1：cjkLeak 必须带 needForeign 守卫——目标中文时 CJK 是期望语言，不带守卫中文救援必失败（全矩阵坐实） */
-                if (!tr || (needForeign && cjkLeak(tr, lang)) || wrongLang(tr, lang)) throw new Error("救援译文未过语言闸门");
-                it.text = tr; it.rescued = true;
-                it.blockReasons = (it.blockReasons || []).filter(function (x) { return !/仍是英语|含中文/.test(String(x)); });
-                it.blocked = it.blockReasons.length > 0; /* 业务红线（F4 postcheck）的 block 保留，只清语言类 */
-              }));
+              resJobs.push(rescueLang(it, lang, needForeign, buyer));
             });
             return (resJobs.length ? Promise.all(resJobs) : Promise.resolve(null)).then(function () { return r2; });
           });
@@ -914,31 +927,29 @@
               百炼价 plus 0.8/2 元每百万 token，一天 100 次 < 5 毛）。10-18 全局成本纪律不变
               （其余调用仍默认 flash）；plus 在端点不可用时自动回退 flash，不阻塞业务员 */
            return chat(sys, base, { model: "qwen-plus", fallbackModel: "qwen-flash", max_tokens: 600, temp: 0.4, scope: buyer.scope })
-           .then(function (t) {
-             var o = parseJSON(t);
-             try { return settle(o); } catch (e1) {
-               var why = String(e1.message) === "含中文" ? "上一次 text 字段含中文" : (String(e1.message) === "仍是英语" ? "上一次输出仍是英语" : "");
-               if (!why) throw e1; /* 解析类错误不重试，直接抛 */
-                  return chat(sys, base + "\n\n【纠正】" + why + "，错误。text 必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），只有 zh 允许中文。", { model: "qwen-plus", fallbackModel: "qwen-flash", max_tokens: 600, temp: 0.2, scope: buyer.scope })
-                .then(function (t2) {
-                 var o2 = parseJSON(t2);
-                 if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
-                 if (needForeign && cjkLeak(String(o2.text), lang)) o2.wrongLang = "含中文"; /* v1.26.0：日语汉字不再误判 */
-                 else if (wrongLang(o2.text, lang)) o2.wrongLang = "仍是英语（应" + lang + "）";
-                 /* v1.28.0 救援通道（同 suggest）：重试仍语言错 → 自动转 localize 直译，成功清标打 rescued，失败留 ⛔ */
-                 if (o2.wrongLang) {
-                   return window.LLM.localize(String(o2.text), buyer).then(function (rr) {
-                     var tr = (rr && rr.text) ? String(rr.text).trim() : "";
-                     /* v1.28.1：cjkLeak 必须带 needForeign 守卫（同 suggest 救援，中文目标全矩阵坐实） */
-                     if (!tr || (needForeign && cjkLeak(tr, lang)) || wrongLang(tr, lang)) throw new Error("救援译文未过语言闸门");
-                     o2.text = tr; o2.rescued = true; o2.wrongLang = "";
-                     return o2;
-                   }).catch(function () { return o2; });
-                 }
-                 return o2;
-                });
-             }
-           });
+            .then(function (t) {
+              var o = parseJSON(t);
+              try { return settle(o); } catch (e1) {
+                var why = String(e1.message) === "含中文" ? "上一次 text 字段含中文" : (String(e1.message) === "仍是英语" ? "上一次输出仍是英语" : "");
+                if (!why) throw e1; /* 解析类错误不重试，直接抛 */
+                /* v1.28.2（Phil「写韩语 71 秒才成功」）：整段仍是英语＝模型顽固，纠正重试成功率极低
+                   （Phil 韩/德/西实测全部失败）＝白烧一次 qwen-plus 20-30 秒 → 直接救援（localize 走 flash，更快）。
+                   混中文（音色基本对）保留一次纠正重试 */
+                if (String(e1.message) === "仍是英语") {
+                  o.wrongLang = "仍是英语（应" + lang + "）";
+                  return rescueLang(o, lang, needForeign, buyer);
+                }
+                   return chat(sys, base + "\n\n【纠正】" + why + "，错误。text 必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），只有 zh 允许中文。", { model: "qwen-plus", fallbackModel: "qwen-flash", max_tokens: 600, temp: 0.2, scope: buyer.scope })
+                 .then(function (t2) {
+                  var o2 = parseJSON(t2);
+                  if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
+                  if (needForeign && cjkLeak(String(o2.text), lang)) o2.wrongLang = "含中文"; /* v1.26.0：日语汉字不再误判 */
+                  else if (wrongLang(o2.text, lang)) o2.wrongLang = "仍是英语（应" + lang + "）";
+                  /* v1.28.0→v1.28.2 救援通道：重试仍语言错 → 自动转 localize 直译，成功清标打 rescued，失败留 ⛔ */
+                  return o2.wrongLang ? rescueLang(o2, lang, needForeign, buyer) : Promise.resolve(o2);
+                 });
+              }
+            });
        });
      }
   };
