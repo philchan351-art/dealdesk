@@ -91,6 +91,12 @@ BS.parseForm(GEORGE).then(function (r) {
       assert.equal(r6.f.wa, "+1932132483439", "全角 wa");
       assert.equal(r6.f.qty, "200", "全角 qty");
       console.log("T6 规则路径(无标签短行·全角逗号) PASS");
+    return BS.parseForm("marco, 墨西哥, italiano, +52 55 1234 5678, 需求500件").then(function (r7) {
+      assert.equal(r7.f.lang, "意大利语", "v1.27.0 别名表补意大利语（italiano）: " + r7.f.lang);
+      assert.equal(r7.f.country, "墨西哥", "T7 country");
+      assert.equal(r7.f.name, "marco", "T7 name");
+      console.log("T7 规则路径(意大利语别名·v1.27.0) PASS");
+    });
     });
   });
 }).then(function () {

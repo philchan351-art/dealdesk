@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0 && s.indexOf("1.24.0") < 0 && s.indexOf("1.25.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0 && s.indexOf("1.24.0") < 0 && s.indexOf("1.25.0") < 0 && s.indexOf("1.26.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -553,6 +553,34 @@ if (llm24 !== null && llm24.window.LLM) {
   ok("中文目标：无汉字纯假名日语拦", WL.wrongLang("はい、いいです。", "中文") === true);
   ok("中文目标提示词：无「必须用中文＋禁汉字」矛盾", (function () { const P = llm24.window.Prompts; const b = { name: "x", country: "中国", stage: 0, messages: [] }; return P.suggest(b).indexOf("必须全部用中文书写") >= 0 && P.suggest(b).indexOf("严禁出现任何中文汉字") < 0; })());
   ok("西语目标提示词：禁令措辞与 v1.25.0 逐字节一致（平价抽查）", (function () { const P = llm24.window.Prompts; const b = { name: "x", country: "西班牙", stage: 0, messages: [] }; return P.suggest(b).indexOf("text 中严禁出现任何中文汉字") >= 0; })());
+}
+
+console.log("\n[26] 语言名归一（v1.27.0）：「除了英语其他语言都有问题」——新增买家表单自由输入的 msgLang 别名让日语闸门整体失灵");
+if (llm24 !== null && llm24.window.LLM && llm24.window.Prompts) {
+  const P26 = llm24.window.Prompts;
+  const L26 = llm24.window.LLM;
+  const LO = (ml) => P26.langOf({ name: "x", msgLang: ml, stage: 0, messages: [] });
+  /* 别名 → 规范名（12 语言全覆盖） */
+  ok("japanese → 日语", LO("japanese") === "日语");
+  ok("日本語 → 日语", LO("日本語") === "日语");
+  ok("Spanish → 西班牙语", LO("Spanish") === "西班牙语");
+  ok("西语 → 西班牙语", LO("西语") === "西班牙语");
+  ok("Português → 葡萄牙语", LO("Português") === "葡萄牙语");
+  ok("deutsch → 德语", LO("deutsch") === "德语");
+  ok("한국어 → 韩语", LO("한국어") === "韩语");
+  ok("русский → 俄语", LO("русский") === "俄语");
+  ok("العربية → 阿拉伯语", LO("العربية") === "阿拉伯语");
+  ok("italiano → 意大利语", LO("italiano") === "意大利语");
+  ok("türkçe → 土耳其语", LO("türkçe") === "土耳其语");
+  ok("带空格小写 english → 英语", LO("  english ") === "英语");
+  ok("表外语言原样保留（不吞掉陌生输入）", LO("斯瓦希里语") === "斯瓦希里语");
+  /* 核心回归：别名日语买家不再被判「含中文」（v1.25.0 修好的 bug 经命名通道复发的锁定） */
+  const jpText = "はい、価格は1台10ドルです。50台からご注文いただけます。";
+  ok("别名 japanese 的日语文本 cjkLeak 放行", L26.cjkLeak(jpText, LO("japanese")) === false);
+  ok("别名 japanese 的日语文本 wrongLang 放行", L26.wrongLang(jpText, LO("japanese")) === false);
+  ok("别名 japanese 的提示词用日语禁令（非「严禁任何中文汉字」）", (function () { const b = { name: "x", msgLang: "japanese", stage: 0, messages: [] }; const s = P26.suggest(b); return s.indexOf("text 中严禁出现中文句子") >= 0 && s.indexOf("严禁出现任何中文汉字") < 0; })());
+  ok("规范名行为零变化（日本→日语 仍走原闸门）", (function () { const b = { name: "x", country: "日本", stage: 0, messages: [] }; return P26.langOf(b) === "日语" && L26.wrongLang("The price stays the same.", P26.langOf(b)) === true; })());
+  /* 粘贴识别别名表补意大利语 → test-fb-parse.js T7 覆盖（异步 parseForm） */
 }
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");

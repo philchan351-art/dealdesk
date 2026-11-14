@@ -94,7 +94,8 @@
     "西班牙语": "西班牙语", "spanish": "西班牙语", "español": "西班牙语", "法语": "法语", "french": "法语",
     "德语": "德语", "german": "德语", "葡萄牙语": "葡萄牙语", "portuguese": "葡萄牙语",
     "阿拉伯语": "阿拉伯语", "arabic": "阿拉伯语", "俄语": "俄语", "russian": "俄语",
-    "日语": "日语", "japanese": "日语", "韩语": "韩语", "korean": "韩语", "印地语": "印地语", "hindi": "印地语", "土耳其语": "土耳其语" };
+    "日语": "日语", "japanese": "日语", "韩语": "韩语", "korean": "韩语", "印地语": "印地语", "hindi": "印地语", "土耳其语": "土耳其语",
+    "意大利语": "意大利语", "italian": "意大利语", "italiano": "意大利语" }; /* v1.27.0：补意大利语（原表漏，粘贴「italian/italiano/意大利语」识别不到语言） */
   var HEADER_WORDS = /^(full\s*name|name|姓名|名字|国家|country|电话|手机|phone\s*number|mobile|tel(?:ephone)?|whatsapp\s*(number)?|邮箱|e-?mail|公司|company\s*name?|产品|product( of interest)?|数量|quantity|qty|预算|budget|语言|language)$/i;
   function isPhoneTok(tok) { return /^[+\d][\d\s\-()]{6,17}$/.test(tok) && (tok.match(/\d/g) || []).length >= 8; }
   function classifyToken(tok, f, extra) {
