@@ -748,20 +748,36 @@
          if (list) for (var i = 0; i < list.length; i++) if (wrongLang(list[i].text, lang)) { r.push("输出仍是英语（应为" + lang + "）"); break; }
          return r;
        }
-       return call(Prompts.suggest(buyer)).then(function (r) {
-         var bad = badReasons(r.list);
-         if (!bad.length) return r;
-         return call(Prompts.suggest(buyer) + "\n\n[纠正] " + bad.join("，") + "，都是错误的。text 必须全部用" + lang + "书写——对话记录和底稿如果是英语，必须逐句翻译成" + lang + "再改写，严禁保留任何英语句子；只有 zh 字段允许中文。").then(function (r2) {
-           if (r2 && r2.list) for (var i = 0; i < r2.list.length; i++) {
-             var it = r2.list[i];
-             var probs = [];
-             if (leak([it])) probs.push("含中文");
-             if (wrongLang(it.text, lang)) probs.push("仍是英语（应" + lang + "）");
-             if (probs.length) { it.blocked = true; it.blockReasons = (it.blockReasons || []).concat(probs); }
-           }
-           return r2;
-         });
-       });
+        return call(Prompts.suggest(buyer)).then(function (r) {
+          var bad = badReasons(r.list);
+          if (!bad.length) return r;
+          return call(Prompts.suggest(buyer) + "\n\n[纠正] " + bad.join("，") + "，都是错误的。text 必须全部用" + lang + "书写——对话记录和底稿如果是英语，必须逐句翻译成" + lang + "再改写，严禁保留任何英语句子；只有 zh 字段允许中文。").then(function (r2) {
+            if (r2 && r2.list) for (var i = 0; i < r2.list.length; i++) {
+              var it = r2.list[i];
+              var probs = [];
+              if (leak([it])) probs.push("含中文");
+              if (wrongLang(it.text, lang)) probs.push("仍是英语（应" + lang + "）");
+              if (probs.length) { it.blocked = true; it.blockReasons = (it.blockReasons || []).concat(probs); }
+            }
+            /* v1.28.0（Phil「选西语法语，代写/扩充仍是英语」根治·救援通道）：纠正重试后仍语言错 →
+               不再留裸 ⛔ 等人手改，把该条英语自动喂给 localize 译员引擎（句数/事实守恒，只换语言）：
+               救援成功＝换文＋打 rescued 标（界面琥珀色「已自动转直译」）；救援失败（译文再未过闸）＝保留原 ⛔。
+               效果：只要直译引擎在该语言稳定，输出必为目标语言——不再依赖模型一次听话 */
+            var resJobs = [];
+            if (needForeign && r2.list) r2.list.forEach(function (it) {
+              var langBad = (it.blockReasons || []).some(function (x) { return /仍是英语|含中文/.test(String(x)); });
+              if (!langBad) return;
+              resJobs.push(window.LLM.localize(String(it.text || ""), buyer).then(function (rr) {
+                var tr = (rr && rr.text) ? String(rr.text).trim() : "";
+                if (!tr || cjkLeak(tr, lang) || wrongLang(tr, lang)) throw new Error("救援译文未过语言闸门");
+                it.text = tr; it.rescued = true;
+                it.blockReasons = (it.blockReasons || []).filter(function (x) { return !/仍是英语|含中文/.test(String(x)); });
+                it.blocked = it.blockReasons.length > 0; /* 业务红线（F4 postcheck）的 block 保留，只清语言类 */
+              }));
+            });
+            return (resJobs.length ? Promise.all(resJobs) : Promise.resolve(null)).then(function () { return r2; });
+          });
+        });
     },
     localize: function (text, buyer) {
       var lang = (window.Prompts && Prompts.langOf) ? Prompts.langOf(buyer) : "英语";
@@ -903,13 +919,22 @@
                var why = String(e1.message) === "含中文" ? "上一次 text 字段含中文" : (String(e1.message) === "仍是英语" ? "上一次输出仍是英语" : "");
                if (!why) throw e1; /* 解析类错误不重试，直接抛 */
                   return chat(sys, base + "\n\n【纠正】" + why + "，错误。text 必须全部用纯" + lang + "书写（英语上下文也要逐句转写成" + lang + "），只有 zh 允许中文。", { model: "qwen-plus", fallbackModel: "qwen-flash", max_tokens: 600, temp: 0.2, scope: buyer.scope })
-               .then(function (t2) {
-                var o2 = parseJSON(t2);
-                if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
-                if (needForeign && cjkLeak(String(o2.text), lang)) o2.wrongLang = "含中文"; /* v1.26.0：日语汉字不再误判 */
-                else if (wrongLang(o2.text, lang)) o2.wrongLang = "仍是英语（应" + lang + "）";
-                return o2;
-               });
+                .then(function (t2) {
+                 var o2 = parseJSON(t2);
+                 if (!o2 || !o2.text) throw new Error("扩充结果无法解析");
+                 if (needForeign && cjkLeak(String(o2.text), lang)) o2.wrongLang = "含中文"; /* v1.26.0：日语汉字不再误判 */
+                 else if (wrongLang(o2.text, lang)) o2.wrongLang = "仍是英语（应" + lang + "）";
+                 /* v1.28.0 救援通道（同 suggest）：重试仍语言错 → 自动转 localize 直译，成功清标打 rescued，失败留 ⛔ */
+                 if (o2.wrongLang) {
+                   return window.LLM.localize(String(o2.text), buyer).then(function (rr) {
+                     var tr = (rr && rr.text) ? String(rr.text).trim() : "";
+                     if (!tr || cjkLeak(tr, lang) || wrongLang(tr, lang)) throw new Error("救援译文未过语言闸门");
+                     o2.text = tr; o2.rescued = true; o2.wrongLang = "";
+                     return o2;
+                   }).catch(function () { return o2; });
+                 }
+                 return o2;
+                });
              }
            });
        });

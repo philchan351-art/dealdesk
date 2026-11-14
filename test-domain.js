@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0 && s.indexOf("1.24.0") < 0 && s.indexOf("1.25.0") < 0 && s.indexOf("1.26.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0 && s.indexOf("1.24.0") < 0 && s.indexOf("1.25.0") < 0 && s.indexOf("1.26.0") < 0 && s.indexOf("1.27.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -581,6 +581,21 @@ if (llm24 !== null && llm24.window.LLM && llm24.window.Prompts) {
   ok("别名 japanese 的提示词用日语禁令（非「严禁任何中文汉字」）", (function () { const b = { name: "x", msgLang: "japanese", stage: 0, messages: [] }; const s = P26.suggest(b); return s.indexOf("text 中严禁出现中文句子") >= 0 && s.indexOf("严禁出现任何中文汉字") < 0; })());
   ok("规范名行为零变化（日本→日语 仍走原闸门）", (function () { const b = { name: "x", country: "日本", stage: 0, messages: [] }; return P26.langOf(b) === "日语" && L26.wrongLang("The price stays the same.", P26.langOf(b)) === true; })());
   /* 粘贴识别别名表补意大利语 → test-fb-parse.js T7 覆盖（异步 parseForm） */
+}
+
+console.log("\n[27] 英语惯性对抗（v1.28.0）：「选西语法语，代写/扩充仍是英语」——提示词首词锚点＋尾部重申（救援通道端到端见 test-rescue.js）");
+if (llm24 !== null && llm24.window.Prompts) {
+  const P27 = llm24.window.Prompts;
+  const bEs = { name: "x", country: "西班牙", msgLang: "西班牙语", stage: 0, messages: [] };
+  const bEn = { name: "x", country: "印度", stage: 0, messages: [] };
+  ok("suggest 西语：尾部重申＋首词锚点 Hola 在", (function () { const s = P27.suggest(bEs); return s.indexOf("【语言硬约束·输出前最后检查】") >= 0 && s.indexOf("「Hola」") >= 0 && s.indexOf("语言硬约束") === s.lastIndexOf("语言硬约束"); })());
+  ok("suggest 英语（parity 保护）：无锚点段", P27.suggest(bEn).indexOf("语言硬约束") < 0);
+  ok("expand 西语：首词锚点 Hola 在", P27.expand(bEs).indexOf("【语言硬约束·输出前最后检查】") >= 0 && P27.expand(bEs).indexOf("「Hola」") >= 0);
+  ok("expand 英语：无锚点段", P27.expand(bEn).indexOf("语言硬约束") < 0);
+  const bFr = { name: "x", country: "法国", stage: 0, messages: [] };
+  ok("法语锚点=Bonjour（langOf 自动取法国→法语）", P27.suggest(bFr).indexOf("「Bonjour」") >= 0);
+  const bJp = { name: "x", country: "日本", stage: 0, messages: [] };
+  ok("日语锚点=こんにちは", P27.suggest(bJp).indexOf("「こんにちは」") >= 0);
 }
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");
