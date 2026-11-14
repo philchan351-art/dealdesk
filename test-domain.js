@@ -398,7 +398,7 @@ const verM = fs.readFileSync(__dirname + "/version.js", "utf8").match(/v:\s*"(\d
 const curV = verM ? verM[1] : "";
 ok("三个入口 HTML 全量当前版本（无旧版残留引用）", curV !== "" && ["index.html", "workbench.html", "fabric/index.html"].every(h => {
   const s = fs.readFileSync(__dirname + "/" + h, "utf8");
-  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0 && s.indexOf("1.24.0") < 0 && s.indexOf("1.25.0") < 0 && s.indexOf("1.26.0") < 0 && s.indexOf("1.27.0") < 0;
+  return s.indexOf("?v=" + curV) >= 0 && s.indexOf("1.14.0") < 0 && s.indexOf("1.15.0") < 0 && s.indexOf("1.16.0") < 0 && s.indexOf("1.17.0") < 0 && s.indexOf("1.18.0") < 0 && s.indexOf("1.19.0") < 0 && s.indexOf("1.20.0") < 0 && s.indexOf("1.21.0") < 0 && s.indexOf("1.22.0") < 0 && s.indexOf("1.23.0") < 0 && s.indexOf("1.24.0") < 0 && s.indexOf("1.25.0") < 0 && s.indexOf("1.26.0") < 0 && s.indexOf("1.27.0") < 0 && s.indexOf("1.28.0") < 0;
 }), curV);
 
 console.log("\n[19] 业务线选择入口（v1.16.0）：先选线，再进工作台");
@@ -596,6 +596,14 @@ if (llm24 !== null && llm24.window.Prompts) {
   ok("法语锚点=Bonjour（langOf 自动取法国→法语）", P27.suggest(bFr).indexOf("「Bonjour」") >= 0);
   const bJp = { name: "x", country: "日本", stage: 0, messages: [] };
   ok("日语锚点=こんにちは", P27.suggest(bJp).indexOf("「こんにちは」") >= 0);
+}
+
+console.log("\n[28] 13 语言矩阵修复锁（v1.28.1）：中文救援守卫＋巴西葡带括号规范名锚点（端到端矩阵见 test-lang-matrix.js）");
+if (llm24 !== null && llm24.window.Prompts) {
+  const P28 = llm24.window.Prompts;
+  ok("巴西葡带括号规范名：锚点回落 Olá、不出废指令", (function () { const s = P28.suggest({ name: "x", msgLang: "葡萄牙语（巴西）", stage: 0, messages: [] }); return s.indexOf("「Olá」") >= 0 && s.indexOf("必须是「葡萄牙语（巴西）」") < 0; })());
+  ok("巴西葡带括号规范名：铁律仍写全名＋巴西特判在", (function () { const s = P28.suggest({ name: "x", msgLang: "葡萄牙语（巴西）", stage: 0, messages: [] }); return s.indexOf("必须全部用葡萄牙语（巴西）书写") >= 0 && s.indexOf("必须是巴西葡语") >= 0; })());
+  /* 中文救援守卫的 E2E（expand 顽固英语→中文救援成功）由 test-lang-matrix.js 中文行 P3 锁定 */
 }
 
 console.log("\n———— " + pass + " passed, " + fail + " failed ————\n");

@@ -769,7 +769,8 @@
               if (!langBad) return;
               resJobs.push(window.LLM.localize(String(it.text || ""), buyer).then(function (rr) {
                 var tr = (rr && rr.text) ? String(rr.text).trim() : "";
-                if (!tr || cjkLeak(tr, lang) || wrongLang(tr, lang)) throw new Error("救援译文未过语言闸门");
+                /* v1.28.1：cjkLeak 必须带 needForeign 守卫——目标中文时 CJK 是期望语言，不带守卫中文救援必失败（全矩阵坐实） */
+                if (!tr || (needForeign && cjkLeak(tr, lang)) || wrongLang(tr, lang)) throw new Error("救援译文未过语言闸门");
                 it.text = tr; it.rescued = true;
                 it.blockReasons = (it.blockReasons || []).filter(function (x) { return !/仍是英语|含中文/.test(String(x)); });
                 it.blocked = it.blockReasons.length > 0; /* 业务红线（F4 postcheck）的 block 保留，只清语言类 */
@@ -928,7 +929,8 @@
                  if (o2.wrongLang) {
                    return window.LLM.localize(String(o2.text), buyer).then(function (rr) {
                      var tr = (rr && rr.text) ? String(rr.text).trim() : "";
-                     if (!tr || cjkLeak(tr, lang) || wrongLang(tr, lang)) throw new Error("救援译文未过语言闸门");
+                     /* v1.28.1：cjkLeak 必须带 needForeign 守卫（同 suggest 救援，中文目标全矩阵坐实） */
+                     if (!tr || (needForeign && cjkLeak(tr, lang)) || wrongLang(tr, lang)) throw new Error("救援译文未过语言闸门");
                      o2.text = tr; o2.rescued = true; o2.wrongLang = "";
                      return o2;
                    }).catch(function () { return o2; });
